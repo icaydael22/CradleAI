@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, Button, ActivityIndicator, StyleSheet } from 'react-native';
 import { Audio } from 'expo-av';
-import { MinimaxTTS } from '../services';
+import { MinimaxTTS } from '@/services/minimax-tts/MinimaxTTS';
 import ENV from '../config/env';
 
 const TextToSpeechExample = () => {

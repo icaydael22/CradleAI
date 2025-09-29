@@ -3,8 +3,8 @@ export * from './types';
 export * from './adapters';
 
 import { unifiedTTSService } from './unified-tts-service';
-import { UnifiedTTSRequest, UnifiedTTSResponse, TTSProvider } from './types';
-
+import { UnifiedTTSRequest, UnifiedTTSResponse,} from './types';
+import { TTSProvider } from '@/shared/types';
 /**
  * Convenience function to synthesize text with the best available provider
  */
@@ -194,12 +194,6 @@ export async function synthesizeWithMinimax(
   });
 }
 
-/**
- * Get available providers
- */
-export function getAvailableProviders(): TTSProvider[] {
-  return unifiedTTSService.getAvailableProviders();
-}
 
 /**
  * Check if a provider is available

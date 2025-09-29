@@ -32,6 +32,9 @@ export class MobileOpenAIEmbedder implements Embedder {
   private retryConfig: RetryConfig;
 
   constructor(config: EmbeddingConfig) {
+    if (!config.apiKey) {
+      throw new Error('API key is required for MobileOpenAIEmbedder');
+    }
     this.apiKey = config.apiKey;
     this.model = config.model || 'text-embedding-3-small';
     this.apiEndpoint = config.url || 'https://api.openai.com/v1/embeddings';
