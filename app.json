@@ -2,7 +2,7 @@
   "expo": {
     "name": "Cradle",
     "slug": "cradle",
-    "version": "1.0.4",
+    "version": "1.0.6",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "cradleapp",
@@ -13,7 +13,15 @@
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "需要访问照片库以导入角色图片",
         "NSPhotoLibraryAddUsageDescription": "需要访问照片库以保存角色图片",
-        "UIFileSharingEnabled": true
+        "UIFileSharingEnabled": true,
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLName": "cradleapp",
+            "CFBundleURLSchemes": [
+              "cradleapp"
+            ]
+          }
+        ]
       }
     },
     "android": {
@@ -30,8 +38,22 @@
         "android.permission.INTERNET"
       ],
       "package": "com.anonymous.cradle",
-      "usesCleartextTraffic": true,
-      "jsEngine": "hermes"
+      "jsEngine": "hermes",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "cradleapp"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -75,7 +97,9 @@
       ],
       "expo-video",
       "expo-sqlite",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-background-task",
+      "expo-audio"
     ],
     "experiments": {
       "typedRoutes": true
@@ -86,6 +110,11 @@
       },
       "eas": {
         "projectId": "af0fdb7a-431d-4f1a-8c55-baa9c9cc0fdb"
+      },
+      "discord": {
+        "DISCORD_CLIENT_ID": "1401442720064737392",
+        "DISCORD_REDIRECT_URI": "https://auth.cradleintro.top/auth/discord/callback",
+        "AUTH_SERVICE_URL": "https://auth.cradleintro.top"
       }
     },
     "owner": "dmc2014"

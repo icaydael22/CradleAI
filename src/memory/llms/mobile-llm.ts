@@ -9,12 +9,13 @@ import { getApiSettings } from '@/utils/settings-helper';
 export class MobileLLM implements LLM {
   private apiKey: string = '';
   private model: string = '';
-  private provider: 'gemini' | 'openrouter' | 'openai-compatible' = 'gemini';
+  private provider: 'gemini' | 'openrouter' | 'openai-compatible' | 'cradlecloud' = 'gemini';
   private llmAdapter: any = null; // 兼容已有适配器
   private apiProvider: string = 'gemini';
   private openrouterConfig: any = {};
   private openaiCompatibleConfig: any = {};
   private openaiCompatibleEndpoint: string = '';
+  private cradlecloudConfig: any = {};
   private pendingInitialization: Promise<void> | null = null;
   private lastConfig: LLMConfig | null = null;
   
@@ -79,6 +80,13 @@ export class MobileLLM implements LLM {
       this.apiKey = mergedConfig.OpenAIcompatible?.apiKey || '';
       this.openaiCompatibleEndpoint = mergedConfig.OpenAIcompatible?.endpoint || '';
       this.openaiCompatibleConfig = mergedConfig.OpenAIcompatible || {};
+    } else if (mergedConfig.apiProvider === 'cradlecloud') {
+      // Cradle Cloud 通过 JWT 鉴权，无需 API Key
+      this.provider = 'cradlecloud';
+      this.apiProvider = 'cradlecloud';
+  // 模型从 settings-helper 中的 CradleCloud 配置读取
+  this.cradlecloudConfig = mergedConfig.cradlecloud || {};
+  this.model = mergedConfig.cradlecloud?.model || this.cradlecloudConfig?.model || 'gemini-2.0-flash-exp';
     } else if (this.apiProvider === 'openrouter') {
       this.model = mergedConfig.openrouter?.model || 'openai/gpt-3.5-turbo';
       this.openrouterConfig = mergedConfig.openrouter || {};
@@ -109,8 +117,10 @@ export class MobileLLM implements LLM {
       console.log('[MobileLLM] API密钥或提供商已变更，重置适配器');
       this.llmAdapter = null;
       
-      // 如果有API密钥，尝试立即初始化适配器
-      if (this.apiKey) {
+      // 初始化适配器：
+      // - 对于 cradlecloud，无需 API Key 也应初始化
+      // - 其他提供商需要有效 API Key
+      if (this.provider === 'cradlecloud' || this.apiKey) {
         this.pendingInitialization = this.initializeAdapter().catch(err => {
           console.warn(`[MobileLLM] 初始化适配器失败: ${err.message}`);
           this.pendingInitialization = null;
@@ -128,7 +138,7 @@ export class MobileLLM implements LLM {
    * 初始化适配器
    */
   private async initializeAdapter(): Promise<void> {
-    if (!this.apiKey) {
+    if (this.provider !== 'cradlecloud' && !this.apiKey) {
       console.warn('[MobileLLM] 无法初始化适配器: API密钥为空');
       return;
     }
@@ -177,6 +187,22 @@ export class MobileLLM implements LLM {
           });
           console.log('[MobileLLM] OpenAIAdapter 异步初始化成功');
         }
+      } else if (initProvider === 'cradlecloud') {
+        try {
+          const { CradleCloudAdapter } = require('@/NodeST/nodest/utils/cradlecloud-adapter');
+          // read cradlecloud config from settings-helper at init time
+          const apiSettings = require('@/utils/settings-helper').getApiSettings();
+          const cfg = (apiSettings && apiSettings.cradlecloud) ? apiSettings.cradlecloud : this.cradlecloudConfig || {};
+          this.llmAdapter = new CradleCloudAdapter(cfg);
+          console.log('[MobileLLM] CradleCloudAdapter 初始化成功');
+        } catch (error) {
+          console.log('[MobileLLM] CradleCloudAdapter 同步初始化失败，尝试异步导入');
+          const { CradleCloudAdapter } = await import('@/NodeST/nodest/utils/cradlecloud-adapter');
+          const apiSettings = (await import('@/utils/settings-helper')).getApiSettings();
+          const cfg = (apiSettings && apiSettings.cradlecloud) ? apiSettings.cradlecloud : this.cradlecloudConfig || {};
+          this.llmAdapter = new CradleCloudAdapter(cfg);
+          console.log('[MobileLLM] CradleCloudAdapter 异步初始化成功');
+        }
       } else {
         try {
           const { GeminiAdapter } = require('@/NodeST/nodest/utils/gemini-adapter');
@@ -206,7 +232,7 @@ export class MobileLLM implements LLM {
     }
     
     // 检查API密钥
-    if (!this.apiKey) {
+    if (this.provider !== 'cradlecloud' && !this.apiKey) {
       // 尝试使用上一个配置中的API密钥
       if (this.lastConfig?.apiKey) {
         console.warn('[MobileLLM] 当前API密钥为空，恢复使用上一个有效密钥');
@@ -266,6 +292,13 @@ export class MobileLLM implements LLM {
           this.openrouterConfig = apiSettings.openrouter;
           return apiSettings.openrouter.apiKey;
           
+        } else if (apiSettings.apiProvider === 'cradlecloud' && apiSettings.cradlecloud?.enabled) {
+          // cradlecloud uses JWT token and does not require an API key
+          this.apiProvider = 'cradlecloud';
+          this.provider = 'cradlecloud';
+          this.cradlecloudConfig = apiSettings.cradlecloud || {};
+          this.model = apiSettings.cradlecloud?.model || this.cradlecloudConfig?.model || 'gemini-2.0-flash-exp';
+          return null;
         } else if (apiSettings.apiKey) {
           this.apiProvider = 'gemini';
           this.provider = 'gemini';
@@ -361,7 +394,7 @@ export class MobileLLM implements LLM {
         role: msg.role === 'assistant' ? 'model' : msg.role,
         parts: [{ text: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content) }]
       }));
-    } else if (this.provider === 'openai-compatible') {
+    } else if (this.provider === 'openai-compatible' || this.provider === 'cradlecloud') {
       // OpenAI 格式
       return messages.map(msg => ({
         role: msg.role,

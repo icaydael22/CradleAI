@@ -4,6 +4,7 @@ import * as FileSystem from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NodeSTManager } from '@/utils/NodeSTManager';
 import { Character } from '@/shared/types';
+import { CharacterStorageService } from '@/services/CharacterStorageService';
 
 // 标记导入状态的 key
 const IMPORTED_FLAG_KEY = 'defaultCharacterImported_v2';
@@ -68,6 +69,19 @@ export async function importDefaultCharactersIfNeeded(
       console.log('[DefaultCharacterImporter] Characters already imported, skipping');
       
       try {
+        // First try to get from CharacterStorageService
+        try {
+          const storageService = CharacterStorageService.getInstance();
+          const defaultChar = await storageService.getCharacter(DEFAULT_CHARACTER_ID);
+          
+          if (defaultChar) {
+            return {imported: false, characterId: defaultChar.id, character: defaultChar};
+          }
+        } catch (storageError) {
+          console.warn('[DefaultCharacterImporter] Error getting default character from storage service:', storageError);
+        }
+        
+        // Fallback to characters.json
         const charactersPath = FileSystem.documentDirectory + 'characters.json';
         const fileInfo = await FileSystem.getInfoAsync(charactersPath);
         
@@ -135,7 +149,6 @@ export async function importDefaultCharactersIfNeeded(
       userMessage: "你好！",
       conversationId: character.id,
       status: "新建角色",
-      apiKey: '',
       character,
     });
     console.log('[DefaultCharacterImporter] NodeST initialized');

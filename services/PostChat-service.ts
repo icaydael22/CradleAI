@@ -3,9 +3,8 @@ import { GeminiAdapter } from '@/NodeST/nodest/utils/gemini-adapter';
 import { OpenRouterAdapter } from '@/NodeST/nodest/utils/openrouter-adapter';
 import { StorageAdapter } from '@/NodeST/nodest/utils/storage-adapter';
 import { DEFAULT_NEGATIVE_PROMPTS, DEFAULT_POSITIVE_PROMPTS } from '@/constants/defaultPrompts';
-import NovelAIService from '@/components/NovelAIService';
+import NovelAIService from '@/services/novelai/NovelAIService';
 import { getApiSettings } from '@/utils/settings-helper';
-import CloudServiceProviderClass from '@/services/cloud-service-provider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { InputImagen } from '@/services/InputImagen';
 import { CharacterLoader } from '@/src/utils/character-loader';
@@ -258,26 +257,6 @@ export class PostChatService {
           console.log(`[PostChatService] 任务已被中止: ${taskId}`);
           this.states.set(characterId, { ...state, isGenerating: false, error: 'Task aborted' });
           return { success: false, error: 'Task aborted' };
-        }
-        
-        // Fallback to CloudServiceProvider
-        try {
-          const cloudResp = await (CloudServiceProviderClass).generateChatCompletionStatic(
-            [
-              { role: 'user', content: `Based on the dialogue, describe the character's current expression, action, and setting (time, place, visuals) in one coherent sentence of no more than 20 words. Exclude appearance, clothing, and names. Use "he/she" to refer to the character. Output the sentence enclosed in curly braces: { }. Dialogue:\n${contextMessages.map(m=>`${m.role}: ${m.content}`).join('\n')}` }
-            ],
-            { max_tokens: 32, temperature: 0.7 }
-          );
-          if (cloudResp && cloudResp.ok) {
-            const data = await cloudResp.json();
-            if (data && data.choices && data.choices[0]?.message?.content) {
-              aiSceneDesc = data.choices[0].message.content.replace(/[\r\n]+/g, ' ').trim();
-              console.log('[PostChatService] CloudServiceProvider生成场景描述:', aiSceneDesc);
-            }
-          }
-        } catch (cloudErr) {
-          aiSceneDesc = '';
-          console.warn('[PostChatService] CloudServiceProvider生成场景描述失败:', cloudErr);
         }
       }
 

@@ -291,11 +291,36 @@ export const parseHtmlToReactNative = (
 
   const renderers = {
     img: ({ tnode }: CustomRendererProps<TBlock>) => {
-      const source = { uri: tnode.attributes.src };
+      // 安全获取 src 属性，处理自定义图片标签格式
+      const srcAttribute = tnode.attributes.src;
+      
+      // 如果没有 src 属性，可能是自定义格式如 <img>美图4：美图4_w0zp07.png</img>
+      if (!srcAttribute) {
+        // 尝试从标签内容获取图片名称（自定义格式处理）
+        const textContent = tnode.children?.map((child: any) => child.data).join('') || '';
+        if (textContent.trim()) {
+          console.log('[HtmlParser] Custom image tag format detected:', textContent);
+          // 返回原始文本内容，不处理为图片（容错处理）
+          return (
+            <Text style={styles.imageError}>
+              {textContent}
+            </Text>
+          );
+        }
+        // 如果既没有 src 也没有内容，返回默认错误显示
+        return (
+          <View style={styles.imageError}>
+            <Ionicons name="alert-circle" size={24} color="#e74c3c" />
+            <Text style={styles.imageErrorText}>无效的图片标签</Text>
+          </View>
+        );
+      }
+      
+      const source = { uri: srcAttribute };
       const alt = tnode.attributes.alt || 'Image';
 
-      if (tnode.attributes.src.startsWith('image:')) {
-        const imageId = tnode.attributes.src.substring(6);
+      if (srcAttribute.startsWith('image:')) {
+        const imageId = srcAttribute.substring(6);
         const imageInfo = ImageManager.getImageInfo(imageId);
 
         if (imageInfo) {
@@ -326,7 +351,7 @@ export const parseHtmlToReactNative = (
       return (
         <View style={styles.imageWrapper}>
           <TouchableOpacity
-            onPress={() => handleImagePress && handleImagePress(tnode.attributes.src)}
+            onPress={() => handleImagePress && handleImagePress(srcAttribute)}
           >
             <Image
               source={source}

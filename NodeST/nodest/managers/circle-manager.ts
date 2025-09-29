@@ -2,21 +2,24 @@ import { Character } from '../../../shared/types';
 import { CircleRFramework, CirclePostOptions, CircleResponse } from '@/shared/types/circle-types';
 import { GeminiAdapter } from '../utils/gemini-adapter';
 import { OpenRouterAdapter } from '../utils/openrouter-adapter';
-import { OpenAIAdapter } from '../utils/openai-adapter'; // 新增导入
+import { OpenAIAdapter } from '../utils/openai-adapter';
+import { CradleCloudAdapter } from '../utils/cradlecloud-adapter';
 import { MessageBoxItem, RelationshipMapData } from '../../../shared/types/relationship-types';
 import { PromptBuilderService, DEntry, RFrameworkEntry } from '../services/prompt-builder-service';
 import CirclePrompts, { defaultScenePrompt, ScenePromptParams } from '@/prompts/circle-prompts';
 import { StorageAdapter } from '../utils/storage-adapter';
-import { getCloudServiceStatus, getApiSettings } from '../../../utils/settings-helper';
-import * as FileSystem from 'expo-file-system'; // Add this import
-import * as ImageManipulator from 'expo-image-manipulator'; // Add this import
+import { getApiSettings } from '../../../utils/settings-helper';
+import * as FileSystem from 'expo-file-system'; 
+import * as ImageManipulator from 'expo-image-manipulator'; 
+import { CharacterStorageService } from '@/services/CharacterStorageService'; 
 
 export { CirclePostOptions, CircleResponse };
 export class CircleManager {
     
     private geminiAdapter: GeminiAdapter | null = null;
     private openRouterAdapter: OpenRouterAdapter | null = null;
-    private openAIAdapter: OpenAIAdapter | null = null; // 新增openai-compatible适配器
+    private openAIAdapter: OpenAIAdapter | null = null; // OpenAI-compatible 适配器
+    private cradleCloudAdapter: CradleCloudAdapter | null = null; // CradleCloud 适配器
     private apiKey?: string;
     private openRouterConfig?: {
         apiKey?: string;
@@ -31,8 +34,6 @@ export class CircleManager {
     private static isProcessing = false;
     private static requestInterval = 2000; // 2 seconds between requests
     private static lastRequestTime = 0;
-    // Add cloud service flag
-    private useCloudService: boolean = false;
     
     constructor(
         apiKey?: string,
@@ -44,15 +45,11 @@ export class CircleManager {
         this.apiKey = apiKey || '';
         this.openRouterConfig = openRouterConfig;
         
-        // Check cloud service status from global settings
-        this.useCloudService = getCloudServiceStatus();
-        
-        console.log(`【CircleManager】创建实例，apiKey存在: ${!!apiKey}, openRouter配置:`, 
+            console.log(`【CircleManager】创建实例，apiKey存在: ${!!apiKey}, openRouter配置:`, 
             openRouterConfig ? {
                 hasKey: !!openRouterConfig.apiKey,
                 model: openRouterConfig.model
-            } : 'none',
-            `云服务状态: ${this.useCloudService ? '启用' : '禁用'}`
+            } : 'none'
         );
         
         // 初始化适配器
@@ -77,6 +74,12 @@ export class CircleManager {
             });
             console.log('【CircleManager】已初始化 OpenAI-compatible 适配器');
         }
+
+        // 检查 CradleCloud 配置
+        if (apiSettings.apiProvider === 'cradlecloud' && apiSettings.cradlecloud?.enabled) {
+            this.cradleCloudAdapter = new CradleCloudAdapter();
+            console.log('【CircleManager】已初始化 CradleCloud 适配器');
+        }
     }
 
     updateApiKey(
@@ -86,14 +89,10 @@ export class CircleManager {
             model?: string;
         }
     ): void {
-        // Check cloud service status from global settings
-        this.useCloudService = getCloudServiceStatus();
-        
         console.log(`【CircleManager】更新API Key和配置`, {
             hasGeminiKey: !!apiKey,
             hasOpenRouterKey: !!openRouterConfig?.apiKey,
-            openRouterModel: openRouterConfig?.model,
-            useCloudService: this.useCloudService
+            openRouterModel: openRouterConfig?.model
         });
         
         this.apiKey = apiKey;
@@ -102,6 +101,7 @@ export class CircleManager {
         this.geminiAdapter = null;
         this.openRouterAdapter = null;
         this.openAIAdapter = null; // 清理openAIAdapter
+        this.cradleCloudAdapter = null; // 清理CradleCloud适配器
         
         // Only update OpenRouter configuration if explicitly provided
         if (openRouterConfig && openRouterConfig.apiKey) {
@@ -129,6 +129,12 @@ export class CircleManager {
                 model: apiSettings.OpenAIcompatible.model || 'gpt-3.5-turbo'
             });
             console.log('【CircleManager】已初始化/更新 OpenAI-compatible 适配器');
+        }
+
+        // 检查 CradleCloud 配置
+        if (apiSettings.apiProvider === 'cradlecloud' && apiSettings.cradlecloud?.enabled) {
+            this.cradleCloudAdapter = new CradleCloudAdapter();
+            console.log('【CircleManager】已初始化/更新 CradleCloud 适配器');
         }
     }
 
@@ -182,16 +188,7 @@ export class CircleManager {
     // 实现真实的API调用
     private async getChatResponse(prompt: string): Promise<string> {
         try {
-            // Check if cloud service is enabled, and handle accordingly
-            if (this.useCloudService) {
-                console.log('【朋友圈】云服务已启用，将使用云端API');
-                // In a real implementation, we would use a cloud service API here
-                // For now, we'll fall back to local adapters
-            }
-            
-            console.log('【朋友圈】发送请求到LLM, 使用适配器:', 
-                this.openRouterAdapter ? 'OpenRouter' : 'Gemini'
-            );
+            console.log('【朋友圈】发送请求到LLM');
             
 
             
@@ -223,13 +220,6 @@ export class CircleManager {
         
         // Get latest settings in case they changed
         const apiSettings = getApiSettings();
-        const currentCloudStatus = getCloudServiceStatus();
-        
-        // Update local status if it changed
-        if (this.useCloudService !== currentCloudStatus) {
-            console.log(`【朋友圈】云服务状态已变更: ${this.useCloudService} -> ${currentCloudStatus}`);
-            this.useCloudService = currentCloudStatus;
-        }
         
         while (CircleManager.requestQueue.length > 0) {
             const now = Date.now();
@@ -297,119 +287,18 @@ export class CircleManager {
                     continue;
                 }
 
-                // Check if cloud service is enabled first
-                if (this.useCloudService) {
-                    console.log('【朋友圈】云服务已启用，尝试使用云端API');
-                    
-                    try {
-                        // Import CloudServiceProvider if not already imported
-                        const { CloudServiceProvider } = require('@/services/cloud-service-provider');
-                        
-                        if (CloudServiceProvider.isEnabled()) {
-                            console.log(`【朋友圈】通过CloudServiceProvider发送请求${containsImage ? '（包含图片内容）' : ''}`);
-                            
-                            if (containsImage) {
-                                // For image content, use the multimodal API
-                                console.log('【朋友圈】检测到图片内容，使用多模态API');
-                                
-                                // This is a placeholder - in a real implementation, we would:
-                                // 1. Extract image URLs or base64 data from the prompt
-                                // 2. Convert local URLs to base64 data if needed
-                                // 3. Format according to the required structure
-                                
-                                // Example of how we should format the image data
-                                const exampleImageData = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD..."; // This should be actual base64 data
-                                
-                                const multimodalMessages = [
-                                    {
-                                        role: "user",
-                                        content: [
-                                            {
-                                                type: "text",
-                                                text: request.prompt
-                                            },
-                                            // Properly formatted image data for the cloud API
-                                            {
-                                                type: "image_url",
-                                                image_url: {
-                                                    url: exampleImageData // base64 data with MIME type
-                                                }
-                                            }
-                                        ]
-                                    }
-                                ];
-                                
-                                const cloudResponse = await CloudServiceProvider.generateMultiModalContent(
-                                    multimodalMessages,
-                                    {
-                                        model: CloudServiceProvider.getMultiModalModel(),
-                                        temperature: 0.7,
-                                        max_tokens: 2048
-                                    }
-                                );
-                                
-                                if (cloudResponse.ok) {
-                                    const result = await cloudResponse.json();
-                                    if (result.choices && result.choices.length > 0) {
-                                        // Extract text content from the response
-                                        let responseContent = result.choices[0].message?.content;
-                                        
-                                        // Handle both string and array format responses
-                                        if (typeof responseContent === 'string') {
-                                            response = responseContent;
-                                        } else if (Array.isArray(responseContent)) {
-                                            // Extract all text parts
-                                            response = responseContent
-                                                .filter((part: any) => part.type === 'text')
-                                                .map((part: any) => part.text)
-                                                .join('\n');
-                                        } else {
-                                            response = "未能获取有效的AI回复";
-                                        }
-                                        
-                                        console.log('【朋友圈】成功从云服务获取多模态响应');
-                                        
-                                        // Update last request time
-                                        CircleManager.lastRequestTime = Date.now();
-                                        
-                                        // Resolve the promise
-                                        request.resolve(response);
-                                        continue; // Continue to next request
-                                    }
-                                }
-                            } else {
-                                // For text-only content, use the chat completion API
-                                const cloudResponse = await CloudServiceProvider.generateChatCompletion(
-                                    [{ role: "user", content: request.prompt }],
-                                    {
-                                        model: CloudServiceProvider.getPreferredModel(),
-                                        temperature: 0.7,
-                                        max_tokens: 2048
-                                    }
-                                );
-                                
-                                if (cloudResponse.ok) {
-                                    const result = await cloudResponse.json();
-                                    if (result.choices && result.choices.length > 0) {
-                                        response = result.choices[0].message?.content || "";
-                                        console.log('【朋友圈】成功从云服务获取响应');
-                                        
-                                        // Update last request time
-                                        CircleManager.lastRequestTime = Date.now();
-                                        
-                                        // Resolve the promise
-                                        request.resolve(response);
-                                        continue; // Continue to next request
-                                    }
-                                }
-                            }
-                            
-                            console.log('【朋友圈】云服务请求失败，尝试使用本地适配器');
-                        }
-                    } catch (cloudError) {
-                        console.error('【朋友圈】云服务请求出错:', cloudError);
-                        console.log('【朋友圈】云服务请求失败，尝试使用本地适配器');
-                    }
+                // 其次判断 CradleCloud
+                if (
+                    apiSettings.apiProvider === 'cradlecloud' &&
+                    this.cradleCloudAdapter
+                ) {
+                    console.log('【朋友圈】使用CradleCloud适配器发送请求');
+                    response = await this.cradleCloudAdapter.chatCompletion([
+                        { role: 'user', content: request.prompt }
+                    ], { stream: false });
+                    CircleManager.lastRequestTime = Date.now();
+                    request.resolve(response);
+                    continue;
                 }
                 
                 // If we reach here, either cloud service is disabled or failed
@@ -420,14 +309,9 @@ export class CircleManager {
                 } else if (this.geminiAdapter) {
                     console.log('【朋友圈】使用Gemini适配器发送请求');
                     response = await this.geminiAdapter.generateContent([message]);
-                } else if (this.useCloudService) {
-                    // If cloud service is enabled but we couldn't use it earlier and no local adapters are available,
-                    // log that cloud service failed and use mock data
-                    console.log('【朋友圈】云服务调用失败且没有配置本地API适配器，使用模拟数据');
-                    response = this.getMockResponse();
                 } else {
                     // No cloud service and no adapters
-                    console.log('【朋友圈】没有启用云服务且无可用的API适配器，使用模拟数据');
+                    console.log('【朋友圈】无可用的API适配器，使用模拟数据');
                     response = this.getMockResponse();
                 }
                 
@@ -565,22 +449,36 @@ export class CircleManager {
         try {
             console.log(`【朋友圈】开始初始化角色 ${character.name} 的朋友圈框架`);
             
-            // 新增：从 characters.json 加载持久化角色数据，优先使用持久化数据
+            // 新增：从 CharacterStorageService 加载持久化角色数据，优先使用持久化数据
             let persistentCharacter: Character | undefined = undefined;
             try {
-                const charactersStr = await FileSystem.readAsStringAsync(
-                    FileSystem.documentDirectory + 'characters.json',
-                    { encoding: FileSystem.EncodingType.UTF8 }
-                ).catch(() => '[]');
-                const allCharacters: Character[] = JSON.parse(charactersStr);
-                persistentCharacter = allCharacters.find(c => c.id === character.id);
+                const storageService = CharacterStorageService.getInstance();
+                const loadedCharacter = await storageService.getCharacter(character.id);
+                persistentCharacter = loadedCharacter || undefined;
                 if (persistentCharacter) {
-                    console.log(`【朋友圈】已从文件系统加载到角色 ${persistentCharacter.name} 的持久化数据`);
+                    console.log(`【朋友圈】已从CharacterStorageService加载到角色 ${persistentCharacter.name} 的持久化数据`);
                 } else {
-                    console.warn(`【朋友圈】文件系统中未找到角色 ${character.id}，将使用传入的character对象`);
+                    console.warn(`【朋友圈】CharacterStorageService中未找到角色 ${character.id}，将使用传入的character对象`);
                 }
-            } catch (fsError) {
-                console.error('【朋友圈】加载 characters.json 失败:', fsError);
+            } catch (storageError) {
+                console.error('【朋友圈】从CharacterStorageService加载失败:', storageError);
+                
+                // 备选方案：从 characters.json 加载
+                try {
+                    const charactersStr = await FileSystem.readAsStringAsync(
+                        FileSystem.documentDirectory + 'characters.json',
+                        { encoding: FileSystem.EncodingType.UTF8 }
+                    ).catch(() => '[]');
+                    const allCharacters: Character[] = JSON.parse(charactersStr);
+                    persistentCharacter = allCharacters.find(c => c.id === character.id);
+                    if (persistentCharacter) {
+                        console.log(`【朋友圈】已从文件系统加载到角色 ${persistentCharacter.name} 的持久化数据`);
+                    } else {
+                        console.warn(`【朋友圈】文件系统中未找到角色 ${character.id}，将使用传入的character对象`);
+                    }
+                } catch (fsError) {
+                    console.error('【朋友圈】加载 characters.json 失败:', fsError);
+                }
             }
             const characterToUse = persistentCharacter || character;
 
@@ -858,107 +756,20 @@ export class CircleManager {
                             }
                         );
                         response = multimodalResult.text || '';
-                    } else if (this.useCloudService) {
-                        try {
-                            // Import CloudServiceProvider if not already imported
-                            const { CloudServiceProvider } = require('@/services/cloud-service-provider');
-                            
-                            if (CloudServiceProvider.isEnabled()) {
-                                console.log('【朋友圈】使用云服务处理图片请求');
-                                
-                                // 准备多模态消息格式
-                                const multimodalMessages = [
-                                    {
-                                        role: "user",
-                                        content: [
-                                            {
-                                                type: "text",
-                                                text: promptText
-                                            },
-                                            {
-                                                type: "image_url",
-                                                image_url: {
-                                                    url: formattedImageData // Use formatted base64 data
-                                                }
-                                            }
-                                        ]
-                                    }
-                                ];
-                                
-                                // 使用云服务的多模态API
-                                const cloudResponse = await CloudServiceProvider.generateMultiModalContent(
-                                    multimodalMessages,
-                                    {
-                                        model: CloudServiceProvider.getMultiModalModel(),
-                                        temperature: 0.7,
-                                        max_tokens: 2048
-                                    }
-                                );
-                                
-                                if (cloudResponse.ok) {
-                                    const result = await cloudResponse.json();
-                                    if (result.choices && result.choices.length > 0) {
-                                        // Extract text content from the response
-                                        let responseContent = result.choices[0].message?.content;
-                                        
-                                        // Handle both string and array format responses
-                                        if (typeof responseContent === 'string') {
-                                            response = responseContent;
-                                        } else if (Array.isArray(responseContent)) {
-                                            // Extract all text parts
-                                            response = responseContent
-                                                .filter((part: any) => part.type === 'text')
-                                                .map((part: any) => part.text)
-                                                .join('\n');
-                                        } else {
-                                            response = "未能获取有效的AI回复";
-                                        }
-                                        
-                                        console.log('【朋友圈】成功从云服务获取多模态响应');
-                                    } else {
-                                        console.error('【朋友圈】云服务响应格式无效');
-                                        throw new Error('云服务返回了无效的响应格式');
-                                    }
-                                } else {
-                                    console.error(`【朋友圈】云服务请求失败: ${cloudResponse.status} ${cloudResponse.statusText}`);
-                                    throw new Error('云服务请求失败');
-                                }
-                            } else {
-                                // 云服务未启用或不可用，尝试本地适配器
-                                if (this.geminiAdapter) {
-                                    // 使用带图像的multimodal请求
-                                    const multimodalResponse = await this.geminiAdapter.generateMultiModalContent(
-                                        promptText,
-                                        {
-                                            images: [imageInput]
-                                        }
-                                    );
-                                    
-                                    response = multimodalResponse.text || '';
-                                } else {
-                                    throw new Error('没有可用的图片处理适配器');
-                                }
+                    } else if (
+                        apiSettings.apiProvider === 'cradlecloud' &&
+                        this.cradleCloudAdapter
+                    ) {
+                        // 使用 CradleCloud 处理图片请求（与 Gemini 相同格式：传 base64 data/mimeType）
+                        const multimodalResult = await this.cradleCloudAdapter.generateMultiModalContent(
+                            promptText,
+                            {
+                                images: [{ data: imageData.data, mimeType: imageData.mimeType }]
                             }
-                        } catch (cloudError) {
-                            console.error('【朋友圈】云服务处理图片请求失败:', cloudError);
-                            
-                            // 如果云服务失败，尝试使用本地适配器
-                            if (this.geminiAdapter) {
-                                console.log('【朋友圈】尝试使用本地Gemini适配器处理图片请求');
-                                const multimodalResponse = await this.geminiAdapter.generateMultiModalContent(
-                                    promptText,
-                                    {
-                                        images: [imageInput]
-                                    }
-                                );
-                                
-                                response = multimodalResponse.text || '';
-                            } else {
-                                throw new Error('没有可用的图片处理适配器');
-                            }
-                        }
+                        );
+                        response = multimodalResult.text || '';
                     } else {
-                        // 云服务未启用，直接使用本地适配器
+                        // 使用本地适配器
                         if (this.geminiAdapter) {
                             // 使用带图像的multimodal请求
                             const multimodalResponse = await this.geminiAdapter.generateMultiModalContent(
@@ -1076,7 +887,8 @@ export class CircleManager {
                         await StorageAdapter.storeMessageExchange(
                             options.responderId,
                             userMessage,
-                            aiResponse
+                            aiResponse,
+                           { isCircleInteraction: true }
                         );
                         console.log(`【朋友圈】已保存用户-角色对话到聊天历史记录`);
                     } catch (storageError) {
@@ -1140,6 +952,19 @@ export class CircleManager {
             }).join('\n');
         }
 
+        // 准备表情包清单
+        let emoticonList: string[] = [];
+        try {
+            const emoDir = `${FileSystem.documentDirectory}character_${options.responderId}/emoticons/`;
+            const emoInfo = await FileSystem.getInfoAsync(emoDir);
+            if (emoInfo.exists) {
+                const files = await FileSystem.readDirectoryAsync(emoDir);
+                emoticonList = files.filter((f: string) => /\.(png|jpg|jpeg|webp|gif)$/i.test(f));
+            }
+        } catch (e) {
+            // ignore
+        }
+
         // 准备场景参数
         const params: ScenePromptParams = {
             contentText,
@@ -1151,7 +976,8 @@ export class CircleManager {
             userIdentification,
             conversationHistory: chatHistory || options.content.conversationHistory,
             characterJsonData: options.content.characterJsonData,
-            allCommentsText // 新增：全部评论内容
+            allCommentsText, // 新增：全部评论内容
+            emoticonList
         };
 
         // 根据互动类型选择合适的提示词模板
@@ -1161,13 +987,26 @@ export class CircleManager {
             case 'continuedConversation': // Add support for continuous conversation
                 scenePrompt = CirclePrompts.continuedConversation(params);
                 break;
+            case 'selfPost':
+                scenePrompt = CirclePrompts.selfPost(params);
+                break;
+            case 'selfPost':
+                // When the responder is the original author of the post, use selfPost template
+                scenePrompt = CirclePrompts.selfPost(params);
+                break;
                 
             case 'forwardedPost':
                 scenePrompt = CirclePrompts.forwardedPost(params);
                 break;
                 
             case 'newPost':
-                scenePrompt = CirclePrompts.createNewPost(params);
+                // 当用户在角色发帖时提供了文字/图片，content.context 会包含"用户提供的提示/图片"等。
+                // 我们约定：如果 options.content.context 中出现 "USER_HINT" 标记，且 hasImages 或 contentText 非空，则使用带参考的提示词
+                if ((params.hasImages || (params.contentText && params.contentText.trim().length > 0)) && (options.content.context?.includes('USER_HINT') || options.content.context?.includes('USER_HINT_WITH_IMAGES'))) {
+                    scenePrompt = CirclePrompts.createNewPostWithHints(params);
+                } else {
+                    scenePrompt = CirclePrompts.createNewPost(params);
+                }
                 break;
                 
                 case 'replyToPost':
@@ -1176,11 +1015,17 @@ export class CircleManager {
                     scenePrompt = CirclePrompts.replyToPostWithImage(params);
                 } else if (isOwnPost) {
                     scenePrompt = CirclePrompts.selfPost(params);
-                } else if (isUserComment && options.content.authorId !== 'user-1') {
-                    // 只有当是用户评论角色帖子时才用 replyToComment
-                    scenePrompt = CirclePrompts.replyToComment(params);
+                } else if (isUserComment) {
+                    // This is a user interaction. If the context indicates it's a reply to a user's post,
+                    // then use replyToPost. Otherwise, it's a reply to a user's comment on the character's own post,
+                    // so use selfPost as requested.
+                    if (options.content.context && (options.content.context.includes('发布的一条朋友圈动态') || options.content.context.includes('发布的带有'))) {
+                        scenePrompt = CirclePrompts.replyToPost(params);
+                    } else {
+                        scenePrompt = CirclePrompts.selfPost(params);
+                    }
                 } else {
-                    // 用户发朋友圈（authorId === 'user-1'）或普通角色发帖
+                    // This is a reply to another character's post.
                     scenePrompt = CirclePrompts.replyToPost(params);
                 }
                     break;
@@ -1235,7 +1080,8 @@ export class CircleManager {
                         like: false, // No like for own post
                         comment: extractedJson.post // Use post content as comment
                     },
-                    emotion: extractedJson.emotion // Preserve emotion data
+                    emotion: extractedJson.emotion, // Preserve emotion data
+                    emoticon: extractedJson.emoticon
                 };
             } else if (extractedJson.thoughts && extractedJson.response) {
                 // 处理selfPost格式 - 包含thoughts和response
@@ -1247,7 +1093,8 @@ export class CircleManager {
                         like: false, // 不能给自己点赞
                         comment: extractedJson.response // 使用response作为评论内容
                     },
-                    emotion: extractedJson.emotion
+                    emotion: extractedJson.emotion,
+                    emoticon: extractedJson.emoticon
                 };
             } else if (extractedJson.action) {
                 // 处理标准的互动响应格式
@@ -1258,7 +1105,8 @@ export class CircleManager {
                         like: Boolean(extractedJson.action.like),
                         comment: extractedJson.action.comment
                     },
-                    emotion: extractedJson.emotion
+                    emotion: extractedJson.emotion,
+                    emoticon: extractedJson.emoticon
                 };
             } else if (extractedJson.reflection) {
                 // 处理反思格式
@@ -1269,7 +1117,8 @@ export class CircleManager {
                         like: false, // Can't like own post
                         comment: extractedJson.reflection // Use reflection as comment
                     },
-                    emotion: extractedJson.emotion
+                    emotion: extractedJson.emotion,
+                    emoticon: extractedJson.emoticon
                 };
             }
             
@@ -1288,7 +1137,8 @@ export class CircleManager {
                     action: {
                         like: Boolean(extractedJson.like || false),
                         comment: typeof possibleComment === 'string' ? possibleComment : undefined
-                    }
+                    },
+                    emoticon: extractedJson.emoticon
                 };
             }
 
@@ -1645,7 +1495,29 @@ user789-+10-friend
                 }
             }
             
-            // If it's a remote URL or local file path
+            // 新增：本地文件(file://)直接从文件系统读取为Base64
+            if (imageUrl.startsWith('file://')) {
+                try {
+                    const base64Data = await FileSystem.readAsStringAsync(imageUrl, { encoding: FileSystem.EncodingType.Base64 });
+                    // 依据扩展名简单推断mime
+                    const lower = imageUrl.toLowerCase();
+                    const mimeType = lower.endsWith('.png') ? 'image/png' : lower.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
+                    // 如过大尝试压缩
+                    if (base64Data.length > 400000) {
+                        const manipResult = await ImageManipulator.manipulateAsync(
+                            imageUrl,
+                            [{ resize: { width: 1024 } }],
+                            { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+                        );
+                        return { data: manipResult.base64 || base64Data, mimeType: 'image/jpeg' };
+                    }
+                    return { data: base64Data, mimeType };
+                } catch (fsErr) {
+                    console.warn('【CircleManager】读取本地图片失败，回退到fetch:', fsErr);
+                }
+            }
+
+            // If it's a remote URL
             const response = await fetch(imageUrl);
             
             if (!response.ok) {

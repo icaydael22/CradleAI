@@ -2,7 +2,7 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {   
     "strict": true,
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "esModuleInterop": true,
     "allowImportingTsExtensions": true,
     "noEmit": true,
@@ -11,9 +11,9 @@
         "./*"
       ]
     },
-    "target": "es2018",
-    "module": "commonjs",
-    "lib": ["es2017"],
+  "target": "es2020",
+  "module": "esnext",
+  "lib": ["es2020", "dom"],
     "rootDir": ".",
     "outDir": "dist",
     "allowSyntheticDefaultImports": true,

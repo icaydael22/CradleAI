@@ -3,6 +3,9 @@ import { unifiedGenerateContent } from '@/services/unified-api';
 import { getApiSettings } from '@/utils/settings-helper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StorageAdapter } from '@/NodeST/nodest/utils/storage-adapter';
+import { initBackgroundTasks } from '@/services/background-tasks';
+
+const AUTO_STATE_KEY = 'auto_message_state';
 
 const STORAGE_KEY = 'auto_message_prompt_config';
 
@@ -54,6 +57,8 @@ class AutoMessageService {
     this.clearAutoMessage(characterId);
     
     if (!enabled || !character.autoMessage) {
+      // Refresh background registration since this might disable the last auto task
+      initBackgroundTasks().catch(() => {});
       return;
     }
 
@@ -63,6 +68,11 @@ class AutoMessageService {
     // Initialize state
     this.lastMessageTimes.set(characterId, Date.now());
     this.waitingForUserReply.set(characterId, false);
+    // Initialize baseline for background scheduler (use conversationId if available)
+    const idKey = config.conversationId || characterId;
+    this.updateAutoState(idKey, Date.now()).catch(() => {});
+    // Ensure background worker is registered if needed
+    initBackgroundTasks().catch(() => {});
     
     // Start timer
     this.startTimer(characterId);
@@ -81,6 +91,15 @@ class AutoMessageService {
     this.configs.delete(characterId);
     this.lastMessageTimes.delete(characterId);
     this.waitingForUserReply.delete(characterId);
+    // Remove baseline state for this character (best-effort remove both keys)
+    this.removeAutoState(characterId).catch(() => {});
+    // If we have the config, also try removing conversationId key
+    const cfg = this.configs.get(characterId);
+    if (cfg?.conversationId) {
+      this.removeAutoState(cfg.conversationId).catch(() => {});
+    }
+    // Refresh background registration
+    initBackgroundTasks().catch(() => {});
   }
 
   /**
@@ -169,10 +188,16 @@ class AutoMessageService {
 
     try {
       // 读取保存的自动消息提示词配置
-      const savedConfig = await this.loadAutoMessageConfig();
+      let savedConfig = await this.loadAutoMessageConfig();
       if (!savedConfig || !savedConfig.messageArray || savedConfig.messageArray.length === 0) {
-        console.warn(`[AutoMessageService] [${characterId}] 未找到保存的自动消息提示词配置，自动消息未发送`);
-        return;
+        console.warn(`[AutoMessageService] [${characterId}] 未找到保存的自动消息提示词配置，尝试使用默认配置`);
+        try {
+          const { defaultAutoMessagePromptConfig } = require('@/constants/utilDefaults');
+          savedConfig = defaultAutoMessagePromptConfig as any;
+        } catch {}
+        if (!savedConfig || !savedConfig.messageArray || savedConfig.messageArray.length === 0) {
+          return;
+        }
       }
 
       // 获取适配器类型和API设置
@@ -262,6 +287,8 @@ class AutoMessageService {
 
         this.lastMessageTimes.set(characterId, Date.now());
         this.waitingForUserReply.set(characterId, true);
+        // Update baseline for background scheduler (use conversationId)
+        await this.updateAutoState(conversationId, Date.now());
 
         if (character.notificationEnabled === true) {
           onUnreadCountUpdate(1);
@@ -290,6 +317,11 @@ class AutoMessageService {
     } catch (e) {
       console.error('[AutoMessageService] 加载自动消息配置失败:', e);
     }
+    // Fallback to UtilSettings defaults when never saved
+    try {
+      const { defaultAutoMessagePromptConfig } = require('@/constants/utilDefaults');
+      return defaultAutoMessagePromptConfig as AutoMessagePromptConfig;
+    } catch {}
     return null;
   }
 
@@ -335,6 +367,27 @@ class AutoMessageService {
     this.configs.clear();
     this.lastMessageTimes.clear();
     this.waitingForUserReply.clear();
+  }
+
+  // === Persistent baseline helpers for background scheduler ===
+  private async updateAutoState(idKey: string, lastSentAt: number): Promise<void> {
+    try {
+      const raw = await AsyncStorage.getItem(AUTO_STATE_KEY);
+      const state = raw ? JSON.parse(raw) : {};
+      state[idKey] = { lastSentAt };
+      await AsyncStorage.setItem(AUTO_STATE_KEY, JSON.stringify(state));
+    } catch {}
+  }
+
+  private async removeAutoState(idKey: string): Promise<void> {
+    try {
+      const raw = await AsyncStorage.getItem(AUTO_STATE_KEY);
+      const state = raw ? JSON.parse(raw) : {};
+      if (state && state[idKey]) {
+        delete state[idKey];
+        await AsyncStorage.setItem(AUTO_STATE_KEY, JSON.stringify(state));
+      }
+    } catch {}
   }
 }
 

@@ -8,7 +8,7 @@ import {
   FlatList
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Audio } from 'expo-av';
+import { createAudioPlayer } from 'expo-audio';
 import { theme } from '@/constants/theme';
 
 interface VoiceSelectorProps {
@@ -32,7 +32,7 @@ const VoiceSelector: React.FC<VoiceSelectorProps> = ({
   onSelectTemplate 
 }) => {
   const [templates, setTemplates] = useState<VoiceTemplate[]>([]);
-  const [sound, setSound] = useState<Audio.Sound | null>(null);
+  const [sound, setSound] = useState<ReturnType<typeof createAudioPlayer> | null>(null);
   const [playingTemplateId, setPlayingTemplateId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -40,8 +40,9 @@ const VoiceSelector: React.FC<VoiceSelectorProps> = ({
   useEffect(() => {
     return sound
       ? () => {
-          console.log('Unloading Sound');
-          sound.unloadAsync();
+          try {
+            sound.release();
+          } catch {}
         }
       : undefined;
   }, [sound]);
@@ -81,8 +82,7 @@ const VoiceSelector: React.FC<VoiceSelectorProps> = ({
   const playSound = async (templateId: string) => {
     // Stop currently playing sound
     if (sound) {
-      await sound.stopAsync();
-      await sound.unloadAsync();
+      try { sound.release(); } catch {}
       setSound(null);
     }
     
@@ -128,20 +128,14 @@ const VoiceSelector: React.FC<VoiceSelectorProps> = ({
         return;
       }
       
-      // Load and play sound using the direct asset reference
-      const { sound: newSound } = await Audio.Sound.createAsync(
-        audioSource,
-        { shouldPlay: true }
-      );
-      
-      setSound(newSound);
-      
-      // When sound finishes playing
-      newSound.setOnPlaybackStatusUpdate(status => {
-        if (status.isLoaded && status.didJustFinish) {
-          setPlayingTemplateId(null);
-        }
-      });
+  // Load and play sound using expo-audio player
+  const player = createAudioPlayer(audioSource);
+  setSound(player);
+  // For expo-audio, call play() and optionally reset position for replays
+  try { player.seekTo?.(0); } catch {}
+  player.play();
+  // Best-effort: clear playing state after a short delay
+  setTimeout(() => setPlayingTemplateId(null), 5000);
     } catch (error) {
       console.error('Error playing sound:', error);
       setPlayingTemplateId(null);

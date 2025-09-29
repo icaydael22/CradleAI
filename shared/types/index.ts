@@ -1,4 +1,5 @@
 import { CirclePost } from '@/shared/types/circle-types';
+export * from '@/shared/types/script-types';
 export interface OpenRouterModel {
   id: string;
   name: string;

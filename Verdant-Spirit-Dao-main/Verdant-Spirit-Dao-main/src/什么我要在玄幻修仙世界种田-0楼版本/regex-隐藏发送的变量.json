@@ -1,0 +1,18 @@
+{
+    "id": "9707cc15-5656-4ee6-8ee4-8438572ce2d5",
+    "scriptName": "隐藏发送的变量",
+    "findRegex": "/<Variables>[\\s\\S]*?<\\/Variables>/g",
+    "replaceString": "",
+    "trimStrings": [],
+    "placement": [
+        1,
+        2
+    ],
+    "disabled": false,
+    "markdownOnly": true,
+    "promptOnly": false,
+    "runOnEdit": true,
+    "substituteRegex": 0,
+    "minDepth": null,
+    "maxDepth": null
+}

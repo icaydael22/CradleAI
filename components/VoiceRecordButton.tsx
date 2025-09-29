@@ -30,7 +30,7 @@ const VoiceRecordButton: React.FC<VoiceRecordButtonProps> = ({
   const [duration, setDuration] = useState(0);
   const rippleAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<number | null>(null);
   const progressAnim = useRef(new Animated.Value(0)).current;
 
   // Start the pulse animation

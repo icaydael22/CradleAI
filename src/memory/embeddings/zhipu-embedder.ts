@@ -10,7 +10,7 @@ export class ZhipuEmbedder implements Embedder {
   private endpoint: string;
   private initialized: boolean = false;
   private retryCount: number = 3;
-  private dimensions: number = 1024;
+  private dimensions: number = 3072;
   private fallbackVector: number[] | null = null;
 
   constructor(config: { apiKey?: string; model?: string; url?: string; dimensions?: number }) {
@@ -19,7 +19,7 @@ export class ZhipuEmbedder implements Embedder {
     this.apiKey = apiSettings.zhipuApiKey || config.apiKey || '';
     this.model = config.model || 'embedding-3';
     this.endpoint = config.url || 'https://open.bigmodel.cn/api/paas/v4/embeddings';
-    this.dimensions = config.dimensions || 1024;
+    this.dimensions = config.dimensions || 3072;
 
     if (!this.apiKey) {
       console.warn('[ZhipuEmbedder] 初始化时未提供API密钥，需要后续设置');

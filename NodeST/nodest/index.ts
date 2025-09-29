@@ -27,19 +27,12 @@ export interface ProcessChatRequest {
     userMessage: string;
     conversationId: string;
     status: "更新人设" | "新建角色" | "同一角色继续对话";
-    apiKey: string;
-    apiSettings?: Partial<GlobalSettings['chat']>; // 修改为 Partial
     jsonString?: string;
     isCradleGeneration?: boolean; 
     characterId?: string;
     customUserName?: string;
     useToolCalls?: boolean;
-    geminiOptions?: {
-        geminiPrimaryModel?: string;
-        geminiBackupModel?: string;
-        retryDelay?: number;
-    };
-    onStream?: (delta: string) => void; // 新增
+    onStream?: (delta: string) => void;
 }
 
 // 新增：请求日志接口
@@ -151,42 +144,29 @@ export class NodeST {
         }
     }
 
-    private getCoreInstance(
-        apiKey: string = "",
-        apiSettings?: Partial<GlobalSettings['chat']>, // 修改为 Partial
-        geminiOptions?: {
-            geminiPrimaryModel?: string;
-            geminiBackupModel?: string;
-            retryDelay?: number;
-        }
-    ): NodeSTCore {
-        // 确保使用最新的API Key - could be empty string
-        const effectiveApiKey = this.apiKey || apiKey;
-        
+    private getCoreInstance(): NodeSTCore {
         // 使用核心 API 设置初始化或更新 NodeSTCore
         if (!this.nodeSTCore) {
-            console.log("[NodeST] Creating new NodeSTCore instance with API settings:", {
-                provider: apiSettings?.apiProvider || 'gemini',
-                hasOpenRouter: !!apiSettings?.openrouter,
-                useGeminiModelLoadBalancing: apiSettings?.useGeminiModelLoadBalancing,
-                useGeminiKeyRotation: apiSettings?.useGeminiKeyRotation,
-                additionalKeysCount: apiSettings?.additionalGeminiKeys?.length,
-                apiKeyLength: effectiveApiKey?.length || 0,
-                usingCloudFallback: !effectiveApiKey
-            });
-            this.nodeSTCore = new NodeSTCore(effectiveApiKey, apiSettings, geminiOptions);
+            console.log("[NodeST] Creating new NodeSTCore instance");
+            this.nodeSTCore = new NodeSTCore(this.apiKey || "");
         } else {
-            console.log("[NodeST] Updating existing NodeSTCore with API settings:", {
-                provider: apiSettings?.apiProvider || 'gemini',
-                hasOpenRouter: !!apiSettings?.openrouter,
-                useGeminiModelLoadBalancing: apiSettings?.useGeminiModelLoadBalancing,
-                useGeminiKeyRotation: apiSettings?.useGeminiKeyRotation,
-                usingCloudFallback: !effectiveApiKey
-            });
-            this.nodeSTCore.updateApiSettings(effectiveApiKey, apiSettings, geminiOptions);
+            // 更新现有实例的API Key
+            this.nodeSTCore.updateApiKey(this.apiKey || "");
         }
         
         return this.nodeSTCore;
+    }
+
+    // 新增：对外暴露缓存失效方法，确保读取最新的角色数据
+    public invalidateCache(conversationId: string): void {
+        try {
+            const core = this.getCoreInstance();
+            // NodeSTCore 已实现 invalidateCache
+            (core as any).invalidateCache?.(conversationId);
+            console.log(`[NodeST] Cache invalidated for conversation: ${conversationId}`);
+        } catch (e) {
+            console.warn('[NodeST] Failed to invalidate cache:', e);
+        }
     }
 
     async processChatMessage(params: ProcessChatRequest): Promise<ProcessChatResponse> {
@@ -206,8 +186,8 @@ export class NodeST {
             // });
 
             // Note: We pass the API key even if it's empty
-            // 获取 NodeSTCore 实例，并传递 API 设置和 geminiOptions
-            const core = this.getCoreInstance(params.apiKey || "", params.apiSettings, params.geminiOptions);
+            // 获取 NodeSTCore 实例
+            const core = this.getCoreInstance();
 
             if (params.status === "新建角色") {
                 if (!params.jsonString) {
@@ -219,17 +199,6 @@ export class NodeST {
                     console.log("[NodeST] 解析角色JSON数据...");
                     const characterData = this.parseCharacterJson(params.jsonString);
                     
-                    // 验证所有必要的数据都存在
-                    // console.log("[NodeST] 验证角色数据完整性:", {
-                    //     hasRoleCard: !!characterData.roleCard,
-                    //     hasWorldBook: !!characterData.worldBook,
-                    //     hasPreset: !!characterData.preset,
-                    //     roleCardName: characterData.roleCard?.name,
-                    //     worldBookEntries: Object.keys(characterData.worldBook?.entries || {}).length,
-                    //     hasChatHistory: !!characterData.chatHistory,
-                    //     chatHistoryMessagesCount: characterData.chatHistory?.parts.length || 0,
-                    //     isCradleGeneration: params.isCradleGeneration || false
-                    // });
                     
                     // 创建新角色
                     console.log("[NodeST] 开始创建新角色...");
@@ -286,25 +255,14 @@ export class NodeST {
                 };
             }
             else if (params.status === "同一角色继续对话") {
-                // 确认OpenAIcompatible参数已传递
-                if (
-                    params.apiSettings?.apiProvider === 'openai-compatible' &&
-                    params.apiSettings?.OpenAIcompatible?.enabled
-                ) {
-                    console.log('[NodeST] OpenAIcompatible参数:', {
-                        endpoint: params.apiSettings.OpenAIcompatible.endpoint,
-                        model: params.apiSettings.OpenAIcompatible.model,
-                        apiKey: params.apiSettings.OpenAIcompatible.apiKey
-                    });
-                }
                 const response = await core.continueChat(
                     params.conversationId,
                     params.userMessage,
-                    params.apiKey || "", // Pass empty string if not provided
-                    params.characterId,
+                    "", // API key will be read from settings by core
+                    params.characterId || "", // Provide default empty string
                     params.customUserName,
                     params.useToolCalls,
-                    params.onStream // 新增，透传onStream
+                    params.onStream
                 );
 
                 if (response) {
@@ -359,9 +317,9 @@ export class NodeST {
                 // 创建基础数据
                 const safeRoleCard = data.roleCard || {
                     name: "未命名角色",
-                    first_mes: "你好，很高兴认识你！",
-                    description: "这是一个角色",
-                    personality: "友好",
+                    first_mes: "！",
+                    description: "",
+                    personality: "",
                     scenario: "",
                     mes_example: ""
                 };
@@ -370,7 +328,7 @@ export class NodeST {
                     entries: {
                         "Alist": {
                             "comment": "Character Attributes List",
-                            "content": `<attributes>\n  <personality>友好、随和</personality>\n  <appearance>未指定</appearance>\n  <likes>聊天</likes>\n  <dislikes>未指定</dislikes>\n</attributes>`,
+                            "content": `<attributes>\n  <personality></personality>\n  <appearance></appearance>\n  <likes></likes>\n  <dislikes></dislikes>\n</attributes>`,
                             "disable": false,
                             "position": 4,
                             "constant": true,
@@ -799,8 +757,15 @@ export class NodeST {
                 this.nodeSTCore = new NodeSTCore(this.apiKey || "");
             }
 
+            // 重置前，先失效缓存，避免读取到旧的 roleCard/历史
+            this.invalidateCache(conversationId);
+
             console.log(`【NodeST】重置对话历史: ${conversationId}`);
-            return await this.nodeSTCore.resetChatHistory(conversationId);
+            const ok = await this.nodeSTCore.resetChatHistory(conversationId);
+
+            // 重置后再次失效缓存，确保后续读取是最新数据
+            this.invalidateCache(conversationId);
+            return ok;
         } catch (error) {
             console.error('[NodeST] Error resetting chat history:', error);
             return false;
@@ -911,17 +876,14 @@ export class NodeST {
     async processMemorySummaryNow(params: {
         conversationId: string;
         characterId: string;
-        apiKey: string;
-        apiSettings?: Partial<GlobalSettings['chat']>;
     }): Promise<{ success: boolean; error?: string }> {
         try {
             // 获取核心实例
-            const core = this.getCoreInstance(params.apiKey, params.apiSettings);
+            const core = this.getCoreInstance();
             const ok = await core.summarizeMemoryNow(
                 params.conversationId,
                 params.characterId,
-                params.apiKey,
-                params.apiSettings
+                this.apiKey || ""
             );
             return ok ? { success: true } : { success: false, error: '记忆总结失败' };
         } catch (error) {

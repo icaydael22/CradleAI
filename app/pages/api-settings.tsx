@@ -20,31 +20,28 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useUser } from '@/constants/UserContext';
-import { ApiServiceProvider } from '@/services/api-service-provider';
 import ModelSelector from '@/components/settings/ModelSelector';
-import { GlobalSettings, CloudServiceConfig, OpenAICompatibleProviderConfig } from '@/shared/types';
+import { GlobalSettings, OpenAICompatibleProviderConfig } from '@/shared/types';
 import { theme } from '@/constants/theme';
-import { licenseService, LicenseInfo } from '@/services/license-service';
+
 import { DeviceUtils } from '@/utils/device-utils';
-import { CloudServiceProvider } from '@/services/cloud-service-provider';
+
 import { updateCloudServiceStatus } from '@/utils/settings-helper';
 import { mcpAdapter } from '@/NodeST/nodest/utils/mcp-adapter';
-import { NovelAIService } from '@/components/NovelAIService';
+import { NovelAIService } from '@/services/novelai/NovelAIService';
 import { v4 as uuidv4 } from 'uuid'; // For unique ids
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { getTTSSettingsAsync, updateTTSSettings, getTTSSettings } from '@/utils/settings-helper';
-import { Audio } from 'expo-av'; // 新增
+import { createAudioPlayer } from 'expo-audio'; // 使用 expo-audio 播放
 import { MinimaxTTS } from '@/services/minimax-tts/MinimaxTTS'; // 新增
 import { synthesizeWithCosyVoice } from '@/services/unified-tts'; // 新增
 import { GeminiAdapter } from '@/NodeST/nodest/utils/gemini-adapter';
 import { OpenRouterAdapter } from '@/utils/openrouter-adapter';
+import { GEMINI_TTS_VOICES } from '@/app/data/ttsVoices'; // 新增
+import { CradleCloudTtsAdapter } from '@/services/unified-tts/adapters/cradleCloudTtsAdapter'; // 新增
 
 const screenWidth = Dimensions.get('window').width;
-const TTS_PROVIDERS = [
-  { key: 'doubao', label: '豆包 TTS' },
-  { key: 'minimax', label: 'Minimax TTS' },
-  { key: 'cosyvoice', label: 'CosyVoice TTS' }, // 新增
-];
 
 const ApiSettings = () => {
   const router = useRouter();
@@ -52,7 +49,7 @@ const ApiSettings = () => {
   const [isTesting, setIsTesting] = useState(false);
   const [showProviderDropdown, setShowProviderDropdown] = useState(false);
   // 新增：TTS provider 下拉选择
-  const [ttsProvider, setTtsProvider] = useState<'doubao' | 'minimax' | 'cosyvoice'>(
+  const [ttsProvider, setTtsProvider] = useState<'doubao' | 'minimax' | 'cosyvoice' | 'cradlecloud' | 'gemini'>(
     user?.settings?.tts?.provider || 'doubao'
   );
 
@@ -72,8 +69,20 @@ const ApiSettings = () => {
   const [cosyvoiceApiToken, setCosyvoiceApiToken] = useState(user?.settings?.tts?.minimaxApiToken || '');
   const [cosyvoiceModel, setCosyvoiceModel] = useState('chenxwh/cosyvoice2-0.5b:669b1cd618f2747d2237350e868f5c313f3b548fc803ca4e57adfaba778b042d');
   const [isTestingCosyvoice, setIsTestingCosyvoice] = useState(false);
+  
+  // CradleCloud TTS参数
+  const [cradleCloudTtsVoice, setCradleCloudTtsVoice] = useState(user?.settings?.tts?.cradleCloudVoice || 'Zephyr');
+  const [isTestingCradleCloudTts, setIsTestingCradleCloudTts] = useState(false);
+  const [showCradleCloudVoiceDropdown, setShowCradleCloudVoiceDropdown] = useState(false);
+  
   // 新增：TTS provider 下拉选择状态
   const [showTTSProviderDropdown, setShowTTSProviderDropdown] = useState(false);
+
+  // 新增：嵌入服务提供方选择
+  const [embeddingProvider, setEmbeddingProvider] = useState<'zhipu' | 'cradlecloud'>(
+    user?.settings?.chat?.useZhipuEmbedding ? 'zhipu' : 'cradlecloud'
+  );
+  const [showEmbeddingProviderDropdown, setShowEmbeddingProviderDropdown] = useState(false);
 
   // TTS provider 下拉显示名
   const getTTSProviderDisplayName = (type: string): string => {
@@ -81,15 +90,32 @@ const ApiSettings = () => {
       case 'doubao': return '豆包 TTS';
       case 'minimax': return 'Minimax TTS';
       case 'cosyvoice': return 'CosyVoice TTS';
+      case 'cradlecloud': return 'CradleCloud TTS';
       default: return 'Unknown';
     }
   };
 
   // TTS provider 切换
-  const handleTTSProviderTypeChange = (type: 'doubao' | 'minimax' | 'cosyvoice') => {
+  const handleTTSProviderTypeChange = (type: 'doubao' | 'minimax' | 'cosyvoice' | 'cradlecloud') => {
     setTtsProvider(type);
     setShowTTSProviderDropdown(false);
   };
+
+  // 嵌入服务提供方显示名称
+  const getEmbeddingProviderDisplayName = (type: string): string => {
+    switch (type) {
+      case 'zhipu': return '智谱清言嵌入';
+      case 'cradlecloud': return 'CradleCloud 嵌入';
+      default: return 'Unknown';
+    }
+  };
+
+  // 嵌入服务提供方切换
+  const handleEmbeddingProviderTypeChange = (type: 'zhipu' | 'cradlecloud') => {
+    setEmbeddingProvider(type);
+    setShowEmbeddingProviderDropdown(false);
+  };
+
   // 进入页面时从全局/本地存储异步加载TTS设置，优先使用user.settings中的值
   useEffect(() => {
     const loadTTSSettings = async () => {
@@ -117,6 +143,10 @@ const ApiSettings = () => {
           setTtsEnabled(!!ttsSettings.enabled);
           setCosyvoiceApiToken(ttsSettings.minimaxApiToken || '');
           setCosyvoiceModel(ttsSettings.cosyvoiceReplicateModel || 'chenxwh/cosyvoice2-0.5b:669b1cd618f2747d2237350e868f5c313f3b548fc803ca4e57adfaba778b042d');
+        } else if (ttsSettings.provider === 'cradlecloud') {
+          setTtsProvider('cradlecloud');
+          setTtsEnabled(!!ttsSettings.enabled);
+          setCradleCloudTtsVoice(ttsSettings.cradleCloudVoice || 'Zephyr');
         } else {
           setTtsProvider('doubao');
           setTtsEnabled(!!ttsSettings.enabled);
@@ -132,6 +162,21 @@ const ApiSettings = () => {
 
     loadTTSSettings();
   }, [user?.settings?.tts]);
+
+  // 检查本地是否有保存的 JWT token
+  useEffect(() => {
+    const checkLocalJwtToken = async () => {
+      try {
+        const localToken = await AsyncStorage.getItem('auth_token');
+        setHasLocalJwtToken(!!(localToken && localToken.trim()));
+      } catch (error) {
+        console.error('检查本地 JWT token 失败:', error);
+        setHasLocalJwtToken(false);
+      }
+    };
+
+    checkLocalJwtToken();
+  }, []);
 
   // 豆包TTS测试方法（修正createTTSService导入方式）
   const testdoubaoTtsConnection = async () => {
@@ -190,12 +235,14 @@ const ApiSettings = () => {
     }
   };
   // 互斥逻辑：只允许一个 provider 被启用
-  const [providerType, setProviderType] = useState<'gemini' | 'openrouter' | 'openai-compatible'>(
+  const [providerType, setProviderType] = useState<'gemini' | 'openrouter' | 'openai-compatible' | 'cradlecloud'>(
     user?.settings?.chat?.apiProvider === 'openrouter'
       ? 'openrouter'
       : user?.settings?.chat?.OpenAIcompatible?.enabled
         ? 'openai-compatible'
-        : 'gemini'
+        : user?.settings?.chat?.cradlecloud?.enabled
+          ? 'cradlecloud'
+          : 'gemini'
   );
 
   useEffect(() => {
@@ -203,13 +250,13 @@ const ApiSettings = () => {
     setNewProviderEnabled(providerType === 'openai-compatible');
   }, [providerType]);
 
-  const handleProviderTypeChange = (type: 'gemini' | 'openrouter' | 'openai-compatible') => {
+  const handleProviderTypeChange = (type: 'gemini' | 'openrouter' | 'openai-compatible' | 'cradlecloud') => {
     setProviderType(type);
     setShowProviderDropdown(false);
 
     // 强制同步 provider 相关状态，避免切换后残留旧 provider 的配置
     if (type === 'gemini') {
-      // 重置 openrouter/openai-compatible 状态
+      // 重置 openrouter/openai-compatible/cradlecloud 状态
       setOpenRouterEnabled(false);
       setNewProviderEnabled(false);
     } else if (type === 'openrouter') {
@@ -218,6 +265,9 @@ const ApiSettings = () => {
     } else if (type === 'openai-compatible') {
       setOpenRouterEnabled(false);
       setNewProviderEnabled(true);
+    } else if (type === 'cradlecloud') {
+      setOpenRouterEnabled(false);
+      setNewProviderEnabled(false);
     }
   };
 
@@ -226,6 +276,7 @@ const ApiSettings = () => {
       case 'gemini': return 'Gemini';
       case 'openrouter': return 'OpenRouter';
       case 'openai-compatible': return 'OpenAI兼容';
+      case 'cradlecloud': return 'CradleCloud';
       default: return 'Unknown';
     }
   };
@@ -297,10 +348,7 @@ const ApiSettings = () => {
     user?.settings?.chat?.openrouter?.useBackupModels || false
   );
 
-  // Zhipu embedding settings
-  const [useZhipuEmbedding, setUseZhipuEmbedding] = useState(
-    user?.settings?.chat?.useZhipuEmbedding || false
-  );
+  // Zhipu embedding settings (now controlled by embeddingProvider)
   const [zhipuApiKey, setZhipuApiKey] = useState(
     user?.settings?.chat?.zhipuApiKey && user?.settings?.chat?.zhipuApiKey !== '123'
       ? user.settings.chat.zhipuApiKey
@@ -367,7 +415,7 @@ const ApiSettings = () => {
   const [useActivationCode, setUseActivationCode] = useState(false);
   const [activationCode, setActivationCode] = useState('');
   const [isActivating, setIsActivating] = useState(false);
-  const [licenseInfo, setLicenseInfo] = useState<LicenseInfo | null>(null);
+
 
   // Cloud service state
   const [useCloudService, setUseCloudService] = useState(
@@ -405,7 +453,7 @@ const ApiSettings = () => {
             endpoint: user?.settings?.chat?.OpenAIcompatible?.endpoint || '',
             stream: false,
             temperature: 0.7,
-            max_tokens: 8192,
+            max_tokens: 32000,
           },
         ]
   );
@@ -419,6 +467,43 @@ const ApiSettings = () => {
 
   // 当前选中的provider对象
   const currentOpenAIProvider = openAIProviders.find(p => p.id === selectedProviderId) || openAIProviders[0];
+
+  // CradleCloud settings
+  const [cradleCloudEnabled, setCradleCloudEnabled] = useState(
+    user?.settings?.chat?.apiProvider === 'cradlecloud' &&
+    user?.settings?.chat?.cradlecloud?.enabled || false
+  );
+  const [cradleCloudJwtToken, setCradleCloudJwtToken] = useState(
+    user?.settings?.chat?.cradlecloud?.jwtToken || ''
+  );
+  const [cradleCloudModel, setCradleCloudModel] = useState(
+    user?.settings?.chat?.cradlecloud?.model || 'gemini-2.0-flash-exp'
+  );
+  const [cradleCloudTemperature, setCradleCloudTemperature] = useState(
+    typeof user?.settings?.chat?.cradlecloud?.temperature === 'number'
+      ? user.settings.chat.cradlecloud.temperature
+      : 0.7
+  );
+  const [cradleCloudMaxTokens, setCradleCloudMaxTokens] = useState(
+    typeof user?.settings?.chat?.cradlecloud?.max_tokens === 'number'
+      ? user.settings.chat.cradlecloud.max_tokens
+  : 32000
+  );
+
+  const [hasLocalJwtToken, setHasLocalJwtToken] = useState(false);
+
+  // Available CradleCloud models
+  const availableCradleCloudModels = [
+    'gemini-2.0-flash-exp',
+    'gemini-1.5-pro',
+    'gemini-1.5-flash',
+    'gpt-4o',
+    'gpt-4-turbo',
+    'gpt-3.5-turbo',
+    'claude-3-opus',
+    'claude-3-sonnet',
+    'claude-3-haiku'
+  ];
 
   // 编辑当前provider的字段
   const updateCurrentOpenAIProvider = (field: keyof OpenAICompatibleProviderConfig, value: any) => {
@@ -439,7 +524,7 @@ const ApiSettings = () => {
       endpoint: '',
       stream: false,
       temperature: 0.7,
-      max_tokens: 8192,
+  max_tokens: 32000,
     };
     setOpenAIProviders([...openAIProviders, newProvider]);
     setSelectedProviderId(newProvider.id);
@@ -474,8 +559,8 @@ const ApiSettings = () => {
         const audio = new window.Audio(resp.audioPath);
         audio.play();
       } else {
-        const { sound } = await Audio.Sound.createAsync({ uri: resp.audioPath });
-        await sound.playAsync();
+        const player = createAudioPlayer({ uri: resp.audioPath });
+        player.play();
       }
       Alert.alert('成功', '收到音频并已播放');
     } catch (err: any) {
@@ -547,8 +632,8 @@ const ApiSettings = () => {
         audio.play();
       } else {
         console.log('[CosyVoiceTTS] 尝试播放音频文件:', audioPath);
-        const { sound } = await Audio.Sound.createAsync({ uri: resp.data?.audioPath });
-        await sound.playAsync();
+        const player = createAudioPlayer({ uri: resp.data?.audioPath });
+        player.play();
       }
       Alert.alert('成功', '收到音频并已播放');
     } catch (err: any) {
@@ -559,6 +644,72 @@ const ApiSettings = () => {
     }
   };
 
+  // CradleCloud TTS测试方法
+  const testCradleCloudTTS = async () => {
+    try {
+      setIsTestingCradleCloudTts(true);
+      console.log('[CradleCloudTTS] 开始测试CradleCloud TTS连接');
+      console.log('[CradleCloudTTS] 使用语音:', cradleCloudTtsVoice);
+      
+      // 检查认证状态
+      console.log('[CradleCloudTTS] 检查认证状态...');
+      
+      const adapter = new CradleCloudTtsAdapter();
+      const testText = '你好，这是CradleCloud语音合成测试，欢迎使用我们的服务。';
+      
+      console.log('[CradleCloudTTS] 发起语音合成请求');
+      console.log('[CradleCloudTTS] 请求参数:', {
+        text: testText,
+        voiceId: cradleCloudTtsVoice,
+        model: 'gemini-2.5-flash-preview-tts'
+      });
+
+      const response = await adapter.synthesize({
+        text: testText,
+        provider: 'cradlecloud',
+        voiceId: cradleCloudTtsVoice
+      });
+
+      console.log('[CradleCloudTTS] 合成响应:', {
+        success: response.success,
+        provider: response.provider,
+        hasAudioPath: !!response.data?.audioPath,
+        error: response.error
+      });
+
+      if (!response.success) {
+        throw new Error(response.error || '语音合成失败');
+      }
+
+      if (!response.data?.audioPath) {
+        throw new Error('未收到音频文件路径');
+      }
+
+      console.log('[CradleCloudTTS] 成功合成音频，路径:', response.data.audioPath);
+      
+      // 播放音频
+      if (Platform.OS === 'web') {
+        console.log('[CradleCloudTTS] Web平台播放音频');
+        const audio = new window.Audio(response.data.audioPath);
+        audio.play();
+      } else {
+        console.log('[CradleCloudTTS] 移动平台播放音频');
+        const player = createAudioPlayer({ uri: response.data.audioPath });
+        player.play();
+      }
+      
+      Alert.alert('测试成功', `CradleCloud TTS连接正常，使用语音: ${cradleCloudTtsVoice}`);
+      console.log('[CradleCloudTTS] 测试完成，音频播放成功');
+      
+    } catch (error) {
+      console.error('[CradleCloudTTS] 测试失败:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      Alert.alert('测试失败', `CradleCloud TTS测试失败: ${errorMessage}`);
+    } finally {
+      setIsTestingCradleCloudTts(false);
+    }
+  };
+
   // 退出编辑
   const collapseOpenAIProvider = () => setOpenAIExpandedId(null);
 
@@ -566,72 +717,12 @@ const ApiSettings = () => {
     user?.settings?.chat?.OpenAIcompatible?.enabled || false
   );
 
-  // 修复：如果未填写geminiKey，则设为'123'以触发回退
-  const effectiveGeminiKey = geminiKey && geminiKey.trim() !== '' ? geminiKey : '123';
-  // 修复：如果未填写zhipuApiKey，则设为'123'以触发回退
-  const effectiveZhipuApiKey = zhipuApiKey && zhipuApiKey.trim() !== '' ? zhipuApiKey : '123';
+  // 修复：如果未填写geminiKey，保持为空而不是设为'123'
+  const effectiveGeminiKey = geminiKey && geminiKey.trim() !== '' ? geminiKey : '';
+  // 修复：如果未填写zhipuApiKey，保持为空而不是设为'123'
+  const effectiveZhipuApiKey = zhipuApiKey && zhipuApiKey.trim() !== '' ? zhipuApiKey : '';
 
-  // Load existing license information on component mount
-  useEffect(() => {
-    const loadLicenseInfo = async () => {
-      try {
-        const info = await licenseService.getLicenseInfo();
-        if (info) {
-          setLicenseInfo(info);
-          setUseActivationCode(true);
-          setActivationCode(info.licenseKey || ''); // Ensure we don't set undefined
-          console.log('已加载验证信息:', {
-            key: info.licenseKey ? info.licenseKey.substring(0, 4) + '****' : 'No key',
-            isValid: info.isValid
-          });
 
-          // 自动启用云服务开关（只要已激活且有效）
-          if (info.isValid) {
-            setUseCloudService(true);
-          } else {
-            // 从设置读取云服务状态，确保UI显示正确
-            const cloudServiceEnabled = user?.settings?.chat?.useCloudService || false;
-            setUseCloudService(cloudServiceEnabled);
-          }
-
-          if (user?.settings?.chat?.useCloudService || info.isValid) {
-            // 如果云服务已启用，尝试从CloudServiceProvider获取当前首选模型
-            try {
-              const currentModel = CloudServiceProvider.getPreferredModel();
-              if (currentModel) {
-                setCloudModel(currentModel);
-              } else if (user?.settings?.chat?.cloudModel) {
-                setCloudModel(user.settings.chat.cloudModel);
-              }
-              console.log('从CloudServiceProvider加载云服务模型:', currentModel || cloudModel);
-            } catch (error) {
-              console.error('获取首选模型失败:', error);
-            }
-            
-            if (info.isValid && !CloudServiceProvider.isEnabled()) {
-              try {
-
-                await CloudServiceProvider.initialize({
-                  enabled: true,
-                  licenseKey: info.licenseKey!,
-                  deviceId: info.deviceId!,
-                  preferredModel: user?.settings?.chat?.cloudModel || 'gemini-2.0-flash-exp'
-                });
-                console.log('云服务自动初始化成功');
-                updateCloudServiceStatus(true);
-              } catch (initError) {
-                console.error('云服务自动初始化失败:', initError);
-              }
-            }
-          }
-        }
-      } catch (error) {
-        console.error('加载许可证信息失败:', error);
-      }
-    };
-
-    loadLicenseInfo();
-  }, []);
 
   // 加载NovelAI token状态
   useEffect(() => {
@@ -681,10 +772,7 @@ const ApiSettings = () => {
     logDeviceId();
   }, []);
 
-  // Handle API provider toggle
-  const handleProviderToggle = (value: boolean) => {
-    setOpenRouterEnabled(value);
-  };
+
 
   // Update additional Gemini API key
   const updateAdditionalGeminiKey = (index: number, value: string) => {
@@ -693,13 +781,9 @@ const ApiSettings = () => {
     setAdditionalGeminiKeys(updatedKeys);
   };
 
-  // Add a new empty key field
+  // Add a new key field
   const addGeminiKeyField = () => {
-    if (additionalGeminiKeys.length < 5) { // Limit to 5 additional keys
-      setAdditionalGeminiKeys([...additionalGeminiKeys, '']);
-    } else {
-      Alert.alert('提示', '最多可添加5个额外的API密钥');
-    }
+    setAdditionalGeminiKeys([...additionalGeminiKeys, '']);
   };
 
   // Remove a key field
@@ -709,72 +793,6 @@ const ApiSettings = () => {
     setAdditionalGeminiKeys(updatedKeys);
   };
 
-  // Test connection with full rotation support
-  const testConnection = async () => {
-    try {
-      setIsTesting(true);
-
-      // 动态获取 providerType，避免异步 setState 导致的不同步
-      let currentProviderType = providerType;
-      let apiKey = '';
-      let apiProvider = '';
-      let validAdditionalKeys: string[] = [];
-
-      if (currentProviderType === 'openrouter') {
-        apiKey = openRouterKey;
-        apiProvider = 'openrouter';
-      } else if (currentProviderType === 'openai-compatible') {
-        // 取当前选中的 openAI provider
-        apiKey = currentOpenAIProvider?.apiKey || '';
-        apiProvider = 'openai-compatible';
-      } else {
-        apiKey = geminiKey && geminiKey.trim() !== '' ? geminiKey : '123';
-        apiProvider = 'gemini';
-        validAdditionalKeys = additionalGeminiKeys.filter(key => key && key.trim() !== '');
-      }
-
-      if (!apiKey) {
-        Alert.alert('错误', '请输入API密钥');
-        return;
-      }
-
-      // Validate additional keys for Gemini
-      if (apiProvider === 'gemini' && validAdditionalKeys.length > 0) {
-        Alert.alert('连接成功', `成功连接到Gemini API服务，已配置${1 + validAdditionalKeys.length}个API密钥`);
-      } else if (apiProvider === 'openrouter') {
-        const testMessage = "This is a test message. Please respond with 'OK' if you receive this.";
-        const messages = [{ role: 'user', parts: [{ text: testMessage }] }];
-        const response = await ApiServiceProvider.generateContent(
-          messages,
-          apiKey,
-          {
-            apiProvider: 'openrouter',
-            openrouter: {
-              enabled: true,
-              apiKey: openRouterKey,
-              model: selectedModel,
-              autoRoute: false,
-              useBackupModels: useBackupModels,
-              backupModels: [],
-            }
-          }
-        );
-        if (response) {
-          Alert.alert('连接成功', '成功连接到API服务');
-        } else {
-          Alert.alert('连接失败', '未能获得有效响应');
-        }
-      } else if (apiProvider === 'openai-compatible') {
-        await testOpenAIcompatibleConnection();
-        return;
-      }
-    } catch (error) {
-      console.error('连接测试失败:', error);
-      Alert.alert('连接失败', error instanceof Error ? error.message : '未知错误');
-    } finally {
-      setIsTesting(false);
-    }
-  };
 
   // Test NovelAI token
   const testNovelAIToken = async () => {
@@ -864,6 +882,127 @@ const ApiSettings = () => {
     }
   };
 
+  // Test CradleCloud embeddings
+  const testCradleCloudEmbedding = async () => {
+    try {
+      setIsTesting(true);
+      
+      // 首先尝试从本地存储获取 JWT token
+      let tokenToUse = cradleCloudJwtToken;
+      
+      try {
+        const localToken = await AsyncStorage.getItem('auth_token');
+        if (localToken && localToken.trim()) {
+          console.log('使用本地保存的 JWT token 进行 CradleCloud 嵌入测试');
+          tokenToUse = localToken;
+        } else if (!cradleCloudJwtToken || !cradleCloudJwtToken.trim()) {
+          Alert.alert('错误', '未找到本地保存的JWT Token，请先通过Discord登录');
+          return;
+        }
+      } catch (storageError) {
+        console.warn('读取本地 JWT token 失败:', storageError);
+        if (!cradleCloudJwtToken || !cradleCloudJwtToken.trim()) {
+          Alert.alert('错误', '无法获取JWT Token，请先通过Discord登录');
+          return;
+        }
+      }
+
+      const testUrl = 'https://api.cradleintro.top/jwt/v1/v1beta/models/gemini-embedding-001/embedContent';
+      const model = 'gemini-embedding-001';
+      
+      const testText = 'This is a test text for CradleCloud embeddings.';
+      
+      const requestBody = {
+        // 按后端 serde 映射预期：使用 `content` 字段（单个 Chat 对象），并使用 camelCase 的 embeddingConfig
+        model: model,
+        content: {
+          parts: [
+            {
+              text: testText
+            }
+          ]
+        },
+        embedding_config: {
+          // enum 值使用 SCREAMING_SNAKE_CASE
+          task_type: 'SEMANTIC_SIMILARITY',
+          output_dimensionality: 768
+        }
+      };
+
+      // 打印请求信息（掩码 Authorization，body 预览截断）
+      try {
+        const maskedHeaders = {
+          Authorization: 'Bearer *****',
+          'Content-Type': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        };
+        const bodyString = JSON.stringify(requestBody, null, 2);
+        const bodyPreview = bodyString.length > 65536 ? bodyString.slice(0, 65536) + '\n...[truncated]' : bodyString;
+        console.log('[testCradleCloudEmbedding] 请求 url:', testUrl);
+        console.log('[testCradleCloudEmbedding] 请求 headers:', maskedHeaders);
+        console.log('[testCradleCloudEmbedding] 请求 body preview:', bodyPreview);
+      } catch (logErr) {
+        console.warn('[testCradleCloudEmbedding] 打印请求体失败:', logErr);
+      }
+
+      const response = await axios({
+        method: 'post',
+        url: testUrl,
+        headers: {
+          'Authorization': `Bearer ${tokenToUse}`,
+          'Content-Type': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        },
+        data: requestBody,
+        timeout: 10000,
+      });
+
+      const data = response.data;
+      const vector = data?.embedding?.values;
+      
+      if (vector && Array.isArray(vector) && vector.length > 0) {
+        Alert.alert('嵌入测试成功', `成功获取嵌入向量，维度: ${vector.length}`);
+      } else {
+        // 打印完整响应用于调试，限制长度避免控制台过大
+        try {
+          console.error('[CradleCloudEmbedding] 返回的响应 data:', data);
+          const preview = JSON.stringify(data, null, 2);
+          console.error('[CradleCloudEmbedding] 返回响应（字符串预览，前64KB）:', preview.length > 65536 ? preview.slice(0, 65536) + '\n...[truncated]' : preview);
+        } catch (e) {
+          console.error('[CradleCloudEmbedding] 无法序列化响应:', e);
+        }
+        Alert.alert('嵌入测试失败', '返回的嵌入向量格式不正确（详细响应已输出到控制台）');
+      }
+    } catch (error: any) {
+      let errorMessage = '嵌入测试失败';
+      if (axios.isAxiosError(error)) {
+        if (error.response) {
+          errorMessage = `嵌入测试失败 (${error.response.status}): ${error.response.data?.message || error.message}`;
+        } else if (error.request) {
+          errorMessage = `无法连接到服务器: ${error.message}`;
+        }
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      Alert.alert('嵌入测试失败', errorMessage);
+    } finally {
+      setIsTesting(false);
+    }
+  };
+
+  // 统一的嵌入测试函数
+  const testUnifiedEmbedding = async () => {
+    if (embeddingProvider === 'zhipu') {
+      if (!zhipuApiKey || !zhipuApiKey.trim()) {
+        Alert.alert('错误', '请输入智谱清言 API Key');
+        return;
+      }
+      await testZhipuEmbedding();
+    } else if (embeddingProvider === 'cradlecloud') {
+      await testCradleCloudEmbedding();
+    }
+  };
+
   // Test Brave Search API
   const testBraveSearch = async () => {
     try {
@@ -922,7 +1061,7 @@ const ApiSettings = () => {
           { role: 'user', content: '你好呀' }
         ],
         temperature: currentOpenAIProvider.temperature ?? 0.7,
-        max_tokens: currentOpenAIProvider.max_tokens ?? 8192,
+  max_tokens: currentOpenAIProvider.max_tokens ?? 32000,
         stream: !!currentOpenAIProvider.stream,
       });
 
@@ -959,48 +1098,65 @@ const ApiSettings = () => {
     }
   };
 
-  // Activate license function
-  const activateLicense = async () => {
-    if (!activationCode.trim()) {
-      Alert.alert('错误', '请输入激活码');
-      return;
-    }
-
+  // Test CradleCloud connection
+  const testCradleCloudConnection = async () => {
     try {
-      setIsActivating(true);
-
-      const deviceId = await DeviceUtils.getDeviceId();
-      console.log('当前设备ID:', deviceId.substring(0, 4) + '****');
-
-      // 确保验证过程中记录请求信息
-      const licenseInfo = await licenseService.verifyLicense(activationCode.trim());
-
-      setLicenseInfo(licenseInfo);
-
-      if (licenseInfo) {
-      ;
+      setIsTesting(true);
+      
+      // 首先尝试从本地存储获取 JWT token
+      let tokenToUse = cradleCloudJwtToken;
+      
+      try {
+        const localToken = await AsyncStorage.getItem('auth_token');
+        if (localToken && localToken.trim()) {
+          console.log('使用本地保存的 JWT token 进行 CradleCloud 测试');
+          tokenToUse = localToken;
+        } else if (!cradleCloudJwtToken || !cradleCloudJwtToken.trim()) {
+          Alert.alert('错误', '未找到本地保存的JWT Token，请先通过Discord登录');
+          return;
+        }
+      } catch (storageError) {
+        console.warn('读取本地 JWT token 失败:', storageError);
+        if (!cradleCloudJwtToken || !cradleCloudJwtToken.trim()) {
+          Alert.alert('错误', '无法获取JWT Token，请先通过Discord登录');
+          return;
+        }
       }
-
-    } catch (error) {
-      console.error('许可证激活错误:', error);
-      let errorMessage = '未知错误，请检查激活码是否正确';
-
-      if (error instanceof Error) {
-        errorMessage = error.message;
-      } else if (typeof error === 'string') {
-        errorMessage = error;
-      } else if (error && typeof error === 'object' && 'message' in error) {
-        errorMessage = String(error.message);
+      
+      if (!cradleCloudModel || !cradleCloudModel.trim()) {
+        Alert.alert('错误', '请输入模型名称');
+        return;
       }
-
-      Alert.alert(
-        '激活失败',
-        errorMessage
-      );
+      
+      // Import CradleCloud adapter
+      const { CradleCloudAdapter } = await import('@/NodeST/nodest/utils/cradlecloud-adapter');
+      
+      // Create adapter with JWT token (local or manual)
+      const adapter = new CradleCloudAdapter({
+        baseURL: 'https://api.cradleintro.top',
+        model: cradleCloudModel,
+        temperature: cradleCloudTemperature,
+        max_tokens: cradleCloudMaxTokens
+      });
+      
+      // Test connection with JWT token
+      const result = await adapter.testConnectionWithToken(tokenToUse);
+      
+      if (result.success) {
+        const tokenSource = tokenToUse === cradleCloudJwtToken ? '手动输入' : '本地保存';
+        Alert.alert('连接成功', `模型: ${cradleCloudModel}\nToken来源: ${tokenSource}\n${result.message}`);
+      } else {
+        Alert.alert('连接失败', result.message);
+      }
+    } catch (err: any) {
+      console.error('[CradleCloud] 测试连接失败:', err?.message || '未知错误');
+      Alert.alert('连接失败', err?.message || '未知错误');
     } finally {
-      setIsActivating(false);
+      setIsTesting(false);
     }
   };
+
+
 
   // 保存设置
   const saveSettings = async () => {
@@ -1011,6 +1167,7 @@ const ApiSettings = () => {
       let apiProvider = providerType;
       let openrouterEnabled = apiProvider === 'openrouter';
       let openaiCompatibleEnabled = apiProvider === 'openai-compatible';
+      let cradleCloudEnabled = apiProvider === 'cradlecloud';
 
       // 取当前 openai-compatible provider
       const openaiProvider = openAIProviders.find(p => p.id === selectedProviderId) || openAIProviders[0];
@@ -1053,9 +1210,14 @@ const ApiSettings = () => {
           minimaxApiToken: cosyvoiceApiToken, // 复用统一token
           cosyvoiceReplicateModel: cosyvoiceModel
         };
+      } else if (ttsProvider === 'cradlecloud') {
+        ttsSettings = {
+          ...ttsSettings,
+          cradleCloudVoice: cradleCloudTtsVoice
+        };
       }
 
-      if (useActivationCode && licenseInfo) {
+      if (useActivationCode) {
         const apiSettings: Partial<GlobalSettings> = {
           chat: {
             ...user?.settings?.chat,
@@ -1075,7 +1237,7 @@ const ApiSettings = () => {
             temperature: user?.settings?.chat?.temperature || 0.7,
             maxtokens: user?.settings?.chat?.maxtokens || 2000,
             maxTokens: user?.settings?.chat?.maxTokens || 2000,
-            useZhipuEmbedding: useZhipuEmbedding,
+            useZhipuEmbedding: embeddingProvider === 'zhipu',
             zhipuApiKey: effectiveZhipuApiKey,
             useCloudService: useCloudService,
             cloudModel: useCloudService ? cloudModel : undefined,
@@ -1097,6 +1259,13 @@ const ApiSettings = () => {
               stream: openaiProvider?.stream,
               temperature: openaiProvider?.temperature,
               max_tokens: openaiProvider?.max_tokens,
+            },
+            cradlecloud: {
+              enabled: cradleCloudEnabled,
+              jwtToken: cradleCloudJwtToken,
+              model: cradleCloudModel,
+              temperature: cradleCloudTemperature,
+              max_tokens: cradleCloudMaxTokens,
             }
           },
           search: {
@@ -1104,14 +1273,6 @@ const ApiSettings = () => {
             braveSearchApiKey: braveSearchApiKey
           },
           tts: ttsSettings, // 新增TTS设置
-          license: {
-            enabled: true,
-            licenseKey: licenseInfo.licenseKey,
-            deviceId: licenseInfo.deviceId,
-            planId: licenseInfo.planId,
-            expiryDate: licenseInfo.expiryDate,
-            isValid: licenseInfo.isValid // Explicitly store validity state
-          }
         };
 
         // First update settings
@@ -1136,7 +1297,7 @@ const ApiSettings = () => {
         }
 
         // Update zhipuApiKey in Mem0Service directly if embedding is enabled
-        if (useZhipuEmbedding && effectiveZhipuApiKey) {
+        if (embeddingProvider === 'zhipu' && effectiveZhipuApiKey) {
           try {
             const Mem0Service = require('@/src/memory/services/Mem0Service').default;
             const mem0Service = Mem0Service.getInstance();
@@ -1150,33 +1311,6 @@ const ApiSettings = () => {
           }
         }
 
-        // Then initialize CloudServiceProvider
-        try {
-          if (useCloudService) {
-            const cloudConfig: CloudServiceConfig = {
-              enabled: true,
-              licenseKey: licenseInfo.licenseKey,
-              deviceId: licenseInfo.deviceId,
-              preferredModel: cloudModel
-            };
-
-            await CloudServiceProvider.initialize(cloudConfig);
-            console.log('Cloud service provider initialized with license information and model', cloudModel);
-            
-            // Update cloud service status in the tracker
-            updateCloudServiceStatus(true);
-          } else {
-            CloudServiceProvider.disable();
-            console.log('Cloud service provider disabled');
-            
-            // Update cloud service status in the tracker
-            updateCloudServiceStatus(false);
-          }
-        } catch (cloudError) {
-          console.warn('Failed to initialize cloud service:', cloudError);
-          // Make sure tracker status matches actual state
-          updateCloudServiceStatus(false);
-        }
 
         // 日志：如果当前provider为openai-compatible，输出当前保存的渠道信息
         if (apiProvider === 'openai-compatible') {
@@ -1187,14 +1321,8 @@ const ApiSettings = () => {
             model: openaiProvider?.model,
           });
         }
-
-        Alert.alert('成功', '设置已保存', [
-          { text: '确定', onPress: () => router.back() }
-        ]);
       } else if (!useActivationCode) {
-        await licenseService.clearLicense();
-        CloudServiceProvider.disable();
-        setUseCloudService(false);
+
         
         // Update cloud service status in the tracker
         updateCloudServiceStatus(false);
@@ -1218,7 +1346,7 @@ const ApiSettings = () => {
             temperature: user?.settings?.chat?.temperature || 0.7,
             maxtokens: user?.settings?.chat?.maxtokens || 2000,
             maxTokens: user?.settings?.chat?.maxTokens || 2000,
-            useZhipuEmbedding: useZhipuEmbedding,
+            useZhipuEmbedding: embeddingProvider === 'zhipu',
             zhipuApiKey: effectiveZhipuApiKey,
             useCloudService: false,
             openrouter: {
@@ -1239,6 +1367,13 @@ const ApiSettings = () => {
               stream: openaiProvider?.stream,
               temperature: openaiProvider?.temperature,
               max_tokens: openaiProvider?.max_tokens,
+            },
+            cradlecloud: {
+              enabled: cradleCloudEnabled,
+              jwtToken: cradleCloudJwtToken,
+              model: cradleCloudModel,
+              temperature: cradleCloudTemperature,
+              max_tokens: cradleCloudMaxTokens,
             }
           },
           search: {
@@ -1272,7 +1407,7 @@ const ApiSettings = () => {
         }
 
         // Update zhipuApiKey in Mem0Service directly if embedding is enabled
-        if (useZhipuEmbedding && effectiveZhipuApiKey) {
+        if (embeddingProvider === 'zhipu' && effectiveZhipuApiKey) {
           try {
             const Mem0Service = require('@/src/memory/services/Mem0Service').default;
             const mem0Service = Mem0Service.getInstance();
@@ -1296,9 +1431,7 @@ const ApiSettings = () => {
           });
         }
 
-        Alert.alert('成功', '设置已保存', [
-          { text: '确定', onPress: () => router.back() }
-        ]);
+
       }
     } catch (error) {
       console.error('保存设置失败:', error);
@@ -1387,9 +1520,12 @@ const ApiSettings = () => {
       if (!novelAICustomToken.trim()) {
         throw new Error('请输入自定义端点Token');
       }
+      // 按新规范使用 /user/data 进行可用性检测
+      const base = novelAICustomEndpoint.replace(/\/$/, '');
+      const testUrl = `${base}/user/data`;
       const response = await axios({
         method: 'get',
-        url: novelAICustomEndpoint,
+        url: testUrl,
         headers: {
           'Authorization': `Bearer ${novelAICustomToken}`,
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
@@ -1398,7 +1534,7 @@ const ApiSettings = () => {
       });
       setNovelAITestConnectionResult({
         success: true,
-        message: `连接成功! 自定义端点可访问。`
+        message: `连接成功!`
       });
       Alert.alert('连接成功', '自定义端点可访问');
     } catch (error: any) {
@@ -1448,6 +1584,8 @@ const ApiSettings = () => {
       }
     } else if (providerType === 'openai-compatible') {
       await testOpenAIcompatibleConnection();
+    } else if (providerType === 'cradlecloud') {
+      await testCradleCloudConnection();
     } else if (providerType === 'gemini') {
       // 简单调用 Gemini 的文本生成方法
       try {
@@ -1478,7 +1616,9 @@ const ApiSettings = () => {
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>API 设置</Text>
-        <View style={styles.headerRight} />
+        <TouchableOpacity onPress={saveSettings} style={styles.headerSaveButton}>
+          <Ionicons name="save-outline" size={20} color="#fff" />
+        </TouchableOpacity>
       </View>
 
       <KeyboardAvoidingView
@@ -1682,7 +1822,7 @@ const ApiSettings = () => {
                       if (val > 32768) val = 32768;
                       setGeminiMaxTokens(val);
                     }}
-                    placeholder="8192"
+                    placeholder="32000"
                     placeholderTextColor="#999"
                   />
                 </View> */}
@@ -1736,9 +1876,10 @@ const ApiSettings = () => {
           {providerType === 'openai-compatible' && (
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>OpenAI兼容API</Text>
+                <Text style={styles.sectionTitle}>OpenAI</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Text style={{ color: '#aaa', fontSize: 12, marginRight: 12 }}>填写完整的端点</Text>
+                  <Text style={{ color: '#aaa', fontSize: 8, marginRight: 8 }}>如 https://api.openai.com/v1/chat/completions</Text>
+        
                   <TouchableOpacity
                     style={{ marginRight: 8 }}
                     onPress={addOpenAIProvider}
@@ -1753,7 +1894,7 @@ const ApiSettings = () => {
                   {/* 收起按钮，仅在有展开项时显示 */}
                   {openAIExpandedId && (
                     <TouchableOpacity
-                      style={{ marginLeft: 8 }}
+                      style={{ marginLeft:  8 }}
                       onPress={collapseOpenAIProvider}
                     >
                       <Ionicons name="chevron-up-circle-outline" size={22} color={theme.colors.primary} />
@@ -1835,7 +1976,7 @@ const ApiSettings = () => {
                         placeholder="自定义名称"
                         placeholderTextColor="#999"
                       />
-                      <Text style={styles.inputLabel}>OpenAI兼容端点</Text>
+                      <Text style={styles.inputLabel}>OpenAI</Text>
                       <TextInput
                         style={styles.input}
                         value={editingProvider.endpoint}
@@ -1886,14 +2027,14 @@ const ApiSettings = () => {
                       />
                       {/* Max Tokens 滑块 */}
                       <Text style={styles.inputLabel}>
-                        Max Tokens <Text style={{ color: theme.colors.primary }}>{editingProvider.max_tokens ?? 8192}</Text>
+                        Max Tokens <Text style={{ color: theme.colors.primary }}>{editingProvider.max_tokens ?? 32000}</Text>
                       </Text>
                       <Slider
                         style={{ width: '100%', height: 40 }}
                         minimumValue={512}
-                        maximumValue={8192}
+                        maximumValue={32000}
                         step={1}
-                        value={editingProvider.max_tokens ?? 8192}
+                        value={editingProvider.max_tokens ?? 32000}
                         minimumTrackTintColor={theme.colors.primary}
                         maximumTrackTintColor="#888"
                         thumbTintColor={theme.colors.primary}
@@ -1908,86 +2049,62 @@ const ApiSettings = () => {
             </View>
           )}
 
-          <View style={styles.section}>
-            {/* <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>测试入口</Text>
-              <Switch
-                value={useActivationCode}
-                onValueChange={setUseActivationCode}
-                trackColor={{ false: '#767577', true: 'rgba(255, 158, 205, 0.4)' }}
-                thumbColor={useActivationCode ? theme.colors.primary : '#f4f3f4'}
-              />
-            </View> */}
-
-            {useActivationCode && (
+          {providerType === 'cradlecloud' && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>CradleCloud API</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  
+                </View>
+              </View>
               <View style={styles.contentSection}>
-                <Text style={styles.inputLabel}>License</Text>
+                
+                <Text style={[styles.inputLabel, { marginTop: 16 }]}>模型名称 *</Text>
                 <TextInput
                   style={styles.input}
-                  value={activationCode}
-                  onChangeText={(text) => {
-                    // 当用户修改激活码时，清除以前的license信息
-                    if (licenseInfo && text !== licenseInfo.licenseKey) {
-                      console.log('已修改，清除现有信息');
-                                           setLicenseInfo(null);
-                    }
-                    setActivationCode(text);
-                  }}
-                  placeholder="..."
-                  placeholderTextColor="#999"
-                  secureTextEntry={false}
+                  value={cradleCloudModel}
+                  onChangeText={setCradleCloudModel}
+                  placeholder="请输入模型名称 (如: gemini-2.0-flash-exp)"
+                  placeholderTextColor="#888"
                 />
 
-                {licenseInfo ? (
-                  <View style={styles.licenseInfoContainer}>
-                    <Text style={styles.licenseStatusText}>
-                      <Ionicons
-                        name="checkmark-circle"
-                        size={16}
-                        color="#4CAF50"
-                      /> 已激活
-                    </Text>
+                <Text style={[styles.inputLabel, { marginTop: 16 }]}>
+                  Temperature <Text style={{ color: theme.colors.primary }}>{cradleCloudTemperature}</Text>
+                </Text>
+                <Slider
+                  style={{ width: '100%', height: 40 }}
+                  minimumValue={0}
+                  maximumValue={2}
+                  step={0.01}
+                  value={cradleCloudTemperature}
+                  minimumTrackTintColor={theme.colors.primary}
+                  maximumTrackTintColor="#888"
+                  thumbTintColor={theme.colors.primary}
+                  onValueChange={(val) => setCradleCloudTemperature(parseFloat(val.toFixed(2)))}
+                />
 
-                    <View style={styles.cloudServiceContainer}>
-                      <Text style={styles.cloudServiceLabel}>启用</Text>
-                      <Switch
-                        value={useCloudService}
-                        onValueChange={handleCloudServiceToggle}
-                        trackColor={{ false: '#767577', true: 'rgba(100, 210, 255, 0.4)' }}
-                        thumbColor={useCloudService ? '#2196F3' : '#f4f3f4'}
-                        disabled={!licenseInfo}
-                      />
-                    </View>
-                    {useCloudService && (
-                      <>
-                        <View style={styles.modelSection}>
-                          <Text style={styles.inputLabel}>模型选择</Text>
-                          <TouchableOpacity
-                            style={styles.modelButton}
-                            onPress={() => setIsModelSelectorVisible(true)}
-                          >
-                            <Text style={styles.modelButtonText}>{cloudModel}</Text>
-                            <Ionicons name="chevron-down" size={16} color="#fff" />
-                          </TouchableOpacity>
-                        </View>
-                      </>
-                    )}
-                  </View>
-                ) : (
-                  <TouchableOpacity
-                    style={[styles.activateButton, isActivating && styles.disabledButton]}
-                    onPress={activateLicense}
-                    disabled={isActivating || !activationCode.trim()}
-                  >
-                    {isActivating ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <Text style={styles.buttonText}>验证激活</Text>
-                    )}
-                  </TouchableOpacity>
-                )}
+                <Text style={styles.inputLabel}>
+                  Max Tokens <Text style={{ color: theme.colors.primary }}>{cradleCloudMaxTokens}</Text>
+                </Text>
+                <Slider
+                  style={{ width: '100%', height: 40 }}
+                  minimumValue={512}
+                  maximumValue={32000}
+                  step={1}
+                  value={cradleCloudMaxTokens}
+                  minimumTrackTintColor={theme.colors.primary}
+                  maximumTrackTintColor="#888"
+                  thumbTintColor={theme.colors.primary}
+                  onValueChange={(val) => setCradleCloudMaxTokens(Math.round(val))}
+                />
+
+
               </View>
-            )}
+            </View>
+          )}
+
+          <View style={styles.section}>
+
           </View>
 
           <View style={styles.section}>
@@ -2125,48 +2242,63 @@ const ApiSettings = () => {
             </View>
           </View>
 
+          {/* 统一的嵌入服务设置区域 */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>智谱清言嵌入</Text>
+              <Text style={styles.sectionTitle}>嵌入服务</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Switch
-                  value={useZhipuEmbedding}
-                  onValueChange={setUseZhipuEmbedding}
-                  trackColor={{ false: '#767577', true: 'rgba(255, 158, 205, 0.4)' }}
-                  thumbColor={useZhipuEmbedding ? theme.colors.primary : '#f4f3f4'}
-                />
-                {useZhipuEmbedding && (
-                  <TouchableOpacity
-                    style={{ marginLeft: 8 }}
-                    onPress={testZhipuEmbedding}
-                    disabled={isTesting || !zhipuApiKey}
-                  >
-                    {isTesting ? (
-                      <ActivityIndicator size={18} color="#fff" />
-                    ) : (
-                      <Ionicons name="flash-outline" size={18} color="#fff" />
-                    )}
-                  </TouchableOpacity>
-                )}
+                <TouchableOpacity
+                  style={{ marginLeft: 8 }}
+                  onPress={testUnifiedEmbedding}
+                  disabled={isTesting}
+                >
+                  {isTesting ? (
+                    <ActivityIndicator size={18} color="#fff" />
+                  ) : (
+                    <Ionicons name="flash-outline" size={18} color="#fff" />
+                  )}
+                </TouchableOpacity>
               </View>
             </View>
-            {useZhipuEmbedding && (
-              <View style={styles.contentSection}>
-                <Text style={styles.inputLabel}>智谱清言 API Key</Text>
-                <TextInput
-                  style={styles.input}
-                  value={zhipuApiKey}
-                  onChangeText={setZhipuApiKey}
-                  placeholder="输入智谱清言 API Key"
-                  placeholderTextColor="#999"
-                  secureTextEntry={true}
-                />
-                <Text style={styles.helperText}>
-                  可从 <Text style={styles.link}>智谱清言开放平台</Text> 获取 API Key
+            <View style={styles.contentSection}>
+              <Text style={styles.inputLabel}>选择嵌入服务提供方</Text>
+              <TouchableOpacity
+                style={styles.providerDropdown}
+                onPress={() => setShowEmbeddingProviderDropdown(true)}
+              >
+                <Text style={styles.providerDropdownText}>
+                  {getEmbeddingProviderDisplayName(embeddingProvider)}
                 </Text>
-                {/* 按钮已移至标题栏 */}
-              </View>
-            )}
+                <Ionicons name="chevron-down" size={18} color="#fff" />
+              </TouchableOpacity>
+
+              {/* 智谱清言嵌入配置 */}
+              {embeddingProvider === 'zhipu' && (
+                <View style={{ marginTop: 16 }}>
+                  <Text style={styles.inputLabel}>智谱清言 API Key</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={zhipuApiKey}
+                    onChangeText={setZhipuApiKey}
+                    placeholder="输入智谱清言 API Key"
+                    placeholderTextColor="#999"
+                    secureTextEntry={true}
+                  />
+                  <Text style={styles.helperText}>
+                    可从 <Text style={styles.link}>智谱清言开放平台</Text> 获取 API Key
+                  </Text>
+                </View>
+              )}
+
+              {/* CradleCloud 嵌入配置 */}
+              {embeddingProvider === 'cradlecloud' && (
+                <View style={{ marginTop: 16 }}>
+                  <Text style={styles.helperText}>
+                    使用 Discord 登录获取的 JWT Token 或手动输入的 Token 进行 CradleCloud 嵌入服务。
+                  </Text>
+                </View>
+              )}
+            </View>
           </View>
 
           {/* 新增：豆包TTS设置区域 */}
@@ -2216,6 +2348,20 @@ const ApiSettings = () => {
                     disabled={isTestingCosyvoice}
                   >
                     {isTestingCosyvoice ? (
+                      <ActivityIndicator size={18} color="#fff" />
+                    ) : (
+                      <Ionicons name="flash-outline" size={18} color="#fff" />
+                    )}
+                  </TouchableOpacity>
+                )}
+                {/* CradleCloud TTS 测试按钮 */}
+                {ttsEnabled && ttsProvider === 'cradlecloud' && (
+                  <TouchableOpacity
+                    style={{ marginLeft: 8 }}
+                    onPress={testCradleCloudTTS}
+                    disabled={isTestingCradleCloudTts}
+                  >
+                    {isTestingCradleCloudTts ? (
                       <ActivityIndicator size={18} color="#fff" />
                     ) : (
                       <Ionicons name="flash-outline" size={18} color="#fff" />
@@ -2352,6 +2498,24 @@ const ApiSettings = () => {
                     />
                   </>
                 )}
+                {/* CradleCloud TTS参数 */}
+                {ttsProvider === 'cradlecloud' && (
+                  <>
+                    <Text style={styles.inputLabel}>语音选择</Text>
+                    <TouchableOpacity
+                      style={styles.providerDropdown}
+                      onPress={() => setShowCradleCloudVoiceDropdown(true)}
+                    >
+                      <Text style={styles.providerDropdownText}>
+                        {cradleCloudTtsVoice} ({GEMINI_TTS_VOICES.find(v => v.name === cradleCloudTtsVoice)?.description || '未知'})
+                      </Text>
+                      <Ionicons name="chevron-down" size={18} color="#fff" />
+                    </TouchableOpacity>
+                    <Text style={styles.helperText}>
+                      使用CradleCloud服务进行语音合成，基于Gemini 2.5 Flash Preview TTS模型
+                    </Text>
+                  </>
+                )}
               </View>
             )}
           </View>
@@ -2432,8 +2596,21 @@ const ApiSettings = () => {
               ]}
               onPress={() => handleProviderTypeChange('openai-compatible')}
             >
-              <Text style={styles.dropdownItemText}>OpenAI兼容</Text>
+              <Text style={styles.dropdownItemText}>OpenAI</Text>
               {providerType === 'openai-compatible' && (
+                <Ionicons name="checkmark" size={20} color={theme.colors.primary} />
+              )}
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[
+                styles.dropdownItem,
+                providerType === 'cradlecloud' && styles.dropdownItemSelected
+              ]}
+              onPress={() => handleProviderTypeChange('cradlecloud')}
+            >
+              <Text style={styles.dropdownItemText}>CradleCloud</Text>
+              {providerType === 'cradlecloud' && (
                 <Ionicons name="checkmark" size={20} color={theme.colors.primary} />
               )}
             </TouchableOpacity>
@@ -2493,6 +2670,107 @@ const ApiSettings = () => {
                 <Ionicons name="checkmark" size={20} color={theme.colors.primary} />
               )}
             </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.dropdownItem,
+                ttsProvider === 'cradlecloud' && styles.dropdownItemSelected
+              ]}
+              onPress={() => handleTTSProviderTypeChange('cradlecloud')}
+            >
+              <Text style={styles.dropdownItemText}>CradleCloud TTS</Text>
+              {ttsProvider === 'cradlecloud' && (
+                <Ionicons name="checkmark" size={20} color={theme.colors.primary} />
+              )}
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Embedding Provider Selection Modal */}
+      <Modal
+        visible={showEmbeddingProviderDropdown}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowEmbeddingProviderDropdown(false)}
+      >
+        <TouchableOpacity 
+          style={styles.dropdownOverlay} 
+          activeOpacity={1}
+          onPress={() => setShowEmbeddingProviderDropdown(false)}
+        >
+          <View style={[
+            styles.dropdownContent,
+            { width: Math.min(screenWidth * 0.9, 400) }
+          ]}>
+            <TouchableOpacity
+              style={[
+                styles.dropdownItem,
+                embeddingProvider === 'zhipu' && styles.dropdownItemSelected
+              ]}
+              onPress={() => handleEmbeddingProviderTypeChange('zhipu')}
+            >
+              <Text style={styles.dropdownItemText}>智谱清言嵌入</Text>
+              {embeddingProvider === 'zhipu' && (
+                <Ionicons name="checkmark" size={20} color={theme.colors.primary} />
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.dropdownItem,
+                embeddingProvider === 'cradlecloud' && styles.dropdownItemSelected
+              ]}
+              onPress={() => handleEmbeddingProviderTypeChange('cradlecloud')}
+            >
+              <Text style={styles.dropdownItemText}>CradleCloud 嵌入</Text>
+              {embeddingProvider === 'cradlecloud' && (
+                <Ionicons name="checkmark" size={20} color={theme.colors.primary} />
+              )}
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* CradleCloud Voice Selection Modal */}
+      <Modal
+        visible={showCradleCloudVoiceDropdown}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowCradleCloudVoiceDropdown(false)}
+      >
+        <TouchableOpacity 
+          style={styles.dropdownOverlay} 
+          activeOpacity={1}
+          onPress={() => setShowCradleCloudVoiceDropdown(false)}
+        >
+          <View style={[
+            styles.dropdownContent,
+            { width: Math.min(screenWidth * 0.9, 400), maxHeight: screenWidth * 1.2 }
+          ]}>
+            <ScrollView style={{ maxHeight: 400 }}>
+              {GEMINI_TTS_VOICES.map((voice) => (
+                <TouchableOpacity
+                  key={voice.name}
+                  style={[
+                    styles.dropdownItem,
+                    cradleCloudTtsVoice === voice.name && styles.dropdownItemSelected
+                  ]}
+                  onPress={() => {
+                    setCradleCloudTtsVoice(voice.name);
+                    setShowCradleCloudVoiceDropdown(false);
+                  }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.dropdownItemText}>{voice.name}</Text>
+                    <Text style={[styles.dropdownItemText, { fontSize: 12, color: '#aaa' }]}>
+                      {voice.description}
+                    </Text>
+                  </View>
+                  {cradleCloudTtsVoice === voice.name && (
+                    <Ionicons name="checkmark" size={20} color={theme.colors.primary} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
           </View>
         </TouchableOpacity>
       </Modal>
@@ -2602,6 +2880,12 @@ const styles = StyleSheet.create({
   },
   headerRight: {
     width: 40,
+  },
+  headerSaveButton: {
+    width: 40,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    padding: 6,
   },
   container: {
     flex: 1,
@@ -2724,32 +3008,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 16,
   },
-  notesContainer: {
-    backgroundColor: 'rgba(60, 60, 60, 0.5)',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 24,
-  },
-  noteTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 12,
-  },
-  noteItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 8,
-  },
-  noteIcon: {
-    marginTop: 2,
-    marginRight: 8,
-  },
-  noteText: {
-    fontSize: 14,
-    color: '#ddd',
-    flex: 1,
-  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
@@ -2783,55 +3041,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 8,
   },
-  licenseInfoContainer: {
-    marginTop: 16,
-    padding: 12,
-    backgroundColor: 'rgba(30, 30, 30, 0.6)',
-    borderRadius: 8,
-    borderLeftWidth: 3,
-    borderLeftColor: '#4CAF50',
-  },
-  licenseStatusText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 8,
-  },
-  licenseInfoText: {
-    fontSize: 14,
-    color: '#ddd',
-    marginBottom: 4,
-  },
-  activateButton: {
-    backgroundColor: '#4CAF50',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-    marginTop: 16,
-  },
   disabledButton: {
     opacity: 0.6,
-  },
-  cloudServiceContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 16,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  cloudServiceLabel: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  cloudServiceInfo: {
-    marginTop: 8,
-    fontSize: 12,
-    color: '#aaa',
-    fontStyle: 'italic',
   },
   modalSafeArea: {
     flex: 1,
@@ -2900,51 +3111,11 @@ const styles = StyleSheet.create({
     color: '#ddd',
     marginBottom: 16,
   },
-  featureTag: {
-    fontSize: 12,
-    color: '#4CAF50',
-    fontWeight: 'normal',
-  },
-  featureDescription: {
-    fontSize: 12,
-    color: '#aaa',
-    marginBottom: 16,
-    marginTop: 4,
-    paddingLeft: 8,
-    borderLeftWidth: 2,
-    borderLeftColor: 'rgba(33, 150, 243, 0.6)',
-  },
   novelAITestButton: {
     backgroundColor: '#8a2be2',
     alignSelf: 'flex-start',
     paddingHorizontal: 16,
     borderRadius: 8,
-  },
-  novelAIInfoContainer: {
-    marginTop: 12,
-    padding: 12,
-    backgroundColor: 'rgba(30, 30, 30, 0.6)',
-    borderRadius: 8,
-    borderLeftWidth: 3,
-    borderLeftColor: '#8a2be2',
-  },
-  novelAIInfoTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 8,
-  },
-  novelAIInfoItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  novelAIInfoIcon: {
-    marginRight: 6,
-  },
-  novelAIInfoText: {
-    fontSize: 13,
-    color: '#ddd',
   },
   tokenStatusContainer: {
     marginVertical: 10,

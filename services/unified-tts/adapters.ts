@@ -1,4 +1,4 @@
-import { ttsService as cosyVoiceService } from '../ttsService';
+
 import { doubaoTTSHelper } from '../doubaotts/doubao-tts-helper';
 import { MinimaxTTS } from '../minimax-tts/MinimaxTTS';
 import { UnifiedTTSRequest, UnifiedTTSResponse, UnifiedTTSStatus } from './types';
@@ -389,3 +389,6 @@ export class MinimaxAdapter extends TTSProviderAdapter {
     // no-op
   }
 }
+
+// Export CradleCloudTtsAdapter
+export * from './adapters';

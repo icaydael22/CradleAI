@@ -26,7 +26,6 @@ import * as FileSystem from 'expo-file-system';
 import TagSelector from './TagSelector';
 // Import vndb data for traits
 import vndbData from '@/app/data/vndb.json';
-import { VNDBCharacter } from '@/src/services/vndb/types';
 import ArtistReferenceSelector from './ArtistReferenceSelector';
 // Import theme
 import { theme } from '@/constants/theme';
@@ -224,7 +223,7 @@ const CradleCreateForm: React.FC<CradleCreateFormProps> = ({
 }) => {
   const router = useRouter();
   // Add useUser hook to access API settings
-  const { addCradleCharacter, getCradleSettings, generateCharacterFromCradle, getCradleApiSettings } = useCharacters();
+  const { addCradleCharacter, generateCharacterFromCradle, getCradleApiSettings } = useCharacters();
   const { user } = useUser(); // Add this to get the user context
   
   // All state hooks should be called at the top level of the component
@@ -247,7 +246,7 @@ const CradleCreateForm: React.FC<CradleCreateFormProps> = ({
   // 是否直接生成角色，跳过摇篮过程
   const [generateImmediately, setGenerateImmediately] = useState(false);
   
-  const cradleSettings = getCradleSettings();
+
   
   // Add state variables for tag selection
   const [uploadMode, setUploadMode] = useState<'upload' | 'generate'>('upload');

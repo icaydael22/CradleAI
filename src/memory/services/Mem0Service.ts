@@ -83,16 +83,10 @@ class Mem0Service {
     this.initialized = true;
     console.log('[Mem0Service] 记忆服务初始化成功');
     
-    // 在初始化时检查API设置
-    this.tryGetZhipuApiKey().then(apiKey => {
-      if (apiKey) {
-        console.log('[Mem0Service] 找到智谱API密钥，嵌入服务应该可用');
-        this.isEmbeddingAvailable = true;
-      } else {
-        console.warn('[Mem0Service] 未找到智谱API密钥，嵌入服务可能不可用');
-        this.isEmbeddingAvailable = false;
-      }
-    });
+  // 延迟检查嵌入服务可用性：不要在初始化时触发可能的网络/API 调用。
+  // 原本会在这里调用 checkEmbeddingAvailability()，这可能导致初始化阶段发起嵌入器的网络请求。
+  // 为避免在 App 启动或组件挂载时自动发送 embedding 请求，我们现在把可用性检查推迟到首次实际需要嵌入时调用。
+  console.log('[Mem0Service] 嵌入服务可用性检查已被延迟，不会在初始化时触发网络请求');
   }
   
   /**
@@ -374,20 +368,24 @@ class Mem0Service {
       console.error('[Mem0Service] 添加聊天记忆失败:', error instanceof Error ? error.stack : error);
 
       // 判断错误类型
-      if (error instanceof Error && error.message.includes('智谱嵌入API密钥未设置')) {
-        console.warn('[Mem0Service] 智谱API密钥未设置，标记嵌入服务为不可用');
+      if (error instanceof Error && (
+        error.message.includes('智谱嵌入API密钥未设置') ||
+        error.message.includes('所有嵌入器都失败了') ||
+        error.message.includes('主嵌入器和备用嵌入器都不可用')
+      )) {
+        console.warn('[Mem0Service] 嵌入服务不可用，重新检查可用性');
         this.isEmbeddingAvailable = false;
 
-        // 尝试重新获取API密钥
-        try {
-          const apiKey = await this.tryGetZhipuApiKey();
-          if (apiKey) {
-            console.log('[Mem0Service] 找到API密钥，下次请求将尝试使用');
-            this.isEmbeddingAvailable = true;
+        // 重新检查嵌入服务可用性
+        this.checkEmbeddingAvailability().then(available => {
+          if (available) {
+            console.log('[Mem0Service] 嵌入服务重新可用，下次请求将尝试使用');
+          } else {
+            console.warn('[Mem0Service] 嵌入服务仍然不可用');
           }
-        } catch (e) {
-console.error('[Mem0Service] 添加聊天记忆失败:', error instanceof Error ? error.stack : error);
-        }
+        }).catch(e => {
+          console.error('[Mem0Service] 重新检查嵌入可用性失败:', e);
+        });
       }
     }
   }
@@ -671,15 +669,20 @@ console.error('[Mem0Service] 添加聊天记忆失败:', error instanceof Error 
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error(`[Mem0Service] 搜索记忆失败: ${errorMessage}`);
 
-      if (error instanceof Error && error.message.includes('智谱嵌入API密钥未设置')) {
-        console.warn('[Mem0Service] 智谱API密钥未设置，标记嵌入服务为不可用');
+      if (error instanceof Error && (
+        error.message.includes('智谱嵌入API密钥未设置') ||
+        error.message.includes('所有嵌入器都失败了') ||
+        error.message.includes('主嵌入器和备用嵌入器都不可用')
+      )) {
+        console.warn('[Mem0Service] 嵌入服务不可用，重新检查可用性');
         this.isEmbeddingAvailable = false;
 
-        this.tryGetZhipuApiKey().then(apiKey => {
-          if (apiKey) {
-            console.log('[Mem0Service] 找到API密钥，下次请求将尝试使用');
-            this.isEmbeddingAvailable = true;
+        this.checkEmbeddingAvailability().then(available => {
+          if (available) {
+            console.log('[Mem0Service] 嵌入服务重新可用，下次请求将尝试使用');
           }
+        }).catch(e => {
+          console.error('[Mem0Service] 重新检查嵌入可用性失败:', e);
         });
       }
 
@@ -813,6 +816,13 @@ console.error('[Mem0Service] 添加聊天记忆失败:', error instanceof Error 
   
   public isMemoryEnabled(): boolean {
     return this.memoryEnabled;
+  }
+
+  /**
+   * 返回服务是否已完成初始化（安全、无副作用）
+   */
+  public isInitialized(): boolean {
+    return !!this.initialized;
   }
   
   /**
@@ -977,14 +987,17 @@ console.error('[Mem0Service] 添加聊天记忆失败:', error instanceof Error 
       console.error(`[Mem0Service] 创建新记忆失败: ${errorMessage}`);
       
       // 检查是否是嵌入器错误，尝试刷新嵌入可用性状态
-      if (errorMessage.includes('嵌入') || errorMessage.includes('API密钥')) {
+      if (errorMessage.includes('嵌入') || errorMessage.includes('API密钥') || 
+          errorMessage.includes('所有嵌入器都失败了') ||
+          errorMessage.includes('主嵌入器和备用嵌入器都不可用')) {
         this.isEmbeddingAvailable = false;
-        // 尝试重新获取API密钥
-        this.tryGetZhipuApiKey().then(apiKey => {
-          if (apiKey) {
-            console.log('[Mem0Service] 找到API密钥，标记嵌入服务为可用');
-            this.isEmbeddingAvailable = true;
+        // 重新检查嵌入服务可用性
+        this.checkEmbeddingAvailability().then(available => {
+          if (available) {
+            console.log('[Mem0Service] 嵌入服务重新可用');
           }
+        }).catch(e => {
+          console.error('[Mem0Service] 重新检查嵌入可用性失败:', e);
         });
       }
       
@@ -1148,6 +1161,30 @@ console.error('[Mem0Service] 添加聊天记忆失败:', error instanceof Error 
     } catch (error) {
       console.error('[Mem0Service] 获取角色记忆数量失败:', error);
       return 0;
+    }
+  }
+
+  /**
+   * 检查嵌入服务是否可用（包括回退机制）
+   * @returns 是否有可用的嵌入器
+   */
+  public async checkEmbeddingAvailability(): Promise<boolean> {
+    // 为了避免在初始化或可用性检查时触发可能的网络请求，
+    // 我们不再主动调用 memoryRef.isEmbeddingAvailable()（该方法可能会发起远程探测）。
+    // 改为使用本地可用信息（如本地存储的 API key）来判断是否有可能可用，
+    // 真正的远程探测应由调用方在需要时显式触发。
+    try {
+      const apiKey = await this.tryGetZhipuApiKey();
+      this.isEmbeddingAvailable = !!apiKey;
+      if (this.memoryRef && this.memoryRef.isEmbeddingAvailable !== undefined) {
+        console.log('[Mem0Service] memoryRef 提供 isEmbeddingAvailable 方法，但为避免自动网络探测，已跳过调用');
+      }
+      console.log(`[Mem0Service] 嵌入服务可用性（基于本地检查）: ${this.isEmbeddingAvailable}`);
+      return this.isEmbeddingAvailable;
+    } catch (error) {
+      console.error('[Mem0Service] 检查嵌入可用性失败:', error);
+      this.isEmbeddingAvailable = false;
+      return false;
     }
   }
 }

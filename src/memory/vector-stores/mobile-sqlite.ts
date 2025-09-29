@@ -38,7 +38,14 @@ export class MobileSQLiteVectorStore implements VectorStore {
   private async _initializeDatabase(): Promise<void> {
     try {
       console.log(`[MobileSQLiteVectorStore] Opening database: ${this.dbName}`);
-      this.db = await SQLite.openDatabaseAsync(this.dbName);
+      // Prefer async open if available, otherwise fall back to sync open
+      if ((SQLite as any).openDatabaseAsync && typeof (SQLite as any).openDatabaseAsync === 'function') {
+        this.db = await (SQLite as any).openDatabaseAsync(this.dbName);
+      } else if ((SQLite as any).openDatabase && typeof (SQLite as any).openDatabase === 'function') {
+        this.db = (SQLite as any).openDatabase(this.dbName);
+      } else {
+        throw new Error('No compatible SQLite openDatabase implementation found');
+      }
       console.log(`[MobileSQLiteVectorStore] Database opened successfully.`);
       await this.initTable();
     } catch (error) {
@@ -50,19 +57,69 @@ export class MobileSQLiteVectorStore implements VectorStore {
   private async initTable(): Promise<void> {
     if (!this.db) throw new Error("Database not initialized.");
     try {
-      await this.db.execAsync(`CREATE TABLE IF NOT EXISTS ${this.collectionName} (
+      // Use execAsync when available, otherwise use executeSqlAsync wrapper
+      const createTableSql = `CREATE TABLE IF NOT EXISTS ${this.collectionName} (
         id TEXT PRIMARY KEY,
         vector TEXT NOT NULL,
         payload TEXT NOT NULL
-      )`);
+      )`;
+      if (typeof (this.db as any).execAsync === 'function') {
+        await (this.db as any).execAsync(createTableSql);
+      } else {
+        await this.executeSqlAsync(createTableSql, []);
+      }
       console.log(`[MobileSQLiteVectorStore] 表 ${this.collectionName} 初始化成功`);
-      await this.db.execAsync(`CREATE INDEX IF NOT EXISTS idx_${this.collectionName}_agentId 
-        ON ${this.collectionName}(json_extract(payload, '$.agentId'))`);
+      const createIndexSql = `CREATE INDEX IF NOT EXISTS idx_${this.collectionName}_agentId 
+        ON ${this.collectionName}(json_extract(payload, '$.agentId'))`;
+      if (typeof (this.db as any).execAsync === 'function') {
+        await (this.db as any).execAsync(createIndexSql);
+      } else {
+        await this.executeSqlAsync(createIndexSql, []);
+      }
       console.log(`[MobileSQLiteVectorStore] 为表 ${this.collectionName} 创建角色ID索引成功`);
     } catch (error) {
       console.error(`[MobileSQLiteVectorStore] 初始化表 ${this.collectionName} 失败:`, error);
       throw error;
     }
+  }
+
+  /**
+   * Execute SQL using transaction.executeSql (works on all expo-sqlite versions).
+   * Returns rows as array of objects for SELECT, or resolves when non-SELECT finishes.
+   */
+  private executeSqlAsync(sql: string, params: any[] = []): Promise<any[]> {
+    return new Promise<any[]>((resolve, reject) => {
+      if (!this.db) return reject(new Error('Database not initialized'));
+      try {
+        (this.db as any).transaction((tx: any) => {
+          tx.executeSql(
+            sql,
+            params,
+            (_tx: any, result: any) => {
+              // Convert rows to plain array
+              try {
+                const rows: any[] = [];
+                if (result && result.rows) {
+                  for (let i = 0; i < result.rows.length; i++) {
+                    rows.push(result.rows.item(i));
+                  }
+                }
+                resolve(rows);
+              } catch (e) {
+                reject(e);
+              }
+            },
+            (_tx: any, err: any) => {
+              reject(err);
+            }
+          );
+        }, (txErr: any) => {
+          reject(txErr);
+        });
+      } catch (err) {
+        reject(err);
+      }
+    });
   }
 
   private async ensureDbReady(): Promise<SQLite.SQLiteDatabase> {
@@ -74,7 +131,14 @@ export class MobileSQLiteVectorStore implements VectorStore {
   private async run(sql: string, params: any[] = []): Promise<void> {
     const db = await this.ensureDbReady();
     try {
-      await db.runAsync(sql, params);
+      if (typeof (db as any).runAsync === 'function') {
+        await (db as any).runAsync(sql, params);
+      } else if (typeof (db as any).execAsync === 'function') {
+        await (db as any).execAsync(sql, params);
+      } else {
+        // Fallback to transaction execution
+        await this.executeSqlAsync(sql, params);
+      }
     } catch (error) {
       console.error('[MobileSQLiteVectorStore] 执行 SQL 失败:', sql, params, error);
       throw error;
@@ -84,9 +148,31 @@ export class MobileSQLiteVectorStore implements VectorStore {
   private async all<T>(sql: string, params: any[] = []): Promise<T[]> {
     const db = await this.ensureDbReady();
     try {
-      return await db.getAllAsync<T>(sql, params);
+      if (typeof (db as any).getAllAsync === 'function') {
+        return (await (db as any).getAllAsync(sql, params)) as T[];
+      }
+      // Fallback to executeSqlAsync and map rows
+      const rows = await this.executeSqlAsync(sql, params);
+      return rows as T[];
     } catch (error) {
       console.error('[MobileSQLiteVectorStore] 查询多条记录失败:', sql, params, error);
+      // Try to recover: attempt to re-open DB once if underlying call produced a NullPointerException
+      try {
+        if (error && typeof error === 'object' && String(error).includes('NullPointerException')) {
+          console.warn('[MobileSQLiteVectorStore] Detected native NullPointerException, attempting DB reopen');
+          // attempt to reinitialize db
+          this.db = null;
+          this.ready = this._initializeDatabase();
+          await this.ready;
+          const db2 = await this.ensureDbReady();
+          if (typeof (db2 as any).getAllAsync === 'function') {
+            return (await (db2 as any).getAllAsync(sql, params)) as T[];
+          }
+          return (await this.executeSqlAsync(sql, params)) as T[];
+        }
+      } catch (reopenErr) {
+        console.error('[MobileSQLiteVectorStore] 重建数据库连接失败:', reopenErr);
+      }
       return [];
     }
   }
@@ -94,7 +180,12 @@ export class MobileSQLiteVectorStore implements VectorStore {
   private async getOne<T>(sql: string, params: any[] = []): Promise<T | null> {
     const db = await this.ensureDbReady();
     try {
-      return await db.getFirstAsync<T>(sql, params);
+      if (typeof (db as any).getFirstAsync === 'function') {
+        return (await (db as any).getFirstAsync(sql, params)) as T;
+      }
+      const rows = await this.executeSqlAsync(sql, params);
+      if (!rows || rows.length === 0) return null;
+      return rows[0] as T;
     } catch (error) {
       console.error('[MobileSQLiteVectorStore] 查询单条记录失败:', sql, params, error);
       return null;

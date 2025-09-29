@@ -17,6 +17,7 @@ export interface CirclePost {
   likedBy?: CircleLike[];
   hasTriggeredResponse?: boolean;
   isFavorited?: boolean; // Add new property for favorite status
+  rating?: number; // 1-5 星评分，可选
 }
 
 export interface CircleComment {
@@ -32,6 +33,10 @@ export interface CircleComment {
     userName: string;
   };
   thoughts?: string; // Optional field for character's thoughts on the comment
+  // Optional sticker/emoticon image to render along with comment text.
+  // If it contains a protocol (://), treat as absolute URI; otherwise treat as filename
+  // located under the character's emoticon directory.
+  emoticon?: string;
 }
 
 export interface CircleLike {
@@ -129,6 +134,9 @@ export interface CircleResponse {
     reflection?: string;
     expectation?: string;
     post?: string;  // Add this field to handle new post content
+    // Optional emoticon file name (with extension) from character gallery "emoticons" tab
+    // When present and valid, render the sticker/gif together with the comment
+    emoticon?: string;
 }
 
 export interface CircleMemorySystem {

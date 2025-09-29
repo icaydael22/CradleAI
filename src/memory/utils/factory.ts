@@ -1,5 +1,6 @@
 import { Embedder } from '../embeddings/base';
 import { ZhipuEmbedder } from '../embeddings/zhipu-embedder';
+import { CradleCloudEmbedder } from '../embeddings/cradle-cloud-embedder';
 import { VectorStore } from '../vector-stores/base';
 import { MobileSQLiteVectorStore } from '../vector-stores/mobile-sqlite';
 import { MobileFileVectorStore } from '../vector-stores/mobile-file';
@@ -29,6 +30,8 @@ export class EmbedderFactory {
         break;
       case 'zhipu':
         return new ZhipuEmbedder(config);
+      case 'cradle-cloud':
+        return new CradleCloudEmbedder(config);
       default:
         throw new Error(`不支持的嵌入器提供商: ${provider}`);
     }

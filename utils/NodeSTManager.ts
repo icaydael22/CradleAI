@@ -121,16 +121,9 @@ class NodeSTManagerClass {
   async processChatMessage(params: {
     userMessage: string;
     status?: "更新人设" | "新建角色" | "同一角色继续对话";
-    conversationId: string;
-    apiKey?: string; // Make apiKey optional
-    apiSettings?: Partial<GlobalSettings['chat']>;    
+    conversationId: string;  
     character?: Character; // Character object with jsonData
     characterId?: string; // Optional character ID
-    geminiOptions?: {
-      geminiPrimaryModel?: string;
-      geminiBackupModel?: string;
-      retryDelay?: number;
-    };
     onStream?: (delta: string) => void; // 新增
   }): Promise<{
     success: boolean;
@@ -156,7 +149,6 @@ class NodeSTManagerClass {
         userMessage: params.userMessage.substring(0, 50),
         status: params.status,
         conversationId: params.conversationId,
-        hasApiKey: !!params.apiKey,
         hasCharacter: !!params.character,
         characterId: params.characterId
       });
@@ -170,31 +162,7 @@ class NodeSTManagerClass {
       }
 
       const characterId = params.character?.id || params.conversationId;
-      const jsonString = params.character?.jsonData;
-      const apiKey = params.apiKey || this.apiKey || ''; // Use instance apiKey as fallback, empty string as last resort
-      
-      // console.log('[NodeSTManager] Processing request:', {
-      //   apiKeyProvided: !!apiKey,
-      //   apiProvider: params.apiSettings?.apiProvider || 'gemini',
-      //   openRouterEnabled: params.apiSettings?.apiProvider === 'openrouter' && params.apiSettings?.openrouter?.enabled,
-      //   openRouterModel: params.apiSettings?.openrouter?.model,
-      //   useGeminiModelLoadBalancing: params.apiSettings?.useGeminiModelLoadBalancing,
-      //   useGeminiKeyRotation: params.apiSettings?.useGeminiKeyRotation,
-      //   additionalKeysCount: params.apiSettings?.additionalGeminiKeys?.length,
-      //   status: params.status || '同一角色继续对话',
-      //   conversationId: params.conversationId,
-      //   characterId: characterId,
-      //   hasCharacter: !!params.character,
-      //   hasJsonData: !!jsonString,
-      //   customUserName: params.character?.customUserName || 'User',
-      //   action: params.status === "更新人设" ? "更新人设" : (params.status === "新建角色" ? "新建角色" : "继续对话"),
-      //   useToolCalls: this.searchEnabled,
-      //   usingCloudFallback: !apiKey,
-      //   OpenAIcompatible: params.apiSettings?.OpenAIcompatible?.enabled,
-      //   OpenAIcompatibleModel: params.apiSettings?.OpenAIcompatible?.model,
-      //   OpenAIcompatibleKey: params.apiSettings?.OpenAIcompatible?.apiKey,
-      //   OpenAIcompatibleEndpoint: params.apiSettings?.OpenAIcompatible?.endpoint
-      // });
+      const jsonString = params.character?.jsonData;      
 
       // Add detailed logging of character data when creating a new character
       if (params.status === "新建角色" && params.character) {
@@ -220,11 +188,6 @@ class NodeSTManagerClass {
         }
       }
 
-      // If OpenRouter is configured, ensure we're using the latest settings
-      if (params.apiSettings?.apiProvider === 'openrouter' && params.apiSettings?.openrouter?.enabled) {
-        // Update settings before processing to ensure correct adapter is used
-        this.nodeST.updateApiSettings(apiKey, params.apiSettings);
-      }
 
       console.log('[NodeSTManager] Calling NodeST.processChatMessage with conversationId:', params.conversationId);
       
@@ -248,13 +211,10 @@ class NodeSTManagerClass {
         userMessage: params.userMessage,
         conversationId: params.conversationId,
         status: params.status || "同一角色继续对话",
-        apiKey: apiKey,
-        apiSettings: params.apiSettings, // 这里已包含OpenAIcompatible全部参数
         jsonString: jsonString,
         characterId: characterId,  // Pass characterId for memory service
         customUserName: params.character?.customUserName, // Pass the customUserName to NodeST
         useToolCalls: this.searchEnabled, // Pass the search preference flag
-        geminiOptions: params.geminiOptions, // Pass geminiOptions
         onStream: params.onStream // 新增，透传onStream
       });
 
@@ -297,12 +257,6 @@ class NodeSTManagerClass {
         
         // 创建NodeST实例来处理实际请求
         const nodeST = new NodeST();
-        const apiKey = options.apiKey || ''; // Empty string as fallback
-        
-        // 更新API设置
-        if (apiKey || options.apiSettings) {
-            nodeST.updateApiSettings(apiKey, options.apiSettings);
-        }
         
         // 针对"新建角色"情况进行特殊处理
         if (options.status === "新建角色") {
@@ -519,13 +473,10 @@ class NodeSTManagerClass {
             userMessage: options.userMessage,
             conversationId: options.conversationId,
             status: options.status || "同一角色继续对话",
-            apiKey: apiKey, // Could be empty string
-            apiSettings: options.apiSettings,
             jsonString: options.character?.jsonData,
             characterId: options.character?.id,  // Pass character ID for memory service
             customUserName: options.character?.customUserName,  // Pass the customUserName to NodeST
             useToolCalls: NodeSTManagerClass.instance?.searchEnabled || false, // Pass search flag
-            geminiOptions: options.geminiOptions, // Pass geminiOptions
             onStream: options.onStream // 新增，透传onStream
         });
         
@@ -860,18 +811,12 @@ class NodeSTManagerClass {
   async summarizeMemoryNow(params: {
     conversationId: string;
     characterId: string;
-    apiKey: string;
-    apiSettings?: Pick<GlobalSettings['chat'], 'apiProvider' | 'openrouter' | 'useGeminiModelLoadBalancing' | 'useGeminiKeyRotation' | 'additionalGeminiKeys'>;
   }): Promise<{ success: boolean; error?: string }> {
     try {
-      // 确保API设置已更新
-      this.updateApiSettings(params.apiKey, params.apiSettings);
       // 调用NodeST的processMemorySummaryNow
       const result = await this.nodeST.processMemorySummaryNow({
         conversationId: params.conversationId,
         characterId: params.characterId,
-        apiKey: params.apiKey,
-        apiSettings: params.apiSettings,
       });
       return result;
     } catch (error) {
@@ -1032,65 +977,13 @@ class NodeSTManagerClass {
   }
 }
 
-/**
- * Abort 功能需求文档
- * 
- * 1. 功能目标
- * ---------------
- * 用户在 AI 回复生成过程中，可以主动中止（abort）本次回复，避免等待无效响应或节省资源。
- * 
- * 2. 触发时机与边界
- * ---------------
- * - abort 只能中止"尚未完成写入历史"的 AI 回复流程。
- * - 一旦 AI 回复和用户消息已写入聊天历史（后端存储），abort 仅能中止前端流式展示，无法撤销历史记录。
- * - abort 应在流式响应、长时间生成、网络异常等场景下可用。
- * 
- * 3. 前后端协作
- * ---------------
- * - 前端：在用户点击"中止"按钮时，向后端发送 abort 请求（如通过取消 fetch/stream 或调用专门的 abort API）。
- * - 后端：收到 abort 请求后，立即中止当前生成流程，确保未写入历史时不写入，已写入则不做额外处理。
- * - 前端需根据后端返回状态，决定是否移除/保留本次 AI 回复在消息列表中的占位符。
- * 
- * 4. 典型流程
- * ---------------
- * - 用户发送消息，AI 开始生成回复（流式/非流式）。
- * - 用户点击"中止"，前端发起 abort。
- *   - 若 AI 回复尚未写入历史，前端移除本次 AI 回复占位符，后端不写入历史。
- *   - 若 AI 回复已写入历史，abort 仅中止展示，历史记录不会被撤销。
- * 
- * 5. 注意事项
- * ---------------
- * - abort 不是"撤回"功能，不能删除已存储的历史消息。
- * - 若需支持"撤回"，需单独实现消息删除/撤回接口。
- * - 前端需区分"流式展示中止"与"历史已写入"的状态，避免 UI 与历史不一致。
- * - 后端需保证写入历史的原子性，避免部分写入导致数据不一致。
- * 
- * 6. 相关接口建议
- * ---------------
- * - 前端：提供 abort 控件，调用 abort API 或中止流式 fetch。
- * - 后端：支持流式响应的中止、生成流程的取消，返回明确的 abort 状态。
- * 
- * 7. 典型场景举例
- * ---------------
- * - 用户发现 AI 回复无关/太慢，点击"中止"，本次回复不进入历史。
- * - 网络异常导致生成超时，用户 abort，前端移除 loading 占位符。
- * - AI 回复已写入历史，用户 abort，仅中止流式展示，历史仍保留。
- */
-
 // Create and export a singleton instance
 export interface ProcessChatOptions {
   userMessage: string;
   status?: "更新人设" | "新建角色" | "同一角色继续对话";
   conversationId: string;
-  apiKey: string;
-  apiSettings?: Partial<GlobalSettings['chat']>;  
   character?: Character;
-  geminiOptions?: {
-    geminiPrimaryModel?: string;
-    geminiBackupModel?: string;
-    retryDelay?: number;
-  };
-  onStream?: (delta: string) => void; // 新增
+  onStream?: (delta: string) => void;
 }
 
 interface Message {

@@ -2,7 +2,6 @@ import React from 'react';
 import { SafeAreaView, StyleSheet, View, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import NodeSTDebugger from '@/components/debug/NodeSTDebugger';
 import { theme } from '@/constants/theme';
 
 const DebugToolsPage: React.FC = () => {
@@ -22,7 +21,6 @@ const DebugToolsPage: React.FC = () => {
       </View>
       
       <View style={styles.content}>
-        <NodeSTDebugger />
       </View>
     </SafeAreaView>
   );

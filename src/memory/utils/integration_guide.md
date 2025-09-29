@@ -526,7 +526,7 @@ const fixAndSimplifyPrompt = {
         "Markdown": "没有注释或额外的 Markdown 标签"
       },
       "FormatChecks": {
-        "Standardization": "统一时间/地点/好感度格式",
+        "Standardization": "统一时间/地点/goodwill格式",
         "TableSpecific": {
           "时空表格": "如果存在多个，则仅保留最新一行",
           "角色特征表格": "合并重复的角色条目",

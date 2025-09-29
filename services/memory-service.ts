@@ -5,6 +5,7 @@ import { unifiedGenerateContent } from '@/services/unified-api';
 import { StorageAdapter } from '@/NodeST/nodest/utils/storage-adapter';
 
 const MEMORY_SUMMARY_STORAGE_KEY = 'memory_summary_prompt_config';
+const SCRIPT_SUMMARY_STORAGE_KEY = 'script_summary_prompt_config'; // New storage key for script summaries
 const MEMORY_SERVICE_STORAGE_KEY = 'memory_service_config';
 const SUMMARIES_STORAGE_PREFIX = 'conversation_summaries_'; // New storage key prefix for summaries
 
@@ -18,7 +19,7 @@ interface MemorySummarySettings {
 interface MemoryServiceConfig {
   summaryThreshold: number;
   summaryLength: number;
-  summaryRange: { start: number; end: number } | null;
+  summaryRangePercent: { start: number; end: number } | null;
 }
 
 interface SummaryData {
@@ -35,7 +36,7 @@ interface MemorySummaryPromptConfig {
   inputText: string;
   presetJson: string;
   worldBookJson: string;
-  adapterType: 'gemini' | 'openrouter' | 'openai-compatible';
+  adapterType: 'gemini' | 'openrouter' | 'openai-compatible' | 'cradlecloud';
   messageArray: any[];
 }
 
@@ -119,6 +120,11 @@ export class MemoryService {
     } catch (e) {
       console.error('[MemoryService] 加载记忆服务配置失败:', e);
     }
+    // Fallback to UtilSettings defaults when never saved
+    try {
+      const { defaultMemoryServiceConfig } = require('@/constants/utilDefaults');
+      return defaultMemoryServiceConfig as MemoryServiceConfig;
+    } catch {}
     return null;
   }
 
@@ -136,7 +142,7 @@ export class MemoryService {
         model?: string;
       }
     },
-    summaryRange?: { start: number, end: number } 
+    summaryRangePercent?: { start: number, end: number } 
   ): Promise<ChatHistoryEntity> {
     try {
       const settings = await this.loadSettings(characterId);
@@ -156,7 +162,7 @@ export class MemoryService {
         return chatHistory;
       }
 
-      const finalSummaryRange = memoryServiceConfig?.summaryRange || summaryRange;
+      const finalSummaryRangePercent = memoryServiceConfig?.summaryRangePercent || summaryRangePercent;
 
       // Reconstruct ChatHistoryEntity for summarization
       const cleanChatHistory: ChatHistoryEntity = {
@@ -170,7 +176,7 @@ export class MemoryService {
         settings,
         apiKey,
         apiSettings,
-        finalSummaryRange,
+        finalSummaryRangePercent,
         false // 非强制模式
       );
     } catch (error) {
@@ -194,7 +200,7 @@ export class MemoryService {
   }
   
   /**
-   * Load saved memory summary prompt configuration
+   * Load saved memory summary prompt configuration (for character conversations)
    */
   private async loadMemorySummaryConfig(): Promise<MemorySummaryPromptConfig | null> {
     try {
@@ -205,17 +211,43 @@ export class MemoryService {
     } catch (e) {
       console.error('[MemoryService] 加载记忆总结提示词配置失败:', e);
     }
+    // Fallback to UtilSettings defaults when never saved
+    try {
+      const { defaultMemorySummaryPromptConfig } = require('@/constants/utilDefaults');
+      return defaultMemorySummaryPromptConfig as MemorySummaryPromptConfig;
+    } catch {}
+    return null;
+  }
+
+  /**
+   * Load saved script summary prompt configuration (for scripts)
+   */
+  private async loadScriptSummaryConfig(): Promise<MemorySummaryPromptConfig | null> {
+    try {
+      const saved = await AsyncStorage.getItem(SCRIPT_SUMMARY_STORAGE_KEY);
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error('[MemoryService] 加载剧本总结提示词配置失败:', e);
+    }
+    // Fallback to UtilSettings defaults when never saved
+    try {
+      const { defaultScriptSummaryPromptConfig } = require('@/constants/utilDefaults');
+      return defaultScriptSummaryPromptConfig as MemorySummaryPromptConfig;
+    } catch {}
     return null;
   }
 
   /**
    * Get adapter type from API provider setting
    */
-  private getAdapterType(apiProvider?: string): 'gemini' | 'openrouter' | 'openai-compatible' {
+  private getAdapterType(apiProvider?: string): 'gemini' | 'openrouter' | 'openai-compatible' | 'cradlecloud' {
     if (!apiProvider) return 'gemini';
-    
     const provider = apiProvider.toLowerCase();
-    if (provider.includes('gemini')) {
+    if (provider.includes('cradlecloud')) {
+      return 'cradlecloud';
+    } else if (provider.includes('gemini')) {
       return 'gemini';
     } else if (provider.includes('openrouter')) {
       return 'openrouter';
@@ -239,7 +271,7 @@ export class MemoryService {
    * @param settings 摘要设置
    * @param apiKey API密钥
    * @param apiSettings API设置
-   * @param summaryRange 可选，指定需要摘要的消息区间（如 {start: 5, end: 9} 表示第6~10条）
+   * @param summaryRangePercent 可选，指定需要摘要的消息区间（如 {start: 30, end: 70} 表示30%到70%的消息）
    * @param forceGenerate 可选，是否强制生成总结（跳过长度检查）
    */
   public async generateSummary(
@@ -255,7 +287,7 @@ export class MemoryService {
         model?: string;
       }
     },
-    summaryRange?: { start: number, end: number },
+    summaryRangePercent?: { start: number, end: number },
     forceGenerate?: boolean
   ): Promise<ChatHistoryEntity> {
     try {
@@ -268,48 +300,65 @@ export class MemoryService {
       // Load memory service config to get updated settings
       const memoryServiceConfig = await this.loadMemoryServiceConfig();
       const summaryLength = memoryServiceConfig?.summaryLength || settings.summaryLength;
-      const finalSummaryRange = memoryServiceConfig?.summaryRange || summaryRange;
+      const finalSummaryRangePercent = memoryServiceConfig?.summaryRangePercent || summaryRangePercent;
 
       const totalTextLength = messages.reduce((sum, msg) => sum + (msg.parts?.[0]?.text?.length || 0), 0);
       console.log(`[MemoryService] Chat history total length: ${totalTextLength} characters`);
-      console.log(`[MemoryService] finalSummaryRange:`, finalSummaryRange);
+      console.log(`[MemoryService] finalSummaryRangePercent:`, finalSummaryRangePercent);
 
       let startIdx: number, endIdx: number;
-      if (finalSummaryRange && typeof finalSummaryRange.start === 'number' && typeof finalSummaryRange.end === 'number') {
-        startIdx = finalSummaryRange.start;
-        endIdx = finalSummaryRange.end + 1;
-        if (startIdx < 0) startIdx = 0;
-        if (endIdx > messages.length) endIdx = messages.length;
-        if (endIdx - startIdx < 1 && !forceGenerate) {
-          console.log(`[MemoryService] summaryRange too small, skipping`);
-          // Return original chatHistoryEntity with clean messages
-          return { ...chatHistory, parts: messages };
-        }
-        // 如果forceGenerate为true，即使范围很小也要强制生成
-        if (forceGenerate && endIdx - startIdx < 1) {
-          startIdx = 0;
-          endIdx = messages.length;
-          console.log(`[MemoryService] Force generate mode with small range, summarizing all ${messages.length} messages`);
+      
+      // 新的百分比计算逻辑
+      if (finalSummaryRangePercent && typeof finalSummaryRangePercent.start === 'number' && typeof finalSummaryRangePercent.end === 'number') {
+        const startPercent = finalSummaryRangePercent.start;
+        const endPercent = finalSummaryRangePercent.end;
+
+        // 验证百分比范围的有效性
+        if (startPercent < 0 || endPercent > 100 || startPercent >= endPercent) {
+          console.warn(`[MemoryService] Invalid percentage range [${startPercent}, ${endPercent}], falling back to default.`);
+          // 回退到默认逻辑
+          if (messages.length <= 6 || forceGenerate) {
+            startIdx = 0;
+            endIdx = messages.length;
+          } else {
+            startIdx = 3;
+            endIdx = messages.length - 3;
+          }
         } else {
-          console.log(`[MemoryService] Using custom summary range: [${startIdx}, ${endIdx - 1}]`);
+          console.log(`[MemoryService] Using percentage summary range: [${startPercent}%, ${endPercent}%]`);
+          startIdx = Math.floor(messages.length * (startPercent / 100));
+          endIdx = Math.ceil(messages.length * (endPercent / 100));
+
+          // 确保索引在安全范围内
+          if (startIdx < 0) startIdx = 0;
+          if (endIdx > messages.length) endIdx = messages.length;
+          
+          console.log(`[MemoryService] Calculated indices from percentages: startIdx=${startIdx}, endIdx=${endIdx} (total messages: ${messages.length})`);
         }
       } else {
-        // 修复：对于少量消息，允许总结所有消息
+        // 保留原有的默认总结逻辑（当未设置自定义区间时）
         if (messages.length <= 6 || forceGenerate) {
-          // 如果消息总数很少或强制生成，总结所有消息
           startIdx = 0;
           endIdx = messages.length;
           console.log(`[MemoryService] ${forceGenerate ? 'Force generate mode' : 'Few messages detected'}, summarizing all ${messages.length} messages`);
         } else {
-          // 原来的逻辑：保留开头和结尾的消息，总结中间部分
           startIdx = 3;
           endIdx = messages.length - 3;
-          if (endIdx - startIdx < 4) {
-            console.log(`[MemoryService] Middle section too small (${endIdx - startIdx} messages), skipping`);
-            return { ...chatHistory, parts: messages };
-          }
           console.log(`[MemoryService] Using default summary range: [${startIdx}, ${endIdx - 1}]`);
         }
+      }
+
+      // 后续逻辑（如检查区间大小等）
+      if (endIdx - startIdx < 1 && !forceGenerate) {
+        console.log(`[MemoryService] summaryRange too small, skipping`);
+        return { ...chatHistory, parts: messages };
+      }
+      
+      // 如果forceGenerate为true，即使范围很小也要强制生成
+      if (forceGenerate && endIdx - startIdx < 1) {
+        startIdx = 0;
+        endIdx = messages.length;
+        console.log(`[MemoryService] Force generate mode with small range, summarizing all ${messages.length} messages`);
       }
 
       const messagesToSummarize = messages.slice(startIdx, endIdx);
@@ -319,22 +368,28 @@ export class MemoryService {
         return { ...chatHistory, parts: messages };
       }
 
-      const formattedMessages = messagesToSummarize.map(msg => {
+  const formattedMessages = messagesToSummarize.map(msg => {
         const role = msg.role === 'user' ? 'User' : 'Character';
         return `${role}: ${msg.parts?.[0]?.text || ''}`;
       }).join('\n\n');
 
       // 读取保存的记忆总结提示词配置
-      const savedConfig = await this.loadMemorySummaryConfig();
-      if (!savedConfig || !savedConfig.messageArray || savedConfig.messageArray.length === 0) {
+  const savedConfig = await this.loadMemorySummaryConfig();
+  if (!savedConfig || !savedConfig.messageArray || savedConfig.messageArray.length === 0) {
         console.warn('[MemoryService] 未找到保存的记忆总结提示词配置，使用默认方式');
-        
         // Fallback to original method
-        // === 优化：支持 openai-compatible 适配器 ===
+        // === 优化：支持 openai-compatible 和 cradlecloud 适配器 ===
         const chatSettings = getApiSettings();
         let adapter: any;
-        const provider = (apiSettings?.apiProvider || chatSettings.apiProvider) as 'gemini' | 'openrouter' | 'openai-compatible';
+        const provider = (apiSettings?.apiProvider || chatSettings.apiProvider) as 'gemini' | 'openrouter' | 'openai-compatible' | 'cradlecloud';
         if (
+          provider === 'cradlecloud' &&
+          chatSettings?.cradlecloud?.enabled
+        ) {
+          const { CradleCloudAdapter } = require('@/NodeST/nodest/utils/cradlecloud-adapter');
+          adapter = new CradleCloudAdapter();
+          console.log('[MemoryService] Using CradleCloud API for summary generation');
+        } else if (
           provider === 'openrouter' &&
           apiSettings?.openrouter?.enabled &&
           apiSettings?.openrouter?.apiKey
@@ -385,13 +440,19 @@ ${formattedMessages}`
           }
         ];
 
-        const summaryText = await adapter.generateContent(prompt);
+        let summaryText: string;
+        if (provider === 'cradlecloud') {
+          // cradlecloud 适配器直接用 ChatMessage 格式
+          summaryText = await adapter.generateContent(prompt);
+        } else {
+          summaryText = await adapter.generateContent(prompt);
+        }
 
         // 构造摘要消息
         const summaryMessage: ChatMessage & SummaryData = {
           role: "user",
-          parts: [{ 
-            text: `--- CONVERSATION SUMMARY (AI-GENERATED, NOT VISIBLE TO USER) ---\n${summaryText}\n--- END OF SUMMARY ---` 
+          parts: [{
+            text: `--- CONVERSATION SUMMARY (AI-GENERATED, NOT VISIBLE TO USER) ---\n${summaryText}\n--- END OF SUMMARY ---`
           }],
           summary: summaryText,
           isMemorySummary: true,
@@ -449,16 +510,16 @@ ${formattedMessages}`
       };
 
       // 为消息数组添加实际对话内容
-      const messageArrayWithContent = [...savedConfig.messageArray];
+  const messageArrayWithContent = [...savedConfig.messageArray];
       // 将对话内容添加到最后一个用户消息中
       if (messageArrayWithContent.length > 0) {
         const lastMessageIndex = messageArrayWithContent.length - 1;
         const lastMessage = messageArrayWithContent[lastMessageIndex];
         if (lastMessage.role === 'user') {
           if ('content' in lastMessage) {
-            lastMessage.content += `\n\n对话内容：\n${formattedMessages}`;
+    lastMessage.content = (lastMessage.content || '').replace('<INPUT_TEXT>', '') + `\n\n对话内容：\n${formattedMessages}`;
           } else if (lastMessage.parts && lastMessage.parts[0]) {
-            lastMessage.parts[0].text += `\n\n对话内容：\n${formattedMessages}`;
+    lastMessage.parts[0].text = (lastMessage.parts[0].text || '').replace('<INPUT_TEXT>', '') + `\n\n对话内容：\n${formattedMessages}`;
           }
         } else {
           // 如果最后一条不是用户消息，添加新的用户消息
@@ -526,13 +587,13 @@ ${formattedMessages}`
    * @param characterId 角色ID
    * @param apiKey API密钥
    * @param apiSettings API设置
-   * @param summaryRange 可选，指定需要摘要的消息区间
+   * @param summaryRangePercent 可选，指定需要摘要的消息区间百分比
    * @returns 是否成功
    */
   public async summarizeMemoryNow(
     conversationId: string,
     characterId: string,
-    apiKey: string,
+    apiKey?: string,
     apiSettings?: {
       apiProvider: 'gemini' | 'openrouter' | 'openai-compatible',
       openrouter?: {
@@ -541,7 +602,7 @@ ${formattedMessages}`
         model?: string;
       }
     },
-    summaryRange?: { start: number, end: number }
+    summaryRangePercent?: { start: number, end: number }
   ): Promise<boolean> {
     try {
       // Use StorageAdapter.getCleanChatHistory to get messages
@@ -560,10 +621,10 @@ ${formattedMessages}`
         conversationId,
         chatHistory,
         settings,
-        apiKey,
+        apiKey || '',
         apiSettings,
-        summaryRange,
-        true // 强制生成总结
+        summaryRangePercent,
+        true // 强制模式
       );
 
       // 保存新历史（优先保存到 expo-file-system）
@@ -661,6 +722,175 @@ ${formattedMessages}`
     } catch (error) {
       console.error(`[MemoryService] Error deleting summary:`, error);
       return false;
+    }
+  }
+
+  /**
+   * 为剧本服务提供的专用总结方法
+   * 直接对文本内容进行总结，不进行楼层区间判断
+   * @param scriptId 剧本ID
+   * @param contentToSummarize 待总结的文本内容
+   * @param apiKey API密钥
+   * @param apiSettings API设置
+   * @returns 总结后的文本内容
+   */
+  public async summarizeScriptContent(
+    scriptId: string,
+    contentToSummarize: string,
+    apiKey?: string,
+    apiSettings?: {
+      apiProvider: 'gemini' | 'openrouter' | 'openai-compatible',
+      openrouter?: {
+        enabled?: boolean;
+        apiKey?: string;
+        model?: string;
+      }
+    }
+  ): Promise<string> {
+    try {
+      console.log(`[MemoryService] summarizeScriptContent called for script ${scriptId}`);
+      console.log(`[MemoryService] Content length: ${contentToSummarize.length} characters`);
+
+      if (!contentToSummarize || contentToSummarize.trim().length === 0) {
+        console.warn(`[MemoryService] No content to summarize for script ${scriptId}`);
+        return '';
+      }
+
+      // 读取保存的记忆总结提示词配置
+      const savedConfig = await this.loadMemorySummaryConfig();
+      if (!savedConfig || !savedConfig.messageArray || savedConfig.messageArray.length === 0) {
+        console.warn('[MemoryService] 未找到保存的记忆总结提示词配置，使用默认方式');
+        
+        // 使用默认的总结逻辑
+        const chatSettings = getApiSettings();
+        let adapter: any;
+        const provider = (apiSettings?.apiProvider || chatSettings.apiProvider) as 'gemini' | 'openrouter' | 'openai-compatible' | 'cradlecloud';
+        
+        if (
+          provider === 'cradlecloud' &&
+          chatSettings?.cradlecloud?.enabled
+        ) {
+          const { CradleCloudAdapter } = require('@/NodeST/nodest/utils/cradlecloud-adapter');
+          adapter = new CradleCloudAdapter();
+          console.log('[MemoryService] Using CradleCloud API for script content summary');
+        } else if (
+          provider === 'openrouter' &&
+          apiSettings?.openrouter?.enabled &&
+          apiSettings?.openrouter?.apiKey
+        ) {
+          const OpenRouterAdapter = require('@/utils/openrouter-adapter').OpenRouterAdapter;
+          adapter = new OpenRouterAdapter(
+            apiSettings.openrouter.apiKey,
+            apiSettings.openrouter.model || 'openai/gpt-3.5-turbo'
+          );
+          console.log('[MemoryService] Using OpenRouter API for script content summary');
+        } else if (
+          provider === 'openai-compatible'
+        ) {
+          const { OpenAIcompatible } = chatSettings;
+          const OpenAIAdapter = require('@/NodeST/nodest/utils/openai-adapter').OpenAIAdapter;
+          adapter = new OpenAIAdapter({
+            endpoint: OpenAIcompatible?.endpoint || '',
+            apiKey: OpenAIcompatible?.apiKey || '',
+            model: OpenAIcompatible?.model || 'gpt-3.5-turbo',
+            stream: OpenAIcompatible?.stream,
+            temperature: OpenAIcompatible?.temperature,
+            max_tokens: OpenAIcompatible?.max_tokens
+          });
+          console.log('[MemoryService] Using OpenAI-compatible API for script content summary');
+        } else {
+          const GeminiAdapter = require('@/NodeST/nodest/utils/gemini-adapter').GeminiAdapter;
+          adapter = new GeminiAdapter(apiKey || chatSettings?.apiKey || '');
+          console.log('[MemoryService] Using Gemini API for script content summary');
+        }
+
+        const prompt: GeminiMessage[] = [
+          {
+            role: "user",
+            parts: [{
+              text: `请对以下剧本内容进行总结。你的总结应该：
+1. 提取关键剧情发展、人物行为和事件
+2. 保持剧情的连贯性和逻辑关系
+3. 保留重要的角色互动和情感变化
+4. 简洁明了，便于后续剧情发展使用
+5. 长度控制在1000字符以内
+
+待总结的剧本内容：
+
+${contentToSummarize}`
+            }]
+          }
+        ];
+
+        const summaryText = await adapter.generateContent(prompt);
+        console.log(`[MemoryService] Generated script summary using fallback method: ${summaryText.substring(0, 100)}...`);
+        return summaryText;
+      }
+
+      // 获取适配器类型和API设置
+      const chatSettings = getApiSettings();
+      const adapterType = this.getAdapterType(chatSettings?.apiProvider) as 'gemini' | 'openrouter' | 'openai-compatible';
+
+      // 优先用 OpenAIcompatible 字段的 apiKey
+      const apiKeyToUse =
+        adapterType === 'openai-compatible'
+          ? chatSettings?.OpenAIcompatible?.apiKey || apiKey || ''
+          : chatSettings?.apiKey || apiKey || '';
+
+      // 构建统一API选项
+      const apiOptions = {
+        adapter: adapterType,
+        apiKey: apiKeyToUse,
+        characterId: scriptId,
+        openrouterConfig: chatSettings?.openrouter,
+        openaiConfig: chatSettings?.OpenAIcompatible,
+        geminiConfig: {
+          additionalKeys: chatSettings?.additionalGeminiKeys,
+          useKeyRotation: chatSettings?.useGeminiKeyRotation,
+          useModelLoadBalancing: chatSettings?.useGeminiModelLoadBalancing
+        }
+      };
+
+      // 为消息数组添加剧本内容
+      const messageArrayWithContent = [...savedConfig.messageArray];
+      
+      // 将剧本内容添加到最后一个用户消息中
+      if (messageArrayWithContent.length > 0) {
+        const lastMessageIndex = messageArrayWithContent.length - 1;
+        const lastMessage = messageArrayWithContent[lastMessageIndex];
+        if (lastMessage.role === 'user') {
+          if ('content' in lastMessage) {
+            lastMessage.content = (lastMessage.content || '').replace('<INPUT_TEXT>', '') + `\n\n待总结的剧本内容：\n${contentToSummarize}`;
+          } else if (lastMessage.parts && lastMessage.parts[0]) {
+            lastMessage.parts[0].text = (lastMessage.parts[0].text || '').replace('<INPUT_TEXT>', '') + `\n\n待总结的剧本内容：\n${contentToSummarize}`;
+          }
+        } else {
+          // 如果最后一条不是用户消息，添加新的用户消息
+          messageArrayWithContent.push({
+            role: 'user',
+            content: `待总结的剧本内容：\n${contentToSummarize}`
+          });
+        }
+      } else {
+        // 如果没有消息数组，创建默认消息
+        messageArrayWithContent.push({
+          role: 'user',
+          content: `请总结以下剧本内容：\n${contentToSummarize}`
+        });
+      }
+
+      // 调用统一API生成内容
+      console.log(`[MemoryService] Requesting script summary from unified API with custom settings`);
+      const summaryText = await unifiedGenerateContent(
+        messageArrayWithContent,
+        apiOptions
+      );
+
+      console.log(`[MemoryService] Generated script summary: ${summaryText.substring(0, 100)}...`);
+      return summaryText;
+    } catch (error) {
+      console.error(`[MemoryService] Error generating script summary:`, error);
+      throw error;
     }
   }
 

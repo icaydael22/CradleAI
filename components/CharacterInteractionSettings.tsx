@@ -34,6 +34,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import Animated, { FadeInDown, FadeOut } from 'react-native-reanimated';
 import * as FileSystem from 'expo-file-system'; // 新增
 import { CircleScheduler } from '@/services/circle-scheduler'; // Add import
+import { initBackgroundTasks } from '@/services/background-tasks';
 
 const { height, width } = Dimensions.get('window');
 const CARD_WIDTH = width - 32;
@@ -126,6 +127,7 @@ const CharacterInteractionSettings: React.FC<CharacterInteractionSettingsProps> 
     try {
       const scheduler = CircleScheduler.getInstance();
       await scheduler.refreshSchedulerState();
+      await initBackgroundTasks();
     } catch (error) {
       console.error('初始化调度器失败:', error);
     }
@@ -210,6 +212,7 @@ const CharacterInteractionSettings: React.FC<CharacterInteractionSettingsProps> 
         const scheduler = CircleScheduler.getInstance();
         await scheduler.refreshSchedulerState();
         console.log('已更新调度器状态');
+        await initBackgroundTasks();
       } catch (error) {
         console.error('更新调度器状态失败:', error);
       }

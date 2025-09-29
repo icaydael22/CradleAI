@@ -13,10 +13,13 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { CharactersProvider } from '@/constants/CharactersContext';
 import { UserProvider } from '@/constants/UserContext';
+import { DialogModeProvider } from '@/constants/DialogModeContext';
 import Colors from '@/constants/Colors';
 import { RegexProvider } from '@/constants/RegexContext';
-import { initCloudServiceTracker } from '@/utils/cloud-service-tracker';
-// import { MatrixDebugger } from '@/components/MatrixDebugger';
+import { MemoryProvider } from '@/src/memory/providers/MemoryProvider';
+import Mem0Initializer from '@/src/memory/components/Mem0Initializer';
+import { DialogProvider } from '@/components/DialogProvider';
+import { initializeUtilSettings } from '@/app/pages/UtilSettings';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -27,10 +30,6 @@ export default function RootLayout() {
   });
   const { height: windowHeight } = useWindowDimensions();
 
-  // Initialize cloud service tracker
-  useEffect(() => {
-    initCloudServiceTracker();
-  }, []);
 
   // Use the correct theme structure that ReactNavigation expects
   const theme = colorScheme === 'dark' 
@@ -50,7 +49,7 @@ export default function RootLayout() {
         colors: {
           ...DefaultTheme.colors,
           primary: Colors.light.tint,
-          background: '#f8f8f8',
+          background: '#333333',
           card: '#ffffff',
           text: '#333333',
           border: 'rgba(0, 0, 0, 0.1)',
@@ -60,48 +59,40 @@ export default function RootLayout() {
   useEffect(() => {
     if (loaded) {
       SplashScreen.hideAsync();
+      // 初始化 UtilSettings 默认配置
+      initializeUtilSettings().catch(console.error);
     }
   }, [loaded]);
-
-  const MyTransition = {
-    gestureDirection: 'vertical' as const,
-    transitionSpec: {
-      duration: 250,
-      easing: Easing.out(Easing.poly(4)),
-      timing: Animated.timing,
-      useNativeDriver: true,
-    },
-    screenInterpolator: ({ position, scene }: { position: Animated.Value; scene: { index: number; }; }) => {
-      const thisSceneIndex = scene.index;
-
-      const translateY = position.interpolate({
-        inputRange: [thisSceneIndex - 1, thisSceneIndex],
-        outputRange: [windowHeight, 0],
-      });
-
-      return { transform: [{ translateY }] };
-    },
-  };
 
   return (
     <SafeAreaProvider>
       <UserProvider>
         <CharactersProvider>
-          <RegexProvider>
-            <View style={styles.container}>
-              <ThemeProvider value={theme}>
-                <Stack screenOptions={{headerShown: false}}>
-                  <Stack.Screen name="index" />
-                  <Stack.Screen name="(tabs)" />
-                  <Stack.Screen name="pages/character-detail" />
-                  <Stack.Screen name="pages/create_char" />
-                  <Stack.Screen name="pages/create_character_tabs" />
-                </Stack>
-                <StatusBar style="dark" backgroundColor='black' />
-              </ThemeProvider>
-              {/* <MatrixDebugger /> */}
-            </View>
-          </RegexProvider>
+          <DialogModeProvider>
+            <MemoryProvider>
+              {/* 初始化 Mem0 服务：在 App 启动时挂载一次以完成全局记忆服务的初始化 */}
+              <Mem0Initializer />
+              <RegexProvider>
+                <DialogProvider>
+                  <View style={styles.container}>
+                    <ThemeProvider value={theme}>
+                      <Stack screenOptions={{headerShown: false}}>
+                        <Stack.Screen name="index" />
+                        <Stack.Screen name="(tabs)" />
+                        <Stack.Screen name="pages/character-detail" />
+                        <Stack.Screen name="pages/create_char" />
+                        <Stack.Screen name="pages/create_character_tabs" />
+                        <Stack.Screen name="pages/[conversationId]" />
+                        <Stack.Screen name="pages/group/[groupId]" />
+                      </Stack>
+                      <StatusBar style="dark" backgroundColor='black' />
+                    </ThemeProvider>
+                    {/* <MatrixDebugger /> */}
+                  </View>
+                </DialogProvider>
+              </RegexProvider>
+            </MemoryProvider>
+          </DialogModeProvider>
         </CharactersProvider>
       </UserProvider>
     </SafeAreaProvider>

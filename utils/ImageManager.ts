@@ -41,6 +41,7 @@ export class ImageManager {
   private readonly IMAGE_CACHE_KEY = 'app_image_cache_registry';
   private readonly IMAGE_CACHE_DIR = `${FileSystem.cacheDirectory}images/`;
   private readonly THUMBNAIL_CACHE_DIR = `${FileSystem.cacheDirectory}thumbnails/`;
+  private readonly CHARACTER_MEDIA_DIR = `${FileSystem.documentDirectory}characters/`;
   private imageRegistry: Map<string, ImageInfo> = new Map();
   
   private constructor() {
@@ -83,6 +84,12 @@ export class ImageManager {
       const thumbDirInfo = await FileSystem.getInfoAsync(this.THUMBNAIL_CACHE_DIR);
       if (!thumbDirInfo.exists) {
         await FileSystem.makeDirectoryAsync(this.THUMBNAIL_CACHE_DIR, { intermediates: true });
+      }
+      
+      // Ensure character media directory exists
+      const charMediaDirInfo = await FileSystem.getInfoAsync(this.CHARACTER_MEDIA_DIR);
+      if (!charMediaDirInfo.exists) {
+        await FileSystem.makeDirectoryAsync(this.CHARACTER_MEDIA_DIR, { intermediates: true });
       }
       
       // Load image registry from storage
@@ -481,8 +488,132 @@ export class ImageManager {
   }
   
   /**
-   * Clear all cached images
+   * Save character avatar from data URL and return local file path
+   * @param characterId The character ID
+   * @param dataUrl The data URL (data:image/...;base64,...)
+   * @returns Local file path for the avatar
    */
+  public async saveCharacterAvatar(characterId: string, dataUrl: string): Promise<string> {
+    try {
+      if (!dataUrl.startsWith('data:')) {
+        throw new Error('Invalid data URL format');
+      }
+      
+      // Parse data URL
+      const [header, base64Data] = dataUrl.split(',');
+      const mimeType = header.split(';')[0].split(':')[1];
+      
+      // Create character-specific directory
+      const characterDir = `${this.CHARACTER_MEDIA_DIR}${characterId}/`;
+      const charDirInfo = await FileSystem.getInfoAsync(characterDir);
+      if (!charDirInfo.exists) {
+        await FileSystem.makeDirectoryAsync(characterDir, { intermediates: true });
+      }
+      
+      // Save avatar file
+      const extension = this.getExtensionFromMimeType(mimeType);
+      const avatarPath = `${characterDir}avatar.${extension}`;
+      
+      await FileSystem.writeAsStringAsync(avatarPath, base64Data, {
+        encoding: FileSystem.EncodingType.Base64
+      });
+      
+      console.log(`[ImageManager] Saved character avatar: ${avatarPath}`);
+      return avatarPath;
+    } catch (error) {
+      console.error('[ImageManager] Failed to save character avatar:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Save character background from data URL and return local file path
+   * @param characterId The character ID
+   * @param dataUrl The data URL (data:image/...;base64,...)
+   * @returns Local file path for the background
+   */
+  public async saveCharacterBackground(characterId: string, dataUrl: string): Promise<string> {
+    try {
+      if (!dataUrl.startsWith('data:')) {
+        throw new Error('Invalid data URL format');
+      }
+      
+      // Parse data URL
+      const [header, base64Data] = dataUrl.split(',');
+      const mimeType = header.split(';')[0].split(':')[1];
+      
+      // Create character-specific directory
+      const characterDir = `${this.CHARACTER_MEDIA_DIR}${characterId}/`;
+      const charDirInfo = await FileSystem.getInfoAsync(characterDir);
+      if (!charDirInfo.exists) {
+        await FileSystem.makeDirectoryAsync(characterDir, { intermediates: true });
+      }
+      
+      // Save background file
+      const extension = this.getExtensionFromMimeType(mimeType);
+      const backgroundPath = `${characterDir}background.${extension}`;
+      
+      await FileSystem.writeAsStringAsync(backgroundPath, base64Data, {
+        encoding: FileSystem.EncodingType.Base64
+      });
+      
+      console.log(`[ImageManager] Saved character background: ${backgroundPath}`);
+      return backgroundPath;
+    } catch (error) {
+      console.error('[ImageManager] Failed to save character background:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Check if a character avatar file exists
+   * @param characterId The character ID
+   * @returns Avatar file path if exists, null otherwise
+   */
+  public async getCharacterAvatarPath(characterId: string): Promise<string | null> {
+    try {
+      const characterDir = `${this.CHARACTER_MEDIA_DIR}${characterId}/`;
+      const extensions = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
+      
+      for (const ext of extensions) {
+        const avatarPath = `${characterDir}avatar.${ext}`;
+        const fileInfo = await FileSystem.getInfoAsync(avatarPath);
+        if (fileInfo.exists) {
+          return avatarPath;
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('[ImageManager] Failed to get character avatar path:', error);
+      return null;
+    }
+  }
+  
+  /**
+   * Check if a character background file exists
+   * @param characterId The character ID
+   * @returns Background file path if exists, null otherwise
+   */
+  public async getCharacterBackgroundPath(characterId: string): Promise<string | null> {
+    try {
+      const characterDir = `${this.CHARACTER_MEDIA_DIR}${characterId}/`;
+      const extensions = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
+      
+      for (const ext of extensions) {
+        const backgroundPath = `${characterDir}background.${ext}`;
+        const fileInfo = await FileSystem.getInfoAsync(backgroundPath);
+        if (fileInfo.exists) {
+          return backgroundPath;
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('[ImageManager] Failed to get character background path:', error);
+      return null;
+    }
+  }
   public async clearCache(): Promise<{ success: boolean; message: string }> {
     try {
       // Delete all files in the cache directories

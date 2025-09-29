@@ -21,16 +21,10 @@ import { PresetEntryUI } from '@/constants/types';
 import * as DocumentPicker from 'expo-document-picker';
 import { CharacterImporter } from '@/utils/CharacterImporter';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import GlobalDetailSidebar from '@/components/GlobalDetailSidebar';
-
-// 动态导入 NodeSTCore
-let NodeSTCore: any = null;
-(async () => {
-  if (!NodeSTCore) {
-    NodeSTCore = (await import('@/NodeST/nodest/core/node-st-core')).NodeSTCore;
-  }
-})();
-
+import JSZip from 'jszip';
+import GlobalDetailSidebar from '@/components/group/GlobalDetailSidebar';
+import { NodeSTCore } from '@/NodeST/nodest/core/node-st-core';
+import {StorageAdapter } from '@/NodeST/nodest/utils/storage-adapter';
 // 新增：全局预设/世界书模板类型
 type GlobalPresetTemplate = {
   id: string;
@@ -307,8 +301,7 @@ export default function GlobalSettingsPage() {
   useEffect(() => {
     (async () => {
       try {
-        const { StorageAdapter } = await import('@/NodeST/nodest/utils/storage-adapter');
-        // 读取所有全局预设模板
+                // 读取所有全局预设模板
         const presetList: GlobalPresetTemplate[] = await StorageAdapter.loadGlobalPresetList?.() || [];
         setGlobalPresetList(presetList);
         // 读取当前选中id
@@ -598,8 +591,7 @@ export default function GlobalSettingsPage() {
 
     // 持久化保存
     try {
-      const { StorageAdapter } = await import('@/NodeST/nodest/utils/storage-adapter');
-      await StorageAdapter.saveGlobalRegexScriptGroups?.(regexScriptGroups);
+            await StorageAdapter.saveGlobalRegexScriptGroups?.(regexScriptGroups);
     } catch (e) {
       // ignore
     }
@@ -1063,8 +1055,7 @@ export default function GlobalSettingsPage() {
       );
       // 持久化保存
       try {
-        const { StorageAdapter } = await import('@/NodeST/nodest/utils/storage-adapter');
-        await StorageAdapter.saveGlobalPresetList?.(
+                await StorageAdapter.saveGlobalPresetList?.(
           globalPresetList.map(tpl =>
             tpl.id === renameModal.id ? { ...tpl, name: renameModal.name.trim() || tpl.name } : tpl
           )
@@ -1078,8 +1069,7 @@ export default function GlobalSettingsPage() {
       );
       // 持久化保存
       try {
-        const { StorageAdapter } = await import('@/NodeST/nodest/utils/storage-adapter');
-        await StorageAdapter.saveGlobalWorldbookList?.(
+                await StorageAdapter.saveGlobalWorldbookList?.(
           globalWorldbookList.map(tpl =>
             tpl.id === renameModal.id ? { ...tpl, name: renameModal.name.trim() || tpl.name } : tpl
           )
@@ -1093,8 +1083,7 @@ export default function GlobalSettingsPage() {
       );
       // 持久化保存
       try {
-        const { StorageAdapter } = await import('@/NodeST/nodest/utils/storage-adapter');
-        await StorageAdapter.saveGlobalRegexScriptGroups?.(
+                await StorageAdapter.saveGlobalRegexScriptGroups?.(
           regexScriptGroups.map(g =>
             g.id === renameModal.id ? { ...g, name: renameModal.name.trim() || g.name } : g
           )
@@ -1295,8 +1284,7 @@ export default function GlobalSettingsPage() {
   // 持久化正则脚本组和角色名映射
   const persistRegexScriptGroups = async (groups: GlobalRegexScriptGroup[]) => {
     try {
-      const { StorageAdapter } = await import('@/NodeST/nodest/utils/storage-adapter');
-      await StorageAdapter.saveGlobalRegexScriptGroups?.(
+            await StorageAdapter.saveGlobalRegexScriptGroups?.(
         groups.map(g => ({
           ...g,
           bindType: g.bindType as 'character' | 'all' | undefined,
@@ -1473,9 +1461,6 @@ export default function GlobalSettingsPage() {
 
       // 3. 动态导入 NodeSTCore
       let NodeSTCoreClass = NodeSTCore;
-      if (!NodeSTCoreClass) {
-        NodeSTCoreClass = (await import('@/NodeST/nodest/core/node-st-core')).NodeSTCore;
-      }
 
       // 4. 调用静态方法进行正则处理，增加详细日志
       let log = '';
@@ -1680,62 +1665,122 @@ export default function GlobalSettingsPage() {
 
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: 'application/json',
+        type: ['application/json', 'application/zip'],
         copyToCacheDirectory: true,
         multiple: false,
       });
       if (result.canceled || !result.assets?.[0]?.uri) return;
       const fileUri = result.assets[0].uri;
       const fileName = result.assets[0].name || '';
-      const fileContent = await fetch(fileUri).then(r => r.text());
-      const importedScript: GlobalRegexScript = JSON.parse(fileContent);
+      
+      let importedScripts: GlobalRegexScript[] = [];
 
-      // 校验基本字段
-      if (!importedScript || !importedScript.scriptName) {
-        Alert.alert('导入失败', '不是有效的正则脚本JSON');
-        return;
+      if (fileName.toLowerCase().endsWith('.zip')) {
+        // 处理ZIP文件
+        const response = await fetch(fileUri);
+        const arrayBuffer = await response.arrayBuffer();
+        const zip = await JSZip.loadAsync(arrayBuffer);
+        
+        // 查找ZIP中的JSON文件
+        const jsonFiles = Object.keys(zip.files).filter(fileName => 
+          fileName.toLowerCase().endsWith('.json') && !zip.files[fileName].dir
+        );
+        
+        if (jsonFiles.length === 0) {
+          Alert.alert('导入失败', 'ZIP文件中未找到任何JSON文件');
+          return;
+        }
+
+        // 处理每个JSON文件
+        for (const jsonFileName of jsonFiles) {
+          try {
+            const fileContent = await zip.files[jsonFileName].async('text');
+            const script: GlobalRegexScript = JSON.parse(fileContent);
+            
+            // 校验基本字段
+            if (script && script.scriptName) {
+              importedScripts.push(script);
+            }
+          } catch (e) {
+            // 跳过无效的JSON文件
+            console.warn(`跳过无效的JSON文件: ${jsonFileName}`, e);
+          }
+        }
+
+        if (importedScripts.length === 0) {
+          Alert.alert('导入失败', 'ZIP文件中没有找到有效的正则脚本JSON');
+          return;
+        }
+      } else {
+        // 处理单个JSON文件
+        const fileContent = await fetch(fileUri).then(r => r.text());
+        const importedScript: GlobalRegexScript = JSON.parse(fileContent);
+
+        // 校验基本字段
+        if (!importedScript || !importedScript.scriptName) {
+          Alert.alert('导入失败', '不是有效的正则脚本JSON');
+          return;
+        }
+        
+        importedScripts = [importedScript];
       }
 
-      // 自动重命名逻辑
-      let baseName = importedScript.scriptName;
+      // 处理导入的脚本
       const currentScripts = getCurrentGroupScripts();
       const existNames = currentScripts.map(s => s.scriptName);
-      let newName = baseName;
-      let suffix = 1;
-      while (existNames.includes(newName)) {
-        newName = `${baseName}（${suffix}）`;
-        suffix++;
-      }
+      const newScripts: GlobalRegexScript[] = [];
 
-      // 追加新脚本到当前组
-      const timestamp = Date.now();
-      const newId = `regex_${timestamp}`;
-      const newScript: GlobalRegexScript = {
-        ...importedScript,
-        id: newId,
-        scriptName: newName,
-      };
+      importedScripts.forEach((script, index) => {
+        // 自动重命名逻辑
+        let baseName = script.scriptName;
+        let newName = baseName;
+        let suffix = 1;
+        
+        // 检查是否与现有脚本名重复（包括本次导入的其他脚本）
+        const allUsedNames = [...existNames, ...newScripts.map(s => s.scriptName)];
+        while (allUsedNames.includes(newName)) {
+          newName = `${baseName}（${suffix}）`;
+          suffix++;
+        }
 
+        // 创建新脚本
+        const timestamp = Date.now() + index; // 避免ID重复
+        const newId = `regex_${timestamp}`;
+        const newScript: GlobalRegexScript = {
+          ...script,
+          id: newId,
+          scriptName: newName,
+        };
+
+        newScripts.push(newScript);
+      });
+
+      // 批量添加到当前组
       setRegexScriptGroups(groups =>
         groups.map(group =>
           group.id === selectedRegexGroupId
-            ? { ...group, scripts: [...group.scripts, newScript] }
+            ? { ...group, scripts: [...group.scripts, ...newScripts] }
             : group
         )
       );
 
-      setSelectedRegexScript(newScript);
+      // 设置最后一个导入的脚本为选中状态
+      if (newScripts.length > 0) {
+        setSelectedRegexScript(newScripts[newScripts.length - 1]);
+      }
 
       // 持久化保存
       try {
-        const { StorageAdapter } = await import('@/NodeST/nodest/utils/storage-adapter');
-        await StorageAdapter.saveGlobalRegexScriptGroups?.(regexScriptGroups);
+                await StorageAdapter.saveGlobalRegexScriptGroups?.(regexScriptGroups);
         await StorageAdapter.saveSelectedGlobalRegexGroupId?.(selectedRegexGroupId);
       } catch (e) {
         // ignore
       }
 
-      Alert.alert('导入成功', '已成功导入正则脚本');
+      const successMessage = newScripts.length === 1 
+        ? '已成功导入正则脚本'
+        : `已成功导入 ${newScripts.length} 个正则脚本`;
+      Alert.alert('导入成功', successMessage);
     } catch (e) {
       Alert.alert('导入失败', String(e));
     }
@@ -1886,8 +1931,7 @@ export default function GlobalSettingsPage() {
       setGlobalWorldbookList(updatedGlobalWorldbookList);
 
       // 保存所有模板和当前选中id
-      const { StorageAdapter } = await import('@/NodeST/nodest/utils/storage-adapter');
-      await StorageAdapter.saveGlobalPresetList?.(updatedGlobalPresetList);
+            await StorageAdapter.saveGlobalPresetList?.(updatedGlobalPresetList);
       await StorageAdapter.saveSelectedGlobalPresetId?.(selectedPresetId);
       await StorageAdapter.saveGlobalWorldbookList?.(updatedGlobalWorldbookList.map(tpl => ({
         ...tpl,
@@ -2709,8 +2753,7 @@ export default function GlobalSettingsPage() {
 
                   // 持久化保存
                   try {
-                    const { StorageAdapter } = await import('@/NodeST/nodest/utils/storage-adapter');
-                    await StorageAdapter.saveGlobalRegexScriptGroups?.(regexScriptGroups);
+                                        await StorageAdapter.saveGlobalRegexScriptGroups?.(regexScriptGroups);
                   } catch (e) { }
                 }}
                 onContentChange={async (text: string) => {
@@ -2738,8 +2781,7 @@ export default function GlobalSettingsPage() {
 
                   // 持久化保存
                   try {
-                    const { StorageAdapter } = await import('@/NodeST/nodest/utils/storage-adapter');
-                    await StorageAdapter.saveGlobalRegexScriptGroups?.(regexScriptGroups);
+                                        await StorageAdapter.saveGlobalRegexScriptGroups?.(regexScriptGroups);
                   } catch (e) { }
                 }}
                 onNameChange={async text => {
@@ -2767,8 +2809,7 @@ export default function GlobalSettingsPage() {
 
                   // 持久化保存
                   try {
-                    const { StorageAdapter } = await import('@/NodeST/nodest/utils/storage-adapter');
-                    await StorageAdapter.saveGlobalRegexScriptGroups?.(regexScriptGroups);
+                                        await StorageAdapter.saveGlobalRegexScriptGroups?.(regexScriptGroups);
                   } catch (e) { }
                 }}
                 onOptionsChange={async opts => {
@@ -2797,8 +2838,7 @@ export default function GlobalSettingsPage() {
 
                   // 持久化保存
                   try {
-                    const { StorageAdapter } = await import('@/NodeST/nodest/utils/storage-adapter');
-                    await StorageAdapter.saveGlobalRegexScriptGroups?.(regexScriptGroups);
+                                        await StorageAdapter.saveGlobalRegexScriptGroups?.(regexScriptGroups);
                   } catch (e) { }
                 }}
                 onDelete={async () => {
@@ -2827,8 +2867,7 @@ export default function GlobalSettingsPage() {
                         // 持久化保存
                         (async () => {
                           try {
-                            const { StorageAdapter } = await import('@/NodeST/nodest/utils/storage-adapter');
-                            await StorageAdapter.saveGlobalRegexScriptGroups?.(regexScriptGroups);
+                                                        await StorageAdapter.saveGlobalRegexScriptGroups?.(regexScriptGroups);
                           } catch (e) { }
                         })();
 
@@ -3183,8 +3222,7 @@ export default function GlobalSettingsPage() {
 
             // 持久化保存
             try {
-              const { StorageAdapter } = await import('@/NodeST/nodest/utils/storage-adapter');
-              await StorageAdapter.saveGlobalRegexScriptGroups?.(regexScriptGroups);
+                            await StorageAdapter.saveGlobalRegexScriptGroups?.(regexScriptGroups);
             } catch (e) { }
           }}
           onContentChange={async (text: string) => {
@@ -3212,8 +3250,7 @@ export default function GlobalSettingsPage() {
 
             // 持久化保存
             try {
-              const { StorageAdapter } = await import('@/NodeST/nodest/utils/storage-adapter');
-              await StorageAdapter.saveGlobalRegexScriptGroups?.(regexScriptGroups);
+                            await StorageAdapter.saveGlobalRegexScriptGroups?.(regexScriptGroups);
             } catch (e) { }
           }}
           onNameChange={async text => {
@@ -3241,8 +3278,7 @@ export default function GlobalSettingsPage() {
 
             // 持久化保存
             try {
-              const { StorageAdapter } = await import('@/NodeST/nodest/utils/storage-adapter');
-              await StorageAdapter.saveGlobalRegexScriptGroups?.(regexScriptGroups);
+                            await StorageAdapter.saveGlobalRegexScriptGroups?.(regexScriptGroups);
             } catch (e) { }
           }}
           onOptionsChange={async opts => {
@@ -3271,8 +3307,7 @@ export default function GlobalSettingsPage() {
 
             // 持久化保存
             try {
-              const { StorageAdapter } = await import('@/NodeST/nodest/utils/storage-adapter');
-              await StorageAdapter.saveGlobalRegexScriptGroups?.(regexScriptGroups);
+                            await StorageAdapter.saveGlobalRegexScriptGroups?.(regexScriptGroups);
             } catch (e) { }
           }}
           onDelete={async () => {
@@ -3301,8 +3336,7 @@ export default function GlobalSettingsPage() {
                   // 持久化保存
                   (async () => {
                     try {
-                      const { StorageAdapter } = await import('@/NodeST/nodest/utils/storage-adapter');
-                      await StorageAdapter.saveGlobalRegexScriptGroups?.(regexScriptGroups);
+                                            await StorageAdapter.saveGlobalRegexScriptGroups?.(regexScriptGroups);
                     } catch (e) { }
                   })();
 
@@ -3574,8 +3608,7 @@ const styles = StyleSheet.create({
 // 新增：导出全局设置的加载和保存函数
 export async function loadGlobalSettingsState() {
   try {
-    const { StorageAdapter } = await import('@/NodeST/nodest/utils/storage-adapter');
-    const presetList: GlobalPresetTemplate[] = await StorageAdapter.loadGlobalPresetList?.() || [];
+        const presetList: GlobalPresetTemplate[] = await StorageAdapter.loadGlobalPresetList?.() || [];
     const selectedPresetId = await StorageAdapter.loadSelectedGlobalPresetId?.();
     const selectedPreset = presetList.find(t => t.id === (selectedPresetId || presetList[0]?.id));
     const worldbookList: GlobalWorldbookTemplate[] = await StorageAdapter.loadGlobalWorldbookList?.() || [];
@@ -3644,8 +3677,7 @@ export async function saveGlobalSettingsState({
   regexEnabled,
 }: any) {
   try {
-    const { StorageAdapter } = await import('@/NodeST/nodest/utils/storage-adapter');
-    await StorageAdapter.saveGlobalPresetList?.(globalPresetList);
+        await StorageAdapter.saveGlobalPresetList?.(globalPresetList);
     await StorageAdapter.saveSelectedGlobalPresetId?.(selectedPresetId);
     await StorageAdapter.saveGlobalWorldbookList?.(globalWorldbookList);
     await StorageAdapter.saveSelectedGlobalWorldbookId?.(selectedWorldbookId);

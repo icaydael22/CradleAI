@@ -1,8 +1,11 @@
-export type TTSProvider = 'cosyvoice' | 'doubao' | 'minimax';
+import { TTSProvider } from '@/shared/types';
+
+// Extended provider type for internal use
+export type ExtendedTTSProvider = TTSProvider | 'cradlecloud-tts';
 
 export interface UnifiedTTSRequest {
   text: string;
-  provider: TTSProvider;
+  provider: ExtendedTTSProvider;
   // Common parameters
   voiceId?: string;
   emotion?: string;
@@ -28,7 +31,7 @@ export interface UnifiedTTSRequest {
 
 export interface UnifiedTTSResponse {
   success: boolean;
-  provider: TTSProvider;
+  provider: ExtendedTTSProvider;
   data?: {
     audioUrl?: string;
     audioPath?: string;
@@ -50,7 +53,7 @@ export interface UnifiedTTSStatus {
   progress?: number;
   audioUrl?: string;
   error?: string;
-  provider: TTSProvider;
+  provider: ExtendedTTSProvider;
 }
 
 export type TTSStatusCallback = (status: UnifiedTTSStatus) => void;

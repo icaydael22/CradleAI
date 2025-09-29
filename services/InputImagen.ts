@@ -1,7 +1,7 @@
 import { Character } from '@/shared/types';
 import { StorageAdapter } from '@/NodeST/nodest/utils/storage-adapter';
 import { DEFAULT_NEGATIVE_PROMPTS, DEFAULT_POSITIVE_PROMPTS } from '@/constants/defaultPrompts';
-import NovelAIService from '@/components/NovelAIService';
+import NovelAIService from '@/services/novelai/NovelAIService';
 import ImageManager from '@/utils/ImageManager';
 import { getApiSettings, getUserSettingsGlobally } from '@/utils/settings-helper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -131,19 +131,23 @@ export class InputImagen {
         return '';
       }
 
-      // 读取UtilSettings中图像生成提示词配置
+      // 读取UtilSettings中图像生成提示词配置；若从未保存则使用默认配置
       const savedConfigStr = await AsyncStorage.getItem('imagegen_prompt_config');
-      if (!savedConfigStr) {
-        console.warn('[InputImagen] 未找到图像生成提示词配置');
-        return '';
-      }
-      const savedConfig = JSON.parse(savedConfigStr);
+      const savedConfig = savedConfigStr
+        ? JSON.parse(savedConfigStr)
+        : (() => {
+            const { defaultImageGenPromptConfig } = require('@/constants/utilDefaults');
+            return defaultImageGenPromptConfig;
+          })();
 
       // 获取消息数组和inputText
       let { messageArray, inputText, adapterType } = savedConfig || {};
       if (!Array.isArray(messageArray) || messageArray.length === 0 || !inputText) {
-        console.warn('[InputImagen] 图像生成提示词配置不完整');
-        return '';
+        console.warn('[InputImagen] 图像生成提示词配置不完整，回退到默认配置');
+        const { defaultImageGenPromptConfig } = require('@/constants/utilDefaults');
+        messageArray = defaultImageGenPromptConfig.messageArray;
+        inputText = defaultImageGenPromptConfig.inputText;
+        adapterType = defaultImageGenPromptConfig.adapterType;
       }
 
       // 用recentMessages填充inputText变量（如有[recentMessages]或recentMessages变量）
@@ -154,12 +158,21 @@ export class InputImagen {
       // 重新构建消息数组，将inputTextWithRecent作为第一个用户消息
       // 其余消息结构保持不变（如preset、worldbook等）
       // 只替换第一个user消息的内容
+      const firstUserIndex = messageArray.findIndex((m: any) => m.role === 'user');
       let patchedMessageArray = messageArray.map((msg: any, idx: number) => {
-        if (idx === 0 && msg.role === 'user') {
+        if (idx === firstUserIndex && msg.role === 'user') {
           if ('content' in msg) {
-            return { ...msg, content: inputTextWithRecent };
+            const content = (msg as any).content || '';
+            const replaced = content.includes('<INPUT_TEXT>')
+              ? content.replace('<INPUT_TEXT>', inputTextWithRecent)
+              : inputTextWithRecent;
+            return { ...msg, content: replaced };
           } else if ('parts' in msg) {
-            return { ...msg, parts: [{ text: inputTextWithRecent }] };
+            const text = msg.parts?.[0]?.text || '';
+            const replaced = text.includes('<INPUT_TEXT>')
+              ? text.replace('<INPUT_TEXT>', inputTextWithRecent)
+              : inputTextWithRecent;
+            return { ...msg, parts: [{ text: replaced }] };
           }
         }
         return msg;

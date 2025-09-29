@@ -1,9 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Character } from '@/shared/types';
+import { CharacterStorageService } from '@/services/CharacterStorageService';
 
 /**
  * 根据ID加载角色信息的工具类
- * 使用与GroupService相同的加载策略，优先从FileSystem加载
+ * 现在使用新的CharacterStorageService进行数据访问，提供向后兼容的备选方案
  */
 export class CharacterLoader {
   /**
@@ -15,7 +16,19 @@ export class CharacterLoader {
     try {
       console.log(`【角色加载器】尝试加载角色 ID: ${characterId}`);
       
-      // 首先尝试从FileSystem加载
+      // 首先尝试使用新的CharacterStorageService
+      try {
+        const storageService = CharacterStorageService.getInstance();
+        const character = await storageService.getCharacter(characterId);
+        if (character) {
+          console.log(`【角色加载器】从CharacterStorageService找到角色: ${character.name}`);
+          return character;
+        }
+      } catch (storageError) {
+        console.error('【角色加载器】从CharacterStorageService加载角色失败:', storageError);
+      }
+      
+      // 备选方案：从FileSystem加载（兼容旧格式）
       try {
         const FileSystem = require('expo-file-system');
         const charactersStr = await FileSystem.readAsStringAsync(
@@ -96,6 +109,23 @@ export class CharacterLoader {
   static async loadCharactersByIds(characterIds: string[]): Promise<Character[]> {
     try {
       console.log(`【角色加载器】尝试加载角色列表，数量: ${characterIds.length}，IDs: ${JSON.stringify(characterIds)}`);
+      
+      // 首先尝试使用新的CharacterStorageService
+      try {
+        const storageService = CharacterStorageService.getInstance();
+        const characters = await storageService.getCharacters(characterIds);
+        if (characters.length === characterIds.length) {
+          console.log(`【角色加载器】从CharacterStorageService加载了所有${characters.length}个角色`);
+          return characters;
+        } else if (characters.length > 0) {
+          console.log(`【角色加载器】从CharacterStorageService加载了${characters.length}个角色，部分角色未找到`);
+          return characters;
+        }
+      } catch (storageError) {
+        console.error('【角色加载器】从CharacterStorageService加载角色失败:', storageError);
+      }
+      
+      // 备选方案：使用旧的加载方式
       const characters: Character[] = [];
       
       // 首先尝试从FileSystem加载所有角色
@@ -218,6 +248,20 @@ export class CharacterLoader {
   static async loadAllCharacters(): Promise<Character[]> {
     try {
       console.log(`【角色加载器】尝试加载所有角色`);
+      
+      // 首先尝试使用新的CharacterStorageService
+      try {
+        const storageService = CharacterStorageService.getInstance();
+        const characters = await storageService.getAllCharacters();
+        if (characters.length > 0) {
+          console.log(`【角色加载器】从CharacterStorageService加载了${characters.length}个角色`);
+          return characters;
+        }
+      } catch (storageError) {
+        console.error('【角色加载器】从CharacterStorageService加载角色失败:', storageError);
+      }
+      
+      // 备选方案：使用旧的加载方式
       let characters: Character[] = [];
       let foundSource = '';
       

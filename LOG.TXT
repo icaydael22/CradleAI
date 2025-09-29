@@ -1,0 +1,530 @@
+ LOG  [ScriptService] 剧本 script_1758791498128 历史分析: 0 条已总结, 2 条未总结
+ LOG  [ScriptService] 开始增量总结剧本 script_1758791498128，总结 2 条未总结消息
+ LOG  [MemoryService] summarizeScriptContent called for script script_1758791498128    
+ LOG  [MemoryService] Content length: 2126 characters
+ LOG  [MemoryService] Requesting script summary from unified API with custom settings  
+ LOG  [OpenAIAdapter] 初始化，endpoint: https://buddy.cradleintro.top/v1/chat/completions, model: gemini-2.5-flash
+ LOG  [OpenAIAdapter][表格记忆] characterId参数值: script_1758791498128 string
+ LOG  [OpenAIAdapter][表格记忆] 调用 getCharacterTablesData 前参数: {"characterId": "script_1758791498128"}
+ LOG  [TableMemory] getCharacterTablesData - 获取角色 ID: "script_1758791498128" 的表格
+数据
+ LOG  [TableMemory] 找到 0 个表格数据
+ LOG  [OpenAIAdapter][表格记忆] getCharacterTablesData 返回: {"success": true, "tables": []}
+ LOG  [OpenAIAdapter][表格记忆] 未获取到有效表格数据，success: true tables.length: 0   
+ LOG  [OpenAIAdapter] 发送请求到API，共 2 条消息
+ LOG  [OpenAIAdapter] 发送chatCompletion请求 FULL: {
+  "url": "https://buddy.cradleintro.top/v1/chat/completions",
+  "headers": {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer ***"
+  },
+  "data": {
+    "model": "gemini-2.5-flash",
+    "messages": [
+      {
+        "role": "system",
+        "content": "你是对话总结助手，请输出简洁、结构化的中文摘要，保留人物关系、意图 
+、计划、已达成事项与未解决问题，不要点评。"
+      },
+      {
+        "role": "user",
+        "content": "待总结的剧本内容：\n=== 第 1 轮 ===\n用户输入: \n剧情发展: <Format>\r\n<Narrative>\r\nchangeBg:白天-中海大学校园.bg\r\n旁白:2021年秋，中海市大学。对于我，
+Player，刚从十八线小县城考出来的奋斗X来说，这里的一切都闪闪发光——除了我怀里这摞能把人压
+成二维生物的新生教材。 -memory.fx\r\n我:“这玩意儿绝对比我的体重还沉……可恶，早知道就不选
+这个号称‘知识改变命运’但教材要人命的专业了。\r\n旁白:我一边小声碎碎念，一边低头看着手机
+上的校园地图，试图在开学第一天的人潮中，强行走出一条属于我的六亲不认的步伐。\r\n旁白:就
+在这时，手机屏幕“叮”地亮起，一条社团招新的花哨推送弹了出来。\r\n我:“‘中海大学超自然现象
+研究社’？现在的小孩真是，嗯？”\r\n旁白:就这一秒的分神，我“咚”的一声，结结实实地撞上了一
+堵“墙”？ -撞击.sfx\r\n旁白:怀里的教材们如同一群视死如归的敢死队，纷纷向着四面八方英勇就
+义。\r\n旁白:世界瞬间陷入了尴尬的静止。\r\n我:“啊！对、对不起！我不是故意的！真的！”我 
+一边疯狂鞠躬道歉，一边手忙脚乱地准备收拾残局。\r\nchangeFigure:司澈-正常.sprite\r\n旁白
+:然而，那堵“墙”并没有发出任何责备的声音。我小心翼翼地抬起头，然后——呼吸停滞了半秒。\r\n旁白:阳光正巧落在他深棕色的发丝上，勾勒出柔和的轮廓，而那双眼眸里，仿佛冰面下封冻着万千
+星辰，此刻正安静地看着我。\r\n旁白:奇怪的是，他的眼神里没有被撞到的恼怒，反而像是透过我
+，在看什么更遥远的东西，带着一种让人心疼的疲惫。\r\n司澈:“……”\r\n我:“那个，帅哥？你还好
+吗？”\r\n旁白:他似乎这才回过神，视线终于聚焦在我脸上。\r\n司澈:“没关系。”\r\n旁白:他的 
+声音很好听，像初雪落在琴弦上，清冷又干净。但不知道是不是我的错觉，他开口的瞬间，周围喧 
+闹的人声、风声、叶子摩擦的声音好像都变得不那么刺耳了。\r\n司澈:“是我挡路了。”\r\n旁白: 
+说着，他已经自然地蹲下身，开始帮我捡拾那些散落的书本。那双骨节分明的手，修长又白皙，简 
+直像是弹钢琴的。\r\n我:“不不不，是我的错！我来我来！”我赶紧也蹲下去，生怕再给他添麻烦。
+\r\n旁白:然后，经典的青春剧桥段发生了——我们同时伸向了同一本书，《量子物理导论》。\r\n旁
+白:在那个瞬间，我的指尖，轻轻地、不可避免地，触碰到了他的手背。\r\n旁白:没有静电。\r\n 
+旁白:但是，一种比静电更奇异的感觉传遍全身。 -心跳.sfx\r\n旁白:世界，仿佛被按下了静音键 
+。\r\nchangeFigure:司澈-思索.sprite\r\n旁白:并非真的没有声音了，而是脑海里那层永远存在 
+的、如同电视雪花点般的背景“噪音”，第一次消失了。整个世界变得前所未有的清澈、干净。\r\n 
+旁白:而眼前的司澈，身体猛地一僵。他那双碧蓝色的眼眸瞬间睁大，死死地盯着我们相触的地方，
+那份惊愕远比我这个“肇事者”要强烈一万倍。\r\n司澈:他猛地缩回了手！动作快得像被灼伤。\r\n旁-白:他没有看我，而是用另一只手按住了自己的太阳穴，闭上眼睛，脸上那种深重的疲惫感，竟 
+然肉眼可见地褪去了几分，取而代之的是一种极度困惑和不敢置信。\r\n我:“你是不是哪里不舒服 
+？”我小声地问，现在轮到我担心他了，“你脸色看起来不太好。”\r\n旁白:他缓缓睁开眼，那双蓝 
+眼睛一瞬不瞬地锁着我，仿佛要在我脸上钻出两个洞来。那种专注，让我心跳莫名漏了一拍。\r\n 
+司澈:“我没事。”他顿了顿，声音里带着一丝自己都没察觉的颤抖，“我很好。”\r\n特殊叙事:[一种
+前所未有的、如同溺水者呼吸到第一口新鲜空气般的轻松感，包裹着他。] -memory.fx\r\n旁白:他
+站起身，将捡好的书递给我，这一次，他刻意避开了任何可能的肢体接触。\r\n旁白:然而，就在他
+舒展眉头的瞬间，他像是忽然感知到了什么，猛地蹙眉，碧蓝的瞳孔骤然收缩，视线锐利地越过我 
+的肩膀，望向银杏大道的另一头。\r\n旁白:那里人来人往，什么都没有。\r\n旁白:但他脸上一闪 
+而过的冰冷与警惕，却和我刚刚认识的那个温柔学长判若两人。\r\n旁白:那份转瞬即逝的敌意，让
+我后背窜起一阵凉意。\r\nchangeFigure:司澈-微笑.sprite\r\n司澈:“你叫什么名字？”他收回视 
+线，重新对我露出一个温和的微笑，仿佛刚才的一切只是我的错觉。\r\n</Narrative>\r\n<options>\r\n[我叫Player，你呢？]\r\n[你问这个做什么？]\r\n[（没有回答，只是警惕地看着他）]\r\n</options>\r\n<script_actions>\r\n  <Analysis>\r\n    currentTime: Yes\r\n    chapterDeadlines: No\r\n    goodwill_SiChe: Yes\r\n    chapter_1_completed: No\r\n    currentLocation: 中海大学银杏道\r\n  </Analysis>\r\n  <setVar>currentTime=2021-09-01T08:30:00Z</setVar>\r\n</script_actions>\r\n</Format>"
+      }
+    ],
+    "temperature": 0.7,
+    "max_tokens": 32000,
+    "stream": false
+  }
+}
+ LOG  [OpenAIAdapter] 发送chatCompletion请求: {"data": {"max_tokens": 32000, "messages": [[Object], [Object]], "model": "gemini-2.5-flash", "stream": false, "temperature": 0.7}, "headers": {"Authorization": "Bearer ***", "Content-Type": "application/json"}, "url": "https://buddy.cradleintro.top/v1/chat/completions"}
+ LOG  [OpenAIAdapter] 收到响应: {"choices": [{"finish_reason": "stop", "index": 0, "message": [Object]}], "created": 1758791727, "id": "b2321725-188b-4345-99b3-836f5698cfa4", "model": "gemini-2.5-flash", "object": "chat.completion"}
+ LOG  [OpenAIAdapter] API调用完成，耗时: 14517ms
+ LOG  [OpenAIAdapter] 成功接收响应，长度: 658
+ LOG  [OpenAIAdapter] 响应前100个字符: **人物关系**
+*   **Player**：中海大学新生，来自小县城，对新环境感到不适但积极适应。
+*   **司澈**：一名在校园内与Player相撞的神秘学生，外貌出众，眼神疲惫，对触碰有异常...  
+ LOG  [MemoryService] Generated script summary: **人物关系**
+*   **Player**：中海大学新生，来自小县城，对新环境感到不适但积极适应。
+*   **司澈**：一名在校园内与Player相撞的神秘学生，外貌出众，眼神疲惫，对触碰有异常...  
+ LOG  [ScriptService] 剧本 script_1758791498128 增量总结完成，将 2 条消息总结为 1 条总 
+结消息
+ LOG  [ScriptService] 当前历史结构: 0 条历史总结 + 1 条新总结 + 1 条最新原始消息 (被保 
+留, id=msg_1758791684880)
+ LOG  [Character] Screen focused
+ WARN  [Layout children]: No route named "map" exists in nested children: ["Character", "explore", "index", "profile"]
+ WARN  [Layout children]: No route named "fmg-test" exists in nested children: ["Character", "explore", "index", "profile"]
+ WARN  [Layout children]: No route named "relationship-graph" exists in nested children: ["MemoOverlay", "SaveManager", "UtilSettings", "[conversationId]", "[groupId]", "api-settings", "character-detail", "chat-ui-settings", "create-post", "create_char", "custom-settings-manager", "debug-tools", "discord-auth-debug", "edit-field", "favorites", "global-settings", "log", "plugins", "script-detail", "script-summaries", "storage-manager", "token-planner", "tts-enhancer-guide", "group/[groupId]", "script/[scriptid]"]     
+ LOG  [Performance] Creating AutoMessageService instance
+ LOG  [ChatDialog] Current dialog mode: normal paragraphModeEnabled: false
+ LOG  [ChatDialog] Regeneration state change: {"curr": null, "prev": null}
+ LOG  [Performance] Page focused
+ WARN  [Layout children]: No route named "map" exists in nested children: ["Character", "explore", "index", "profile"]
+ WARN  [Layout children]: No route named "fmg-test" exists in nested children: ["Character", "explore", "index", "profile"]
+ LOG  [ChatDialog] Current dialog mode: normal paragraphModeEnabled: false
+ LOG  [NodeSTManager] Setting search enabled to: false
+ LOG  [StorageAdapter] Retrieving paginated chat history for conversation: 1758791534476, page: 1, pageSize: 15
+ LOG  [StorageAdapter] Retrieving clean chat history for conversation: 1758791534476
+ LOG  【CircleScheduler】尝试从CharacterStorageService加载角色
+ LOG  [StorageAdapter] Retrieving paginated chat history for conversation: 1758791534476, page: 2, pageSize: 15
+ LOG  [StorageAdapter] Retrieving clean chat history for conversation: 1758791534476   
+ LOG  [ChatDialog] Current dialog mode: normal paragraphModeEnabled: false
+ LOG  【CircleScheduler】尝试从CharacterStorageService加载角色
+ LOG  [GroupState] Loaded 0 groups (filtered from 0)
+ LOG  【CircleScheduler】从CharacterStorageService加载了1个角色
+ LOG  【CircleScheduler】从角色中加载了0个发布时间设置
+ LOG  [ChatDialog] Current dialog mode: normal paragraphModeEnabled: false
+ LOG  【CircleScheduler】尝试从CharacterStorageService加载角色
+ LOG  【CircleScheduler】从CharacterStorageService加载了1个角色
+ LOG  【CircleScheduler】从角色中加载了0个发布时间设置
+ LOG  [StorageAdapter] Retrieved 1 clean messages
+ LOG  [StorageAdapter] Retrieved 1 messages for page 1/1
+ LOG  [StorageAdapter] Retrieved 1 clean messages
+ LOG  [StorageAdapter] Retrieved 0 messages for page 2/1
+ LOG  [AudioCacheManager] Cache initialized successfully
+ LOG  【CircleScheduler】从CharacterStorageService加载了1个角色
+ LOG  【CircleScheduler】从角色中加载了0个发布时间设置
+ LOG  [ChatDialog] Current dialog mode: normal paragraphModeEnabled: false
+ LOG  [ChatDialog] Message msg_1758791734448_0.856841214347314 rendered at 17:15:34
+ LOG  【CircleScheduler】尝试从CharacterStorageService加载角色
+ LOG  【CircleScheduler】从CharacterStorageService加载了1个角色
+ LOG  【CircleScheduler】从角色中加载了0个发布时间设置
+ LOG  [ChatDialog] Current dialog mode: normal paragraphModeEnabled: false
+ LOG  【CircleScheduler】尝试从CharacterStorageService加载角色
+ LOG  【CircleScheduler】从CharacterStorageService加载了1个角色
+ LOG  【CircleScheduler】从角色中加载了0个发布时间设置
+ LOG  [useChatActions] 发送用户消息: 你好
+ LOG  [ChatDialog] Current dialog mode: normal paragraphModeEnabled: false
+ LOG  [ChatDialog] Message 1758791736496 rendered at 17:15:36
+ LOG  【CircleScheduler】尝试从CharacterStorageService加载角色
+ LOG  [ChatDialog] Current dialog mode: normal paragraphModeEnabled: false
+ LOG  [useChatActions] 开始同一角色继续对话处理...
+ LOG  [NodeSTManager] Starting processChatMessage with params: {"characterId": "1758791534476", "conversationId": "1758791534476", "hasCharacter": true, "requestId": "req_1758791736748_qkqgrqznq", "status": "同一角色继续对话", "userMessage": "你好"}
+ LOG  [NodeSTManager] Request already in progress, checking abort status
+ LOG  [NodeSTManager] Calling NodeST.processChatMessage with conversationId: 1758791534476
+ LOG  [NodeST] Creating new NodeSTCore instance
+ LOG  [Gemini适配器] 未配置有效的API密钥
+ LOG  [NodeSTCore] OpenRouter not enabled, using Gemini adapter only
+ LOG  [OpenAIAdapter] 初始化，endpoint: https://buddy.cradleintro.top/v1/chat/completions, model: gemini-2.5-flash
+ LOG  [Gemini适配器] 未配置有效的API密钥
+ LOG  [NodeSTCore] OpenRouter not enabled, using Gemini adapter only
+ LOG  [OpenAIAdapter] 初始化，endpoint: https://buddy.cradleintro.top/v1/chat/completions, model: gemini-2.5-flash
+ LOG  [NodeSTCore] Loading character data with cache for 1758791534476
+ LOG  [CharacterCache] Cache miss for 1758791534476, loading from disk
+ LOG  【CircleScheduler】从CharacterStorageService加载了1个角色
+ LOG  【CircleScheduler】从角色中加载了0个发布时间设置
+ LOG  【CircleScheduler】尝试从CharacterStorageService加载角色
+ LOG  [ChatDialog] Current dialog mode: normal paragraphModeEnabled: false
+ LOG  【CircleScheduler】尝试从CharacterStorageService加载角色
+ LOG  【CircleScheduler】从CharacterStorageService加载了1个角色
+ LOG  【CircleScheduler】从角色中加载了0个发布时间设置
+ LOG  【CircleScheduler】从CharacterStorageService加载了1个角色
+ LOG  【CircleScheduler】从角色中加载了0个发布时间设置
+ LOG  [NodeSTCore] Successfully loaded data for key: nodest_1758791534476_role
+ LOG  [NodeSTCore] Successfully loaded data for key: nodest_1758791534476_world        
+ LOG  [NodeSTCore] Successfully loaded data for key: nodest_1758791534476_preset       
+ LOG  [NodeSTCore] Successfully loaded data for key: nodest_1758791534476_note
+ LOG  [NodeSTCore] Successfully loaded data for key: nodest_1758791534476_history      
+ LOG  [NodeSTCore] Successfully loaded data for key: nodest_1758791534476_contents     
+ LOG  [CharacterCache] Cached data for 1758791534476
+ LOG  [NodeSTCore] Character data loaded from cache: {"hasChatHistory": true, "hasRoleCard": true, "hasWorldBook": true, "historyLength": 1}
+ LOG  [全局正则][筛选前] 所有脚本组: [] 当前角色ID: 1758791534476
+Android Bundled 280ms node_modules\@react-native-async-storage\async-storage\src\index.ts (592 modules)
+ LOG  [全局正则] 未启用
+Android Bundled 518ms app\pages\MemoOverlay.tsx (1075 modules)
+ LOG  [NodeSTCore] 向量记忆功能状态: true
+Android Bundled 422ms src\memory\services\Mem0Service.ts (837 modules)
+ LOG  [Mem0Service] 开始搜索记忆: "你好"
+ LOG  [Mem0Service] 搜索参数: characterId=1758791534476, conversationId=conversation-1758791534476, limit=5
+ LOG  [MobileMemory] 开始搜索记忆: "你好"
+ LOG  [MobileMemory] 搜索过滤条件: {"userId":"current-user","agentId":"1758791534476","runId":"conversation-1758791534476"}, 限制: 5条
+ LOG  [MobileMemory] 使用主嵌入器进行向量化...
+ WARN  [MobileMemory] 主嵌入器失败，尝试使用备用嵌入器: [Error: [ZhipuEmbedder] 智谱嵌 
+入API密钥未设置]
+ LOG  [MobileMemory] 使用备用嵌入器 (CradleCloud) 进行向量化...
+ LOG  [CradleCloudEmbedder] 尝试从Discord服务获取JWT Token
+ ERROR  [CradleCloudEmbedder] 获取认证头失败: [Error: JWT token not available]
+ ERROR  [MobileMemory] 备用嵌入器也失败了: [Error: [CradleCloudEmbedder] 无法获取认证信
+息，请配置JWT Token或登录Discord]
+ ERROR  [Mem0Service] 搜索记忆失败: 所有嵌入器都失败了 - 主嵌入器: [ZhipuEmbedder] 智谱
+嵌入API密钥未设置, 备用嵌入器: [CradleCloudEmbedder] 无法获取认证信息，请配置JWT Token 
+或登录Discord
+ WARN  [Mem0Service] 嵌入服务不可用，重新检查可用性
+ LOG  [NodeSTCore] 记忆搜索完成: {"resultsCount": 0, "success": true}
+ LOG  [NodeSTCore] Checking if chat history needs summarization...
+ LOG  [NodeSTCore] Processing chat... {"characterId_passed_to_processChat": "1758791534476"}
+ LOG  [NodeSTCore] Starting processChat with: {"apiProvider": "openai-compatible", "characterId": "1758791534476", "chatHistoryMessagesCount": 2, "dEntriesCount": 1, "hasCustomUserName": false, "hasRewriteOpinion": false, "userMessage": "你好", "userMessageFull": "你好"}
+ LOG  [Mem0Service] memoryRef 提供 isEmbeddingAvailable 方法，但为避免自动网络探测，已 
+跳过调用
+ LOG  [Mem0Service] 嵌入服务可用性（基于本地检查）: false
+ LOG  [NodeSTCore] Successfully loaded data for key: nodest_1758791534476_preset
+ LOG  [NodeSTCore] Successfully loaded data for key: nodest_1758791534476_world
+ LOG  [NodeSTCore] Successfully loaded data for key: nodest_1758791534476_contents
+ LOG  [NodeSTCore] Starting optimized D-entries insertion: {"baseMessage": "你好", "chatHistoryMessages": 2, "dEntriesCount": 1, "processingWindow": 20}
+ LOG  [NodeSTCore] Removed 0 old D-entries
+ LOG  [NodeSTCore] Chat history is short, processing all messages
+ LOG  [NodeSTCore] Filtered D-entries: 1 valid out of 1 total (based on recent 2 messages)
+ LOG  [NodeSTCore] Added missing author note: Author Note
+ LOG  [NodeSTCore] Optimized D-entry insertion completed: {"archivedCount": 0, "dEntriesInserted": 1, "finalTotalCount": 3, "performanceGain": "No optimization needed", "processedRecentCount": 3}
+ LOG  [NodeSTCore] Starting cleanContentsForGemini: {"totalContents": 11}
+ LOG  [NodeSTCore] Final cleaned contents: {"filteredCount": 2, "originalCount": 12}   
+ LOG  [NodeSTCore] Final Gemini request structure: {"messageSequence": [{"depth": undefined, "preview": "Hello!", "role": "model", "type": "chat"}, {"depth": undefined, "preview": "你好", "role": "user", "type": "chat"}], "totalMessages": 2}
+ LOG  [NodeSTCore] 开始对 2 条消息进行剧本宏替换 (characterId: 1758791534476, scriptId: 1758791534476)
+ LOG  📋 剧本 1758791534476 使用默认变量系统配置
+ LOG  ✅ 剧本 1758791534476 的系统宏已自动注册:
+ LOG     - ${scriptSummary}: 剧本摘要
+ LOG     - ${privateSummary}: 私聊摘要
+ LOG     - ${guidanceCurrentChat}: 当前聊天指导
+ LOG     - ${guidanceCurrentScript}: 当前剧本指导
+ LOG     - ${scriptHistoryRecent}: 最近剧本历史
+ LOG     - ${characterChatRecent}: 最近角色聊天历史
+ LOG  [NodeSTCore] 宏替换完成: 0 个部分已替换, 0 个错误
+ LOG  [NodeSTCore] Using adapter: {"apiProvider": "openai-compatible", "type": "OpenAICompatible"}
+ LOG  [TableMemory] getCharacterTablesData - 获取角色 ID: "1758791534476" 的表格数据   
+ LOG  [TableMemory] 找到 0 个表格数据
+ LOG  [OpenAIAdapter] 发送chatCompletion请求 FULL: {
+  "url": "https://buddy.cradleintro.top/v1/chat/completions",
+  "headers": {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer ***"
+  },
+  "data": {
+    "model": "gemini-2.5-flash",
+    "messages": [
+      {
+        "role": "assistant",
+        "content": "Hello!"
+      },
+      {
+        "role": "user",
+        "content": "你好"
+      }
+    ],
+    "temperature": 0.7,
+    "max_tokens": 32000,
+    "stream": false
+  }
+}
+ LOG  [OpenAIAdapter] 发送chatCompletion请求: {"data": {"max_tokens": 32000, "messages": [[Object], [Object]], "model": "gemini-2.5-flash", "stream": false, "temperature": 0.7}, "headers": {"Authorization": "Bearer ***", "Content-Type": "application/json"}, "url": "https://buddy.cradleintro.top/v1/chat/completions"}
+ LOG  [OpenAIAdapter] 收到响应: {"choices": [{"finish_reason": "stop", "index": 0, "message": [Object]}], "created": 1758791743, "id": "97d45f62-bd4a-4999-a954-6bb458c642fb", "model": "gemini-2.5-flash", "object": "chat.completion"}
+ LOG  [NodeSTCore] Saving updated history and framework...
+ LOG  [NodeSTCore] Updating chat history with new messages and D-entries
+ LOG  [NodeSTCore] Removed 0 old D-entries from history
+ LOG  [NodeSTCore] Added new AI response to history
+ LOG  [NodeSTCore] Starting optimized D-entries insertion: {"baseMessage": "你好", "chatHistoryMessages": 3, "dEntriesCount": 1, "processingWindow": 20}
+ LOG  [NodeSTCore] Removed 0 old D-entries
+ LOG  [NodeSTCore] Chat history is short, processing all messages
+ LOG  [NodeSTCore] Filtered D-entries: 1 valid out of 1 total (based on recent 3 messages)
+ LOG  [NodeSTCore] Added missing author note: Author Note
+ LOG  [NodeSTCore] Optimized D-entry insertion completed: {"archivedCount": 0, "dEntriesInserted": 1, "finalTotalCount": 4, "performanceGain": "No optimization needed", "processedRecentCount": 4}
+ LOG  [NodeSTCore] Updated chat history summary: {"cleanHistoryCount": 3, "dEntriesCount": 1, "finalMessagesCount": 4, "hasAiResponse": true, "hasUserMessage": true, "originalMessagesCount": 2}
+ LOG  [NodeSTCore] Successfully saved data for key: nodest_1758791534476_history
+ LOG  [NodeSTCore] Content framework and history saved successfully
+ LOG  📚 [变量系统] 开始检查角色的剧本变量绑定...
+ LOG  📚 [变量系统] Loaded character from CharacterStorageService: 1758791534476       
+ LOG  📚 [变量系统] 角色未绑定剧本，跳过变量处理
+ LOG  [NodeSTCore] Updating chat history with new messages and D-entries
+ LOG  [NodeSTCore] Removed 0 old D-entries from history
+ LOG  [NodeSTCore] Added new AI response to history
+ LOG  [NodeSTCore] Starting optimized D-entries insertion: {"baseMessage": "你好", "chatHistoryMessages": 3, "dEntriesCount": 1, "processingWindow": 20}
+ LOG  [NodeSTCore] Removed 0 old D-entries
+ LOG  [NodeSTCore] Chat history is short, processing all messages
+ LOG  [NodeSTCore] Filtered D-entries: 1 valid out of 1 total (based on recent 3 messages)
+ LOG  [NodeSTCore] Added missing author note: Author Note
+ LOG  [NodeSTCore] Optimized D-entry insertion completed: {"archivedCount": 0, "dEntriesInserted": 1, "finalTotalCount": 4, "performanceGain": "No optimization needed", "processedRecentCount": 4}
+ LOG  [NodeSTCore] Updated chat history summary: {"cleanHistoryCount": 3, "dEntriesCount": 1, "finalMessagesCount": 4, "hasAiResponse": true, "hasUserMessage": true, "originalMessagesCount": 2}
+ LOG  [CharacterCache] Updated chatHistory for 1758791534476
+ LOG  [NodeSTCore] Transactional save successful for 1 files
+ LOG  [NodeSTCore] Cache and files updated successfully for 1758791534476
+ LOG  [NodeSTCore] Chat history saved with atomic writes: {"lastMessage": "你好！很高兴
+见到你。...", "totalMessages": 4}
+ LOG  [useChatActions] NodeST处理成功，完成AI回复
+ LOG  [StorageAdapter] Retrieving clean chat history for conversation: 1758791534476   
+ LOG  [ChatDialog] Current dialog mode: normal paragraphModeEnabled: false
+ LOG  [ChatDialog] Message 1758791743876 rendered at 17:15:44
+ LOG  【CircleScheduler】尝试从CharacterStorageService加载角色
+ LOG  【CircleScheduler】从CharacterStorageService加载了1个角色
+ LOG  【CircleScheduler】从角色中加载了0个发布时间设置
+ LOG  [StorageAdapter] Retrieved 3 clean messages
+ LOG  [TableMemory] getCharacterTablesData - 获取角色 ID: "1758791534476" 的表格数据   
+ LOG  [TableMemory] 会话过滤 ID: "1758791534476"
+ LOG  [TableMemory] 找到 0 个表格数据
+ LOG  [TableMemoryService] [0] ====== 表格记忆全流程开始 ====== {"characterId": "1758791534476", "conversationId": "1758791534476", "messages": [{"content": "Hello!", "role": "assistant"}, {"content": "你好", "role": "user"}, {"content": "你好！很高兴见到你。", "role": "assistant"}], "tableNameToId": {}}
+ LOG  [TableMemoryService] [1] 开始获取聊天内容，参数: {"characterId": "1758791534476", "conversationId": "1758791534476", "messages": [{"content": "Hello!", "role": "assistant"}, {"content": "你好", "role": "user"}, {"content": "你好！很高兴见到你。", "role": 
+"assistant"}], "tableNameToId": {}}
+ LOG  [TableMemoryService] [1.3] messages为数组，拼接后内容:
+AI: Hello!
+
+用户: 你好
+
+AI: 你好！很高兴见到你。
+ LOG  [TableMemoryService] [2] 获取表格数据，characterId=1758791534476, conversationId=1758791534476
+ LOG  [TableMemory] getCharacterTablesData - 获取角色 ID: "1758791534476" 的表格数据   
+ LOG  [TableMemory] 会话过滤 ID: "1758791534476"
+ LOG  [TableMemory] 找到 0 个表格数据
+ LOG  [TableMemoryService] [2.1] 表格数据获取完成: {"success": true, "tables": []}     
+ LOG  [TableMemoryService] [3] 构建表格专用提示词
+ LOG  [TableMemoryService] [3.1] systemPrompt:
+你是专业的表格记忆助手，只负责结构化表格信息的提取与维护。请严格按照表格结构和规则处理 
+。
+ LOG  [TableMemoryService] [3.2] userPrompt:
+
+当前表格数据:
+
+
+对话内容:
+AI: Hello!
+
+用户: 你好
+
+AI: 你好！很高兴见到你。
+
+请分析对话内容，生成表格操作指令（JSON格式），严格按照如下参数规范输出：
+
+- action: 操作类型，支持 "insert"（插入行）、"update"（更新行）、"delete"（删除行）    
+- sheetId: 目标表格的名称（如: "重要物品表格"），系统会自动转换为表格ID
+- rowIndex: 行索引（从1开始，仅update/delete需要）
+- rowData: 行数据对象，键为列索引（如 "0", "1", ...），值为单元格内容（仅insert/update 
+需要）
+- colIndex/newValue: 如只需更新单元格，可用 colIndex 指定列索引，newValue 指定新值（可 
+选）
+
+另外注意，不用修改第0行，因为第0行是标题行。
+
+示例:
+{
+  "tableActions": [
+    {
+      "action": "insert",
+      "sheetId": "重要物品表格",
+      "rowData": { "0": "用户", "1": "重要的包裹", "2": "镜子", "3": "原因" }
+    },
+    {
+      "action": "update",
+      "sheetId": "重要物品表格",
+      "rowIndex": 1,
+      "rowData": { "2": "镜子" }
+    },
+    {
+      "action": "update",
+      "sheetId": "重要物品表格",
+      "rowIndex": 1,
+      "colIndex": 2,
+      "newValue": "镜子"
+    },
+    {
+      "action": "delete",
+      "sheetId": "重要物品表格",
+      "rowIndex": 1
+    }
+  ]
+}
+
+请只返回JSON对象，且每个tableAction必须包含 action 和 sheetId，其他参数按需填写，rowData 必须为对象且键为列索引，值为字符串。
+ LOG  [TableMemoryService] [4] 调用LLM生成表格操作指令...
+ LOG  [TableMemory] 从Mem0Service获取LLM实例
+ LOG  [MobileLLM] 从存储中获取到API密钥
+ LOG  [MobileLLM] 适配器未初始化，正在初始化...
+ LOG  [MobileLLM] 开始初始化openai-compatible适配器，密钥长度: 27
+ LOG  [OpenAIAdapter] 初始化，endpoint: https://buddy.cradleintro.top/v1/chat/completions, model: gemini-2.5-flash
+ LOG  [MobileLLM] OpenAIAdapter 初始化成功
+ LOG  [MobileLLM] 开始生成内容，提供商: openai-compatible，模型: gemini-2.5-flash，消息
+数: 2
+ LOG  [OpenAIAdapter][表格记忆] 未提供有效的characterId/agentId，跳过表格记忆注入      
+ LOG  [OpenAIAdapter] 发送请求到API，共 2 条消息
+ LOG  [OpenAIAdapter] 发送chatCompletion请求 FULL: {
+  "url": "https://buddy.cradleintro.top/v1/chat/completions",
+  "headers": {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer ***"
+  },
+  "data": {
+    "model": "gemini-2.5-flash",
+    "messages": [
+      {
+        "role": "user",
+        "content": "你是专业的表格记忆助手，只负责结构化表格信息的提取与维护。请严格按 
+照表格结构和规则处理。"
+      },
+      {
+        "role": "user",
+        "content": "\n当前表格数据:\n\n\n对话内容:\nAI: Hello!\n\n用户: 你好\n\nAI: 你 
+好！很高兴见到你。\n\n请分析对话内容，生成表格操作指令（JSON格式），严格按照如下参数规 
+范输出：\n\n- action: 操作类型，支持 \"insert\"（插入行）、\"update\"（更新行）、\"delete\"（删除行）\n- sheetId: 目标表格的名称（如: \"重要物品表格\"），系统会自动转换为表格
+ID\n- rowIndex: 行索引（从1开始，仅update/delete需要）\n- rowData: 行数据对象，键为列索
+引（如 \"0\", \"1\", ...），值为单元格内容（仅insert/update需要）\n- colIndex/newValue: 如只需更新单元格，可用 colIndex 指定列索引，newValue 指定新值（可选）\n\n另外注意，不 
+用修改第0行，因为第0行是标题行。\n\n示例:\n{\n  \"tableActions\": [\n    {\n      \"action\": \"insert\",\n      \"sheetId\": \"重要物品表格\",\n      \"rowData\": { \"0\": \"用户\", \"1\": \"重要的包裹\", \"2\": \"镜子\", \"3\": \"原因\" }\n    },\n    {\n    
+  \"action\": \"update\",\n      \"sheetId\": \"重要物品表格\",\n      \"rowIndex\": 1,\n      \"rowData\": { \"2\": \"镜子\" }\n    },\n    {\n      \"action\": \"update\",\n      \"sheetId\": \"重要物品表格\",\n      \"rowIndex\": 1,\n      \"colIndex\": 2,\n      \"newValue\": \"镜子\"\n    },\n    {\n      \"action\": \"delete\",\n      \"sheetId\": \"重要物品表格\",\n      \"rowIndex\": 1\n    }\n  ]\n}\n\n请只返回JSON对象，且
+每个tableAction必须包含 action 和 sheetId，其他参数按需填写，rowData 必须为对象且键为列
+索引，值为字符串。\n\n请以有效的JSON格式响应。"
+      }
+    ],
+    "temperature": 0.7,
+    "max_tokens": 32000,
+    "stream": false
+  }
+}
+ LOG  [OpenAIAdapter] 发送chatCompletion请求: {"data": {"max_tokens": 32000, "messages": [[Object], [Object]], "model": "gemini-2.5-flash", "stream": false, "temperature": 0.7}, "headers": {"Authorization": "Bearer ***", "Content-Type": "application/json"}, "url": "https://buddy.cradleintro.top/v1/chat/completions"}
+ LOG  [ChatDialog] Current dialog mode: normal paragraphModeEnabled: false
+ LOG  [TableMemoryIntegration] 初始化表格记忆插件...
+ LOG  【CircleScheduler】尝试从CharacterStorageService加载角色
+ LOG  [TableMemory] 插件已初始化，跳过
+ LOG  [TableMemory] 插件已启用
+ LOG  [TableMemoryIntegration] 表格记忆插件初始化成功
+ LOG  [MemoOverlay] Table memory plugin initialized successfully
+ LOG  [TableMemory] 获取所有模板
+ LOG  【CircleScheduler】从CharacterStorageService加载了1个角色
+ LOG  【CircleScheduler】从角色中加载了0个发布时间设置
+ LOG  [TableMemory] 获取所有模板，共 6 个模板
+ LOG  [MemoOverlay] Loaded 6 total templates
+ LOG  [TableMemory] 获取所有模板
+ LOG  [Mem0Service] 记忆系统 已启用
+ LOG  [MemoOverlay] Memory recording enabled
+ LOG  [TableMemory] 获取所有模板，共 6 个模板
+ LOG  [MemoOverlay] Loaded 6 total templates
+ LOG  [MemoOverlay] Loaded 6 selected template IDs
+ LOG  [TableMemory] getCharacterTablesData - 获取角色 ID: "1758791534476" 的表格数据
+ LOG  [TableMemory] 会话过滤 ID: "1758791534476"
+ LOG  [TableMemory] 找到 0 个表格数据
+ LOG  [MemoOverlay] Loaded 6 selected template IDs
+ LOG  [TableMemory] getCharacterTablesData - 获取角色 ID: "1758791534476" 的表格数据   
+ LOG  [TableMemory] 会话过滤 ID: "1758791534476"
+ LOG  [TableMemory] 找到 0 个表格数据
+ LOG  [OpenAIAdapter] 收到响应: {"choices": [{"finish_reason": "stop", "index": 0, "message": [Object]}], "created": 1758791747, "id": "aafa9905-aeec-4a45-a145-2e74070a8b98", "model": "gemini-2.5-flash", "object": "chat.completion"}
+ LOG  [OpenAIAdapter] API调用完成，耗时: 3833ms
+ LOG  [OpenAIAdapter] 成功接收响应，长度: 36
+ LOG  [OpenAIAdapter] 响应前100个字符: ```json
+{
+  "tableActions": []
+}
+```...
+ LOG  [MobileLLM] 成功生成内容，响应长度: 36
+ LOG  [TableMemoryService] [4.2] LLM响应内容:
+```json
+{
+  "tableActions": []
+}
+```
+ LOG  [TableMemoryService] [5] 解析LLM响应，提取表格操作指令...
+ LOG  [TableMemoryService] [5.1] 成功解析到tableActions: []
+ LOG  [TableMemoryService] [6] 开始执行表格操作，共0条
+ LOG  [TableMemoryService] [6.1] 无需执行表格操作，直接返回
+ LOG  [TableMemoryService] [9] ====== 表格记忆全流程结束，最终更新表格ID: []
+ LOG  [useChatActions] 表格记忆服务已异步处理完成
+ LOG  [StorageAdapter] Retrieving clean chat history for conversation: 1758791534476
+ LOG  [StorageAdapter] Retrieved 3 clean messages
+ LOG  [MemoOverlay] Loaded 0 summaries for conversation 1758791534476
+ LOG  [MemoOverlay] summarizeMemoryNow 请求参数: {"characterId": "1758791534476", "conversationId": "1758791534476"}
+ LOG  [StorageAdapter] Retrieving clean chat history for conversation: 1758791534476
+ LOG  [StorageAdapter] Retrieved 3 clean messages
+ LOG  [MemoryService] generateSummary called with forceGenerate=true
+ LOG  [StorageAdapter] Retrieving clean chat history for conversation: 1758791534476   
+ LOG  [StorageAdapter] Retrieved 3 clean messages
+ LOG  [MemoryService] Chat history total length: 18 characters
+ LOG  [MemoryService] finalSummaryRangePercent: {"end": 60, "start": 40}
+ LOG  [MemoryService] Using percentage summary range: [40%, 60%]
+ LOG  [MemoryService] Calculated indices from percentages: startIdx=1, endIdx=2 (total 
+messages: 3)
+ LOG  [MemoryService] Requesting summary from unified API for 1 messages with custom settings
+ LOG  [OpenAIAdapter] 初始化，endpoint: https://buddy.cradleintro.top/v1/chat/completions, model: gemini-2.5-flash
+ LOG  [OpenAIAdapter][表格记忆] characterId参数值: 1758791534476 string
+ LOG  [OpenAIAdapter][表格记忆] 调用 getCharacterTablesData 前参数: {"characterId": "1758791534476"}
+ LOG  [TableMemory] getCharacterTablesData - 获取角色 ID: "1758791534476" 的表格数据   
+ LOG  [TableMemory] 找到 0 个表格数据
+ LOG  [OpenAIAdapter][表格记忆] getCharacterTablesData 返回: {"success": true, "tables": []}
+ LOG  [OpenAIAdapter][表格记忆] 未获取到有效表格数据，success: true tables.length: 0   
+ LOG  [OpenAIAdapter] 发送请求到API，共 2 条消息
+ LOG  [OpenAIAdapter] 发送chatCompletion请求 FULL: {
+  "url": "https://buddy.cradleintro.top/v1/chat/completions",
+  "headers": {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer ***"
+  },
+  "data": {
+    "model": "gemini-2.5-flash",
+    "messages": [
+      {
+        "role": "system",
+        "content": "你是对话总结助手，请输出简洁、结构化的中文摘要，保留人物关系、意图 
+、计划、已达成事项与未解决问题，不要点评。"
+      },
+      {
+        "role": "user",
+        "content": "待总结的剧本内容：\n=== 第 1 轮 ===\n用户输入: \n剧情发展: <Format>\r\n<Narrative>\r\nchangeBg:白天-中海大学校园.bg\r\n旁白:2021年秋，中海市大学。对于我，
+Player，刚从十八线小县城考出来的奋斗X来说，这里的一切都闪闪发光——除了我怀里这摞能把人压
+成二维生物的新生教材。 -memory.fx\r\n我:“这玩意儿绝对比我的体重还沉……可恶，早知道就不选
+这个号称‘知识改变命运’但教材要人命的专业了。\r\n旁白:我一边小声碎碎念，一边低头看着手机
+上的校园地图，试图在开学第一天的人潮中，强行走出一条属于我的六亲不认的步伐。\r\n旁白:就
+在这时，手机屏幕“叮”地亮起，一条社团招新的花哨推送弹了出来。\r\n我:“‘中海大学超自然现象
+研究社’？现在的小孩真是，嗯？”\r\n旁白:就这一秒的分神，我“咚”的一声，结结实实地撞上了一
+堵“墙”？ -撞击.sfx\r\n旁白:怀里的教材们如同一群视死如归的敢死队，纷纷向着四面八方英勇就
+义。\r\n旁白:世界瞬间陷入了尴尬的静止。\r\n我:“啊！对、对不起！我不是故意的！真的！”我 
+一边疯狂鞠躬道歉，一边手忙脚乱地准备收拾残局。\r\nchangeFigure:司澈-正常.sprite\r\n旁白
+:然而，那堵“墙”并没有发出任何责备的声音。我小心翼翼地抬起头，然后——呼吸停滞了半秒。\r\n旁白:阳光正巧落在他深棕色的发丝上，勾勒出柔和的轮廓，而那双眼眸里，仿佛冰面下封冻着万千
+星辰，此刻正安静地看着我。\r\n旁白:奇怪的是，他的眼神里没有被撞到的恼怒，反而像是透过我
+，在看什么更遥远的东西，带着一种让人心疼的疲惫。\r\n司澈:“……”\r\n我:“那个，帅哥？你还好
+吗？”\r\n旁白:他似乎这才回过神，视线终于聚焦在我脸上。\r\n司澈:“没关系。”\r\n旁白:他的 
+声音很好听，像初雪落在琴弦上，清冷又干净。但不知道是不是我的错觉，他开口的瞬间，周围喧 
+闹的人声、风声、叶子摩擦的声音好像都变得不那么刺耳了。\r\n司澈:“是我挡路了。”\r\n旁白: 
+说着，他已经自然地蹲下身，开始帮我捡拾那些散落的书本。那双骨节分明的手，修长又白皙，简 
+直像是弹钢琴的。\r\n我:“不不不，是我的错！我来我来！”我赶紧也蹲下去，生怕再给他添麻烦。
+\r\n旁白:然后，经典的青春剧桥段发生了——我们同时伸向了同一本书，《量子物理导论》。\r\n旁
+白:在那个瞬间，我的指尖，轻轻地、不可避免地，触碰到了他的手背。\r\n旁白:没有静电。\r\n 
+旁白:但是，一种比静电更奇异的感觉传遍全身。 -心跳.sfx\r\n旁白:世界，仿佛被按下了静音键 
+。\r\nchangeFigure:司澈-思索.sprite\r\n旁白:并非真的没有声音了，而是脑海里那层永远存在 
+的、如同电视雪花点般的背景“噪音”，第一次消失了。整个世界变得前所未有的清澈、干净。\r\n 
+旁白:而眼前的司澈，身体猛地一僵。他那双碧蓝色的眼眸瞬间睁大，死死地盯着我们相触的地方，
+那份惊愕远比我这个“肇事者”要强烈一万倍。\r\n司澈:他猛地缩回了手！动作快得像被灼伤。\r\n旁-白:他没有看我，而是用另一只手按住了自己的太阳穴，闭上眼睛，脸上那种深重的疲惫感，竟 
+然肉眼可见地褪去了几分，取而代之的是一种极度困惑和不敢置信。\r\n我:“你是不是哪里不舒服 
+？”我小声地问，现在轮到我担心他了，“你脸色看起来不太好。”\r\n旁白:他缓缓睁开眼，那双蓝 
+眼睛一瞬不瞬地锁着我，仿佛要在我脸上钻出两个洞来。那种专注，让我心跳莫名漏了一拍。\r\n 
+司澈:“我没事。”他顿了顿，声音里带着一丝自己都没察觉的颤抖，“我很好。”\r\n特殊叙事:[一种
+前所未有的、如同溺水者呼吸到第一口新鲜空气般的轻松感，包裹着他。] -memory.fx\r\n旁白:他
+站起身，将捡好的书递给我，这一次，他刻意避开了任何可能的肢体接触。\r\n旁白:然而，就在他
+舒展眉头的瞬间，他像是忽然感知到了什么，猛地蹙眉，碧蓝的瞳孔骤然收缩，视线锐利地越过我 
+的肩膀，望向银杏大道的另一头。\r\n旁白:那里人来人往，什么都没有。\r\n旁白:但他脸上一闪 
+而过的冰冷与警惕，却和我刚刚认识的那个温柔学长判若两人。\r\n旁白:那份转瞬即逝的敌意，让
+我后背窜起一阵凉意。\r\nchangeFigure:司澈-微笑.sprite\r\n司澈:“你叫什么名字？”他收回视 
+线，重新对我露出一个温和的微笑，仿佛刚才的一切只是我的错觉。\r\n</Narrative>\r\n<options>\r\n[我叫Player，你呢？]\r\n[你问这个做什么？]\r\n[（没有回答，只是警惕地看着他）]\r\n</options>\r\n<script_actions>\r\n  <Analysis>\r\n    currentTime: Yes\r\n    chapterDeadlines: No\r\n    goodwill_SiChe: Yes\r\n    chapter_1_completed: No\r\n    currentLocation: 中海大学银杏道\r\n  </Analysis>\r\n  <setVar>currentTime=2021-09-01T08:30:00Z</setVar>\r\n</script_actions>\r\n</Format>\n\n\n对话内容：\nUser: 你好"
+      }
+    ],
+    "temperature": 0.7,
+    "max_tokens": 32000,
+    "stream": false
+  }
+}
+ LOG  [OpenAIAdapter] 发送chatCompletion请求: {"data": {"max_tokens": 32000, "messages": [[Object], [Object]], "model": "gemini-2.5-flash", "stream": false, "temperature": 0.7}, "headers": {"Authorization": "Bearer ***", "Content-Type": "application/json"}, "url": "https://buddy.cradleintro.top/v1/chat/completions"}

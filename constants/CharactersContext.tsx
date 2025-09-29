@@ -4,16 +4,19 @@ import { WorldBookJson,CradleCharacter } from '@/shared/types';
 import * as FileSystem from 'expo-file-system';
 import { useUser } from './UserContext';
 import { Character, Message, CirclePost } from '@/shared/types';
-import { CradleService } from '@/NodeST/nodest/services/cradle-service';
+import { EventRegister } from 'react-native-event-listeners';
+import { DeviceEventEmitter } from 'react-native';
+
 import { downloadAndSaveImage, deleteCharacterImages } from '@/utils/imageUtils';
-import { Feed } from '@/constants/types';
 import { GeminiAdapter } from '@/NodeST/nodest/utils/gemini-adapter'; 
 import { OpenRouterAdapter } from '@/NodeST/nodest/utils/openrouter-adapter';
+import CradleCloudAdapter from '@/NodeST/nodest/utils/cradlecloud-adapter';
 import { CharacterGeneratorService } from '@/NodeST/nodest/services/character-generator-service';
 import { NodeSTManager } from '@/utils/NodeSTManager';
 import { getApiSettings } from '@/utils/settings-helper';
 import { StorageAdapter } from '@/NodeST/nodest/utils/storage-adapter';
 import AudioCacheManager from '@/utils/AudioCacheManager';
+import { CharacterStorageService } from '@/services/CharacterStorageService';
 
 // 新增：定义生成图片的接口
 export interface GeneratedImage {
@@ -24,11 +27,7 @@ export interface GeneratedImage {
 
 const CharactersContext = createContext<CharactersContextType | undefined>(undefined);
 // Initialize CradleService with API key from environment or settings
-const API_KEY = "YOUR_API_KEY_HERE"; // In production, load from secure storage
-const cradleService = new CradleService(API_KEY);
 
-// Initialize the service when app starts
-cradleService.initialize();
 
 export const CharactersProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [characters, setCharacters] = useState<Character[]>([]);
@@ -40,30 +39,23 @@ export const CharactersProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [favorites, setFavorites] = useState<CirclePost[]>([]);
   // 新增：生成图片缓存状态
   const [generatedImages, setGeneratedImages] = useState<{ [conversationId: string]: GeneratedImage[] }>({});
+  
+  // Initialize storage service
+  const storageService = CharacterStorageService.getInstance();
   const updateCharacterExtraBackgroundImage = async (characterId: string, extrabackgroundimage: string) => {
     try {
-      // 读取最新角色列表
-      const existingDataStr = await FileSystem.readAsStringAsync(
-        FileSystem.documentDirectory + 'characters.json'
-      ).catch(() => '[]');
-      const existingCharacters = JSON.parse(existingDataStr);
-  
-      // 查找并更新目标角色
-      const updatedCharacters = existingCharacters.map((char: any) =>
-        char.id === characterId
-          ? { ...char, extrabackgroundimage, updatedAt: Date.now() }
-          : char
+      // Use new storage service for atomic updates
+      await storageService.updateCharacterField(characterId, 'extrabackgroundimage', extrabackgroundimage);
+      
+      // Update local state
+      setCharacters(prevChars => 
+        prevChars.map(char => 
+          char.id === characterId 
+            ? { ...char, extrabackgroundimage, updatedAt: Date.now() }
+            : char
+        )
       );
-  
-      // 保存到文件系统
-      await FileSystem.writeAsStringAsync(
-        FileSystem.documentDirectory + 'characters.json',
-        JSON.stringify(updatedCharacters),
-        { encoding: FileSystem.EncodingType.UTF8 }
-      );
-  
-      // 更新内存中的角色数组
-      setCharacters(updatedCharacters);
+      
       console.log(`[CharactersContext] extrabackgroundimage updated for character: ${characterId}`);
     } catch (error) {
       console.error('[CharactersContext] Failed to update extrabackgroundimage:', error);
@@ -79,31 +71,34 @@ export const CharactersProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   });
   const [cradleCharacters, setCradleCharacters] = useState<CradleCharacter[]>([]);
   
-  // Add state for Cradle API settings
-  const [cradleApiSettings, setCradleApiSettings] = useState<{
-    apiProvider: 'gemini' | 'openrouter';
-    openrouter?: {
-      enabled: boolean;
-      apiKey: string;
-      model: string;
-    }
-  }>({
-    apiProvider: 'gemini'
-  });
   
   const { user } = useUser();
 
   useEffect(() => {
-    loadCharacters();
+    initializeStorage();
     loadConversations();
     loadMessages();
     loadMemos();
     loadFavorites();
-    loadCradleSettings();
     loadCradleCharacters();
-    loadCradleApiSettings(); // Add loading API settings
     loadGeneratedImages(); // 新增：加载生成图片缓存
   }, []);
+
+  const initializeStorage = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Initialize storage service (handles migration automatically)
+      await storageService.initialize();
+      
+      // Load characters using new storage service
+      await loadCharacters();
+    } catch (error) {
+      console.error('Failed to initialize storage:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const loadMessages = async () => {
     try {
@@ -134,18 +129,13 @@ export const CharactersProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const loadCharacters = async () => {
     try {
-      setIsLoading(true);
-      const charactersStr = await FileSystem.readAsStringAsync(
-        FileSystem.documentDirectory + 'characters.json',
-        { encoding: FileSystem.EncodingType.UTF8 }
-      ).catch(() => '[]');
-
-      const basicCharacters: Character[] = JSON.parse(charactersStr);
-      setCharacters(basicCharacters);
+      console.log('[CharactersContext] Loading characters using new storage service...');
+      const loadedCharacters = await storageService.getAllCharacters();
+      setCharacters(loadedCharacters);
+      console.log(`[CharactersContext] Loaded ${loadedCharacters.length} characters`);
     } catch (error) {
       console.error('Failed to load characters:', error);
-    } finally {
-      setIsLoading(false);
+      setCharacters([]);
     }
   };
 
@@ -178,26 +168,26 @@ export const CharactersProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const addCharacter = async (character: Character): Promise<void> => {
-    console.log('[Context 1] Starting addCharacter...');
+    console.log('[CharactersContext] Starting addCharacter with new storage service...');
     
     if (!character) {
       const error = new Error('Invalid character: received null/undefined');
-      console.error('[Context Error 1]', error);
+      console.error('[CharactersContext Error 1]', error);
       throw error;
     }
   
     try {
-      // 验证字段
+      // Validate required fields
       if (!character.id || !character.name) {
         const error = new Error('Invalid character data: missing id or name');
-        console.error('[Context Error 2]', error, character);
+        console.error('[CharactersContext Error 2]', error, character);
         throw error;
       }
   
-      // Check for cradle fields and handle appropriately
+      // Handle cradle character setup if needed
       const isCradleCharacter = character.inCradleSystem === true;
       if (isCradleCharacter) {
-        console.log('[Context] Character has inCradleSystem flag, handling as cradle character');
+        console.log('[CharactersContext] Character has inCradleSystem flag, handling as cradle character');
         
         // Ensure character has all required cradle fields
         const cradleCharacter: CradleCharacter = {
@@ -211,211 +201,71 @@ export const CharactersProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         
         // Handle image generation tracking if task ID is present
         if ((character as CradleCharacter).imageGenerationTaskId) {
-          console.log('[Context] Character has image generation task, setting up tracking');
-          
-          // Set image generation status
+          console.log('[CharactersContext] Character has image generation task, setting up tracking');
           cradleCharacter.imageGenerationStatus = 'pending';
           
-          // If character has generation data, add it to the image generation task
           if ((character as any).generationData?.appearanceTags) {
             cradleCharacter.generationData = (character as any).generationData;
-            console.log('[Context] Added generation data from appearance tags');
+            console.log('[CharactersContext] Added generation data from appearance tags');
           }
         }
   
-        // Add to characters list
         character = cradleCharacter;
       }
     
-      // 读取现有角色
-      console.log('[Context 2] Reading existing characters...');
-      let existingCharacters: Character[] = [];
-      try {
-        const existingDataStr = await FileSystem.readAsStringAsync(
-          FileSystem.documentDirectory + 'characters.json'
-        ).catch(() => '[]');
-        existingCharacters = JSON.parse(existingDataStr);
-        console.log('[Context 3] Loaded existing characters:', existingCharacters.length);
-      } catch (e) {
-        console.log('[Context Warning] No existing characters found:', e);
-      }
-    
-      // 检查重复 ID
-      console.log('[Context 4] Checking for duplicate ID...');
-      const existingCharacter = existingCharacters.find(c => c.id === character.id);
-      if (existingCharacter) {
-        const error = new Error(`Character with ID ${character.id} already exists`);
-        console.error('[Context Error 3]', error);
-        throw error;
-      }
-    
-      // 保存到文件系统
-      console.log('[Context 5] Saving to filesystem...');
-      const updatedCharacters = [...existingCharacters, character];
-      // 新增：确保extraGreetings、voiceType、ttsConfig被写入
-      await FileSystem.writeAsStringAsync(
-        FileSystem.documentDirectory + 'characters.json',
-        JSON.stringify(updatedCharacters.map(c => ({
-          ...c,
-          ...(c.extraGreetings ? { extraGreetings: c.extraGreetings } : {}),
-          ...(c.voiceType ? { voiceType: c.voiceType } : {}),
-          ...(c.ttsConfig ? { ttsConfig: c.ttsConfig } : {})
-        })))
-      ).catch(error => {
-        throw error;
-      });
-    
-      // 验证保存
-    console.log('[Context 6] Verifying save...');
-    console.log('[Context 6] character.id:', character.id); // 打印 character.id
-    
-    const savedContent = await FileSystem.readAsStringAsync(
-      FileSystem.documentDirectory + 'characters.json'
-    );
-    // console.log('[Context 6] savedContent:', savedContent); // 打印文件内容
-    
-    const savedCharacters = JSON.parse(savedContent);
-    // console.log('[Context 6] savedCharacters:', savedCharacters); // 打印解析后的对象
-    
-    const savedCharacter = savedCharacters.find((c: Character) => {
-        console.log('[Context 6] Comparing: c.id=', c.id, 'character.id=', character.id, 'c.id === character.id', c.id === character.id ); //增加比较的log
-        return c.id === character.id;
-    });
-    
-    if (!savedCharacter) {
-      const error = new Error('Failed to verify character save');
-      console.error('[Context Error 5]', error);
-      throw error;
-    }
-    
-      // 更新状态
-      console.log('[Context 7] Updating state...');
+      // Use new storage service
+      console.log('[CharactersContext] Saving character using storage service...');
+      await storageService.addCharacter(character);
+      
+      // Update local state
       setCharacters(prevChars => {
-        // Ensure we're creating a new array reference
         const newCharactersArray = [...prevChars, character];
-        console.log('[Context] Characters state updated with new array, length:', newCharactersArray.length);
+        console.log('[CharactersContext] Characters state updated with new array, length:', newCharactersArray.length);
         return newCharactersArray;
       });
       
-      console.log('[Context 8] Character added successfully');
+      console.log('[CharactersContext] Character added successfully');
     
     } catch (error) {
-      console.error('[Context Error Final]', error);
+      console.error('[CharactersContext Error Final]', error);
       throw error;
     }
   };
 
 const updateCharacter = async (character: Character) => {
   try {
-    console.log('[CharactersContext] Updating character:', character.id);
+    console.log('[CharactersContext] Updating character using new storage service:', character.id);
     
-    // First check if the character exists in the filesystem directly
-    // This is more reliable than checking the current state which might be outdated
-    let existingCharacters: Character[] = [];
-    try {
-      const existingDataStr = await FileSystem.readAsStringAsync(
-        FileSystem.documentDirectory + 'characters.json'
-      ).catch(() => '[]');
-      existingCharacters = JSON.parse(existingDataStr);
-      
-      // Check if character exists in filesystem
-      const characterExistsInFiles = existingCharacters.some(char => char.id === character.id);
-      
-      if (characterExistsInFiles) {
-        console.log('[CharactersContext] Character found in filesystem, updating:', character.id);
-        
-        // Update the character in the file system directly
-        const updatedCharacters = existingCharacters.map(char =>
-          char.id === character.id ? character : char
-        );
-        
-        // Save to filesystem
-        await FileSystem.writeAsStringAsync(
-          FileSystem.documentDirectory + 'characters.json',
-          JSON.stringify(updatedCharacters.map(c => ({
-            ...c,
-            ...(c.extraGreetings ? { extraGreetings: c.extraGreetings } : {}),
-            ...(c.voiceType ? { voiceType: c.voiceType } : {}),
-            ...(c.ttsConfig ? { ttsConfig: c.ttsConfig } : {})
-          }))),
-          { encoding: FileSystem.EncodingType.UTF8 }
-        );
-        
-        // Update state to match
-        setCharacters(prevChars => {
-          const charIndex = prevChars.findIndex(char => char.id === character.id);
-          if (charIndex >= 0) {
-            const updatedChars = [...prevChars];
-            updatedChars[charIndex] = character;
-            return updatedChars;
-          } else {
-            return [...prevChars, character];
-          }
-        });
-        
-        console.log('[CharactersContext] Character updated successfully in filesystem:', character.id);
-        return;
-      }
-    } catch (error) {
-      console.error('[CharactersContext] Error reading character files:', error);
-      // Continue with state-based check as fallback
-    }
+    // Use new storage service
+    await storageService.updateCharacter(character);
     
-    // Fallback to checking state if filesystem check fails
-    const existingCharIndex = characters.findIndex(char => char.id === character.id);
-    
-    if (existingCharIndex === -1) {
-      console.warn('[CharactersContext] Character not found in state, cannot update:', character.id);
-      
-      // If this is part of a cradle update, we should check if there's a duplicate with different ID
-      // This could happen if the character was created through other means
-      const possibleDuplicate = characters.find(
-        char => char.name === character.name && char.cradleCharacterId === character.cradleCharacterId
-      );
-      
-      if (possibleDuplicate) {
-        console.log('[CharactersContext] Found possible duplicate with different ID, will update that instead:', possibleDuplicate.id);
-        // Update the duplicate instead
-        character.id = possibleDuplicate.id;
+    // Update local state
+    setCharacters(prevChars => {
+      const charIndex = prevChars.findIndex(char => char.id === character.id);
+      if (charIndex >= 0) {
+        const updatedChars = [...prevChars];
+        updatedChars[charIndex] = character;
+        return updatedChars;
       } else {
-        // No existing character found, so we need to add it instead of updating
-        console.log('[CharactersContext] No existing character found, adding new character');
-        await addCharacter(character);
-        return;
+        // Character not found in state, add it
+        return [...prevChars, character];
       }
-    }
-    
-    // Now update the character in state
-    const updatedCharacters = characters.map(char =>
-      char.id === character.id ? character : char
-    );
-    
-    // Save to filesystem
-    await FileSystem.writeAsStringAsync(
-      FileSystem.documentDirectory + 'characters.json',
-      JSON.stringify(updatedCharacters.map(c => ({
-        ...c,
-        ...(c.extraGreetings ? { extraGreetings: c.extraGreetings } : {}),
-        ...(c.voiceType ? { voiceType: c.voiceType } : {}),
-        ...(c.ttsConfig ? { ttsConfig: c.ttsConfig } : {})
-      }))),
-      { encoding: FileSystem.EncodingType.UTF8 }
-    );
-
-    // Double-check that the character was properly saved
-    const savedContent = await FileSystem.readAsStringAsync(
-      FileSystem.documentDirectory + 'characters.json',
-      { encoding: FileSystem.EncodingType.UTF8 }
-    );
-    const savedCharacters = JSON.parse(savedContent);
-    const savedCharacter = savedCharacters.find((c: Character) => c.id === character.id);
-    
-    if (!savedCharacter) {
-      throw new Error('Failed to verify character save');
-    }
+    });
     
     console.log('[CharactersContext] Character updated successfully:', character.id);
-    setCharacters(updatedCharacters);
+    
+    // Trigger character update events
+    EventRegister.emit('characterUpdated', {
+      characterId: character.id,
+      character: character
+    });
+    
+    // Send specific event for image updates
+    DeviceEventEmitter.emit('characterImageUpdated', {
+      characterId: character.id,
+      avatar: character.avatar,
+      backgroundImage: character.backgroundImage
+    });
     
   } catch (error) {
     console.error('[CharactersContext] Error updating character:', error);
@@ -425,29 +275,21 @@ const updateCharacter = async (character: Character) => {
 
   const deleteCharacters = async (ids: string[]) => {
     try {
-      // 1. 删除本地图片资源
+      console.log('[CharactersContext] Deleting characters using new storage service:', ids);
+      
+      // 1. Delete local image resources first
       for (const id of ids) {
         await deleteCharacterImages(id);
       }
-      console.log('[CharactersContext] 已删除角色本地图片资源');
+      console.log('[CharactersContext] Deleted character image resources');
 
-      // 2. 删除基本信息
-      const updatedCharacters = characters.filter(char => !ids.includes(char.id));
-      await FileSystem.writeAsStringAsync(
-        FileSystem.documentDirectory + 'characters.json',
-        JSON.stringify(updatedCharacters),
-        { encoding: FileSystem.EncodingType.UTF8 }
-      );
+      // 2. Use new storage service to delete characters
+      await storageService.deleteCharacters(ids);
 
-      // 3. 删除角色设定文件夹
-      for (const id of ids) {
-        const charDir = `${FileSystem.documentDirectory}app/characters/${id}`;
-        await FileSystem.deleteAsync(charDir, { idempotent: true });
-      }
-
-      setCharacters(updatedCharacters);
+      // 3. Update local state
+      setCharacters(prevChars => prevChars.filter(char => !ids.includes(char.id)));
       
-      // 清理其他相关数据...
+      // 4. Clean up other related data
       setConversationIdMap(prevMap => {
         const updatedMap = { ...prevMap };
         ids.forEach(id => delete updatedMap[id]);
@@ -455,7 +297,7 @@ const updateCharacter = async (character: Character) => {
           FileSystem.documentDirectory + 'conversationIdMap.json',
           JSON.stringify(updatedMap),
           { encoding: FileSystem.EncodingType.UTF8 }
-        ).catch(error => console.error('删除 conversationIdMap 条目失败:', error));
+        ).catch(error => console.error('Failed to update conversationIdMap:', error));
         return updatedMap;
       });
 
@@ -467,7 +309,7 @@ const updateCharacter = async (character: Character) => {
         return updatedMessages;
       });
 
-      // 4. 清理删除角色的音频缓存
+      // 5. Clear audio cache for deleted characters
       try {
         const audioCacheManager = AudioCacheManager.getInstance();
         for (const id of ids) {
@@ -477,6 +319,81 @@ const updateCharacter = async (character: Character) => {
       } catch (error) {
         console.error('[CharactersContext] Failed to clear audio cache for deleted characters:', error);
       }
+
+      // 6. Additional cleanup: conversations, generated images, favorites, cradle characters
+      try {
+        // Remove conversations entries for deleted characters
+        setConversations(prev => {
+          try {
+            const updated = prev.filter(conv => !ids.includes(conv.id));
+            FileSystem.writeAsStringAsync(
+              FileSystem.documentDirectory + 'conversations.json',
+              JSON.stringify(updated),
+              { encoding: FileSystem.EncodingType.UTF8 }
+            ).catch(err => console.error('[CharactersContext] Failed to update conversations.json:', err));
+            return updated;
+          } catch (e) {
+            console.error('[CharactersContext] Error filtering conversations:', e);
+            return prev;
+          }
+        });
+
+        // Remove generated images entries for deleted conversations
+        try {
+          setGeneratedImages(prevMap => {
+            const updatedMap = { ...prevMap };
+            let changed = false;
+            ids.forEach(id => {
+              if (updatedMap.hasOwnProperty(id)) {
+                delete updatedMap[id];
+                changed = true;
+              }
+            });
+            if (changed) {
+              saveGeneratedImages(updatedMap).catch(err => console.error('[CharactersContext] Failed to save generated images after deletion:', err));
+            }
+            return updatedMap;
+          });
+        } catch (e) {
+          console.error('[CharactersContext] Error clearing generated images for deleted characters:', e);
+        }
+
+        // Remove favorites that reference deleted characters
+        try {
+          setFavorites(prev => {
+            try {
+              const updated = prev.filter(post => !ids.includes((post as any).characterId));
+              saveFavorites(updated).catch(err => console.error('[CharactersContext] Failed to save favorites after deletion:', err));
+              return updated;
+            } catch (e) {
+              console.error('[CharactersContext] Error filtering favorites:', e);
+              return prev;
+            }
+          });
+        } catch (e) {
+          console.error('[CharactersContext] Error during favorites cleanup:', e);
+        }
+
+        // Remove cradle characters entries related to deleted characters
+        try {
+          setCradleCharacters(prev => {
+            try {
+              const updated = prev.filter(cc => !ids.includes(cc.id) && !ids.includes((cc as any).importedCharacterId));
+              saveCradleCharacters(updated).catch(err => console.error('[CharactersContext] Failed to save cradle_characters after deletion:', err));
+              return updated;
+            } catch (e) {
+              console.error('[CharactersContext] Error filtering cradle characters:', e);
+              return prev;
+            }
+          });
+        } catch (e) {
+          console.error('[CharactersContext] Error during cradle characters cleanup:', e);
+        }
+      } catch (error) {
+        console.error('[CharactersContext] Additional cleanup failed (non-blocking):', error);
+      }
+
+      console.log(`[CharactersContext] Successfully deleted ${ids.length} characters`);
 
     } catch (error) {
       console.error('Failed to delete characters:', error);
@@ -541,6 +458,22 @@ const updateCharacter = async (character: Character) => {
     return character?.conversationId;
   };
 
+  // 新增：获取对话的最后消息时间（用于首页显示）
+  const getLastMessageTime = async (conversationId: string) => {
+    try {
+      const chatMessages = await StorageAdapter.getCleanChatHistory(conversationId);
+      if (chatMessages.length === 0) return null;
+      
+      // 获取最后一条消息
+      const lastMessage = chatMessages[chatMessages.length - 1];
+      // 优先使用渲染时间，如果没有则使用时间戳
+      return lastMessage.renderedAt || lastMessage.timestamp || null;
+    } catch (error) {
+      console.error('Failed to get last message time:', error);
+      return null;
+    }
+  };
+
   // New message management functions
   // 重构 getMessages: 直接异步从 StorageAdapter 获取消息，并做角色转换
   const getMessages = async (conversationId: string) => {
@@ -553,7 +486,9 @@ const updateCharacter = async (character: Character) => {
       sender: (msg.role === 'user') ? 'user' : 'bot',
       isLoading: false,
       timestamp: msg.timestamp,
+      renderedAt: msg.renderedAt, // 添加渲染时间字段
       rating: msg.rating,
+      metadata: msg.metadata, // 添加metadata字段以保留朋友圈互动标记
 
     }));
   };
@@ -770,37 +705,63 @@ const updateCharacter = async (character: Character) => {
   };
 
   const toggleFavorite = async (characterId: string, postId: string) => {
-        const character = characters.find(c => c.id === characterId);
-      if (!character) return;
-  
-    // 创建更新后的角色对象，确保 circlePosts 存在
-    if (!character.circlePosts) {
-      character.circlePosts = [];
-    }
-  
-    // 查找要更新的帖子
-    const postIndex = character.circlePosts.findIndex(p => p.id === postId);
-    if (postIndex === -1) return;
-  
-    // 创建更新后的帖子对象
-    const post = character.circlePosts[postIndex];
-    const isFavorited = !post.isFavorited;
-      
-      // 更新帖子的收藏状态
-character.circlePosts = character.circlePosts.map(p => 
-        p.id === postId ? { ...p, isFavorited } : p
-      );
-      
-      // 更新收藏列表
-    if (isFavorited) {
-      setFavorites(prev => [...prev, post]);
+    const character = characters.find(c => c.id === characterId);
+    if (!character) return;
+
+    // 准备 favoritedPosts 集合
+    const favoritedSet = new Set<string>(character.favoritedPosts || []);
+    const willFavorite = !favoritedSet.has(postId);
+    if (willFavorite) {
+      favoritedSet.add(postId);
     } else {
-      setFavorites(prev => prev.filter(p => p.id !== postId));
+      favoritedSet.delete(postId);
     }
-  
-    // 保存更新
-    await updateCharacter(character);
-    await saveFavorites(favorites);
+
+    // 同步更新 circlePosts 内的 isFavorited（如果该帖子存在于内存列表中）
+    let updatedCirclePosts = character.circlePosts;
+    if (character.circlePosts && Array.isArray(character.circlePosts)) {
+      updatedCirclePosts = character.circlePosts.map(p =>
+        p.id === postId ? { ...p, isFavorited: willFavorite } : p
+      );
+    }
+
+    // 生成更新后的角色对象
+    const updatedCharacter: Character = {
+      ...character,
+      circlePosts: updatedCirclePosts,
+      favoritedPosts: Array.from(favoritedSet),
+      updatedAt: Date.now(),
+    } as any;
+
+    // 同步收藏夹（Favorites）状态缓存
+    setFavorites(prev => {
+      const prevMap = new Map(prev.map(p => [p.id, p]));
+      if (willFavorite) {
+        // 如果在 circlePosts 找不到这个帖子，则构造一个最小帖子占位符（仅用于收藏列表显示）
+        const refPost = (character.circlePosts || []).find(p => p.id === postId) || ({
+          id: postId,
+          characterId: character.id,
+          characterName: character.name,
+          characterAvatar: character.avatar || null,
+          content: '',
+          createdAt: new Date().toISOString(),
+          comments: [],
+          likes: 0,
+          hasLiked: false,
+          isFavorited: true,
+        } as any);
+        prevMap.set(postId, { ...refPost, isFavorited: true });
+      } else {
+        prevMap.delete(postId);
+      }
+      const next = Array.from(prevMap.values());
+      // 持久化收藏列表
+      saveFavorites(next).catch(() => {});
+      return next;
+    });
+
+    // 持久化角色更新
+    await updateCharacter(updatedCharacter);
   };
 
   const getFavorites = () => favorites;
@@ -808,6 +769,10 @@ character.circlePosts = character.circlePosts.map(p =>
   // 新增：设置角色头像
   const setCharacterAvatar = async (characterId: string, avatarUri: string) => {
     try {
+      // Update using CharacterStorageService
+      await storageService.updateCharacterField(characterId, 'avatar', avatarUri);
+      
+      // Update local state
       const updatedCharacters = characters.map(char =>
         char.id === characterId
           // 保留所有原有字段，安全更新
@@ -815,11 +780,6 @@ character.circlePosts = character.circlePosts.map(p =>
           : char
       );
       setCharacters(updatedCharacters);
-      await FileSystem.writeAsStringAsync(
-        FileSystem.documentDirectory + 'characters.json',
-        JSON.stringify(updatedCharacters),
-        { encoding: FileSystem.EncodingType.UTF8 }
-      );
     } catch (error) {
       console.error('[CharactersContext] 设置头像失败:', error);
     }
@@ -827,6 +787,21 @@ character.circlePosts = character.circlePosts.map(p =>
 
   const setCharacterBackgroundImage = async (characterId: string, backgroundUri: string, config?: any) => {
     try {
+      // Prepare the updated character data
+      const updateData: Partial<Character> = {
+        backgroundImage: backgroundUri,
+        updatedAt: Date.now(),
+        ...(config ? { backgroundImageConfig: config } : {})
+      };
+      
+      // Update using CharacterStorageService (multiple fields)
+      const character = characters.find(c => c.id === characterId);
+      if (character) {
+        const updatedCharacter = { ...character, ...updateData };
+        await storageService.updateCharacter(updatedCharacter);
+      }
+      
+      // Update local state
       const updatedCharacters = characters.map(char =>
         char.id === characterId
           // 保留所有原有字段，安全更新
@@ -840,94 +815,11 @@ character.circlePosts = character.circlePosts.map(p =>
           : char
       );
       setCharacters(updatedCharacters);
-      await FileSystem.writeAsStringAsync(
-        FileSystem.documentDirectory + 'characters.json',
-        JSON.stringify(updatedCharacters),
-        { encoding: FileSystem.EncodingType.UTF8 }
-      );
     } catch (error) {
       console.error('[CharactersContext] 设置背景图失败:', error);
     }
   };
 
-  // 摇篮系统相关功能实现
-  const loadCradleSettings = async () => {
-    try {
-      console.log('[摇篮系统] 开始加载摇篮设置');
-      const settingsStr = await FileSystem.readAsStringAsync(
-        FileSystem.documentDirectory + 'cradle_settings.json',
-        { encoding: FileSystem.EncodingType.UTF8 }
-      ).catch(() => JSON.stringify({
-        enabled: false,
-        duration: 7,
-        progress: 0
-      }));
-
-      const settings = JSON.parse(settingsStr);
-      console.log('[摇篮系统] 加载的设置:', settings);
-      
-      // 如果摇篮已启用，计算当前进度
-      if (settings.enabled && settings.startDate) {
-        const startDate = new Date(settings.startDate);
-        const currentDate = new Date();
-        const elapsedDays = (currentDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
-        const totalDuration = settings.duration || 7;
-        
-        // 计算进度百分比，最大100%
-        settings.progress = Math.min(Math.round((elapsedDays / totalDuration) * 100), 100);
-        console.log(`[摇篮系统] 计算进度: 已过${elapsedDays.toFixed(1)}天，总共${totalDuration}天，进度${settings.progress}%`);
-      }
-      
-      setCradleSettings(settings);
-    } catch (error) {
-      console.error('[摇篮系统] 加载摇篮设置失败:', error);
-      setCradleSettings({
-        enabled: false,
-        duration: 7,
-        progress: 0,
-        feedInterval: 1
-      });
-    }
-  };
-  
-  const saveCradleSettings = async (settings: CradleSettings) => {
-    try {
-      console.log('[摇篮系统] 保存摇篮设置:', settings);
-      await FileSystem.writeAsStringAsync(
-        FileSystem.documentDirectory + 'cradle_settings.json',
-        JSON.stringify(settings),
-        { encoding: FileSystem.EncodingType.UTF8 }
-      );
-    } catch (error) {
-      console.error('[摇篮系统] 保存摇篮设置失败:', error);
-    }
-  };
-  
-  const updateCradleSettings = async (settings: CradleSettings) => {
-    console.log('[摇篮系统] 更新摇篮设置:', settings);
-    await saveCradleSettings(settings);
-    setCradleSettings(settings);
-    
-    // 重新初始化 CradleService
-    if (settings.enabled) {
-      console.log('[摇篮系统] 摇篮系统已启用，初始化服务');
-      cradleService.initialize();
-    } else {
-      console.log('[摇篮系统] 摇篮系统已禁用，关闭服务');
-      cradleService.shutdown();
-    }
-    
-    // 如果启用了摇篮系统，但没有设置开始日期，则设置为当前日期
-    if (settings.enabled && !settings.startDate) {
-      settings.startDate = new Date().toISOString();
-      await saveCradleSettings(settings);
-      setCradleSettings(settings);
-    }
-  };
-  
-  const getCradleSettings = () => {
-    return cradleSettings;
-  };
   
   // 加载摇篮角色列表
   const loadCradleCharacters = async () => {
@@ -1007,21 +899,8 @@ const addCradleCharacter = async (character: CradleCharacter): Promise<CradleCha
       imageGenerationTaskId: character.imageGenerationTaskId || null,
     };
   
-    // Before any state updates, write the character directly to the filesystem
-    // This allows faster persistence
-    const existingCharactersStr = await FileSystem.readAsStringAsync(
-      FileSystem.documentDirectory + 'characters.json'
-    ).catch(() => '[]');
-    
-    const existingCharacters = JSON.parse(existingCharactersStr);
-    const updatedCharacters = [...existingCharacters, completeCharacter];
-    
-    // Write to filesystem and wait for completion
-    await FileSystem.writeAsStringAsync(
-      FileSystem.documentDirectory + 'characters.json',
-      JSON.stringify(updatedCharacters),
-      { encoding: FileSystem.EncodingType.UTF8 }
-    );
+    // Use CharacterStorageService to add the character
+    await storageService.addCharacter(completeCharacter);
 
     // Now update state to ensure UI shows the latest data
     setCharacters(prevChars => [...prevChars, completeCharacter]);
@@ -1033,187 +912,7 @@ const addCradleCharacter = async (character: CradleCharacter): Promise<CradleCha
     throw error;
   }
 };
-  
-  // 更新摇篮角色
-  const updateCradleCharacter = async (updatedCharacter: CradleCharacter): Promise<void> => {
-    try {
-      console.log(`[CharactersContext] 开始更新摇篮角色: ${updatedCharacter.name}, ID: ${updatedCharacter.id}`);
-      
-      // Check for and maintain ID relationships
-      if (updatedCharacter.isCradleGenerated && updatedCharacter.generatedCharacterId) {
-        console.log(`[CharactersContext] 摇篮角色已生成，关联的角色ID: ${updatedCharacter.generatedCharacterId}`);
-        
-        // If the cradle character has jsonData, make sure the normal character has it too
-        if (updatedCharacter.jsonData && updatedCharacter.jsonData.length > 0) {
-          // Find the associated normal character
-          const normalCharIndex = characters.findIndex(c => c.id === updatedCharacter.generatedCharacterId);
-          if (normalCharIndex !== -1) {
-            console.log(`[CharactersContext] 找到关联的普通角色，更新其JSON数据`);
-            // Update the normal character's jsonData to match
-            const updatedCharacters = [...characters];
-            updatedCharacters[normalCharIndex] = {
-              ...updatedCharacters[normalCharIndex],
-              jsonData: updatedCharacter.jsonData,
-              updatedAt: Date.now()
-            };
-            
-            // Save the updated character list
-            setCharacters(updatedCharacters);
-            await FileSystem.writeAsStringAsync(
-              FileSystem.documentDirectory + 'characters.json',
-              JSON.stringify(updatedCharacters),
-              { encoding: FileSystem.EncodingType.UTF8 }
-            );
-          }
-        }
-      }
-      
-      // 添加: 首先从文件系统读取最新的角色数据，以确保我们有最新的状态
-      const existingDataStr = await FileSystem.readAsStringAsync(
-        FileSystem.documentDirectory + 'characters.json'
-      ).catch(() => '[]');
-      
-      const existingCharacters = JSON.parse(existingDataStr);
-      
-      // 更新角色数组中的数据
-      const updatedCharacters = existingCharacters.map((char: any) => 
-        char.id === updatedCharacter.id ? { ...updatedCharacter, updatedAt: Date.now() } : char
-      );
-      
-      // 如果角色不存在，添加它（极少情况）
-      if (!updatedCharacters.some((char: any) => char.id === updatedCharacter.id)) {
-        updatedCharacters.push({...updatedCharacter, updatedAt: Date.now()});
-        console.log(`[CharactersContext] 角色不存在，已添加到列表中: ${updatedCharacter.id}`);
-      }
-      
-      // 保存到文件系统
-      await FileSystem.writeAsStringAsync(
-        FileSystem.documentDirectory + 'characters.json',
-        JSON.stringify(updatedCharacters),
-        { encoding: FileSystem.EncodingType.UTF8 }
-      );
-      
-      // 更新内存中的角色数组
-      setCharacters(updatedCharacters);
-      
-      // 验证更新
-      const savedDataStr = await FileSystem.readAsStringAsync(
-        FileSystem.documentDirectory + 'characters.json'
-      );
-      
-      const savedCharacters = JSON.parse(savedDataStr);
-      const savedCharacter = savedCharacters.find((c: any) => c.id === updatedCharacter.id);
-      
-      if (!savedCharacter) {
-        console.error(`[CharactersContext] 更新失败，找不到角色: ${updatedCharacter.id}`);
-      } else {
-        // 验证图像历史是否已更新
-        const imageHistoryUpdated = savedCharacter.imageHistory && 
-          savedCharacter.imageHistory.length === updatedCharacter.imageHistory?.length;
-          
-        console.log(`[CharactersContext] 更新验证: 图像历史已更新? ${imageHistoryUpdated ? '是' : '否'}`);
-        if (updatedCharacter.imageHistory) {
-          console.log(`[CharactersContext] 更新后图像数量: ${updatedCharacter.imageHistory.length}`);
-        }
-      }
-      
-      console.log(`[CharactersContext] 摇篮角色更新成功: ${updatedCharacter.name}, ID: ${updatedCharacter.id}`);
-    } catch (error) {
-      console.error('[CharactersContext] 更新摇篮角色失败:', error);
-      throw error;
-    }
-  };
 
-  const deleteCradleCharacter = async (id: string) => {
-    console.log('[摇篮系统] 删除摇篮角色:', id);
-    
-    try {
-      // Delete local images for this character
-      await deleteCharacterImages(id);
-      console.log('[摇篮系统] 已删除角色本地图片资源');
-      
-      // Remove character from state
-      const updatedCharacters = characters.filter(char => char.id !== id);
-      setCharacters(updatedCharacters);
-      
-      // Save updated character list to storage
-      await FileSystem.writeAsStringAsync(
-        FileSystem.documentDirectory + 'characters.json',
-        JSON.stringify(updatedCharacters),
-        { encoding: FileSystem.EncodingType.UTF8 }
-      );
-      
-      console.log('[摇篮系统] 摇篮角色删除成功');
-    } catch (error) {
-      console.error('[摇篮系统] 删除摇篮角色失败:', error);
-      throw error;
-    }
-  };
-  
-  // 添加投喂内容
-const addFeed = async (characterId: string, content: string, type: 'text' | 'voice' | 'image' | 'aboutMe' | 'material' | 'knowledge' = 'text') => {
-  console.log(`[摇篮系统] 向角色 ${characterId} 投喂内容，类型: ${type}`);
-  
-  // 修复: 直接从characters数组中查找该角色，而不是从cradleCharacters中查找
-  // 这样可以确保我们能找到所有标记为inCradleSystem的角色
-  const character = characters.find(char => char.id === characterId && char.inCradleSystem);
-  
-  if (!character) {
-    console.error('[摇篮系统] 未找到目标摇篮角色');
-    throw new Error('未找到目标摇篮角色');
-  }
-  
-  // 将character转换为CradleCharacter类型，确保feedHistory存在
-  const cradleCharacter = character as CradleCharacter;
-  if (!cradleCharacter.feedHistory) {
-    cradleCharacter.feedHistory = [];
-  }
-  
-  // 创建新的投喂记录
-  const newFeed: Feed = {
-    id: Date.now().toString(),
-    content,
-    timestamp: Date.now(),
-    type,
-    processed: false
-  };
-  
-  // 添加到角色的投喂历史
-  const updatedCharacter: CradleCharacter = {
-    ...cradleCharacter,
-    feedHistory: [...cradleCharacter.feedHistory, newFeed]
-  };
-  
-  // 更新角色
-  await updateCradleCharacter(updatedCharacter);
-  console.log('[摇篮系统] 投喂内容添加成功');
-};
-
-// 标记投喂内容为已处理 - 也需要同样的修复
-const markFeedAsProcessed = async (characterId: string, feedId: string) => {
-  console.log(`[摇篮系统] 标记角色 ${characterId} 的投喂内容 ${feedId} 为已处理`);
-  
-  // 同样修复查找逻辑
-  const character = characters.find(char => char.id === characterId && char.inCradleSystem) as CradleCharacter;
-  if (!character || !character.feedHistory) {
-    console.error('[摇篮系统] 未找到目标摇篮角色或投喂历史');
-    return;
-  }
-  
-  // 更新投喂状态
-  const updatedFeedHistory = character.feedHistory.map(feed => 
-    feed.id === feedId ? { ...feed, processed: true } : feed
-  );
-  
-  // 更新角色
-  const updatedCharacter: CradleCharacter = {
-    ...character,
-    feedHistory: updatedFeedHistory
-  };
-  
-  await updateCradleCharacter(updatedCharacter);
-  console.log('[摇篮系统] 投喂内容已标记为已处理');
-};
 
 // 修改 generateCharacterFromCradle 接受完整角色对象作为可选参数
 const generateCharacterFromCradle = async (cradleIdOrCharacter: string | CradleCharacter): Promise<Character> => {
@@ -1232,19 +931,28 @@ const generateCharacterFromCradle = async (cradleIdOrCharacter: string | CradleC
       
       // 首先尝试从文件系统中直接查找，这比依赖状态更可靠
       try {
-        console.log(`[摇篮生成] 尝试从文件系统直接加载角色: ${cradleId}`);
-        const existingDataStr = await FileSystem.readAsStringAsync(
-          FileSystem.documentDirectory + 'characters.json'
-        ).catch(() => '[]');
-        const existingCharacters = JSON.parse(existingDataStr);
-        const foundCharacter: Character | CradleCharacter | undefined = existingCharacters.find((char: Character | CradleCharacter) => char.id === cradleId && char.inCradleSystem);
+        console.log(`[摇篮生成] 尝试从CharacterStorageService直接加载角色: ${cradleId}`);
+        const foundCharacter = await storageService.getCharacter(cradleId);
         
-        if (foundCharacter) {
-          console.log(`[摇篮生成] 在文件系统中找到角色: ${cradleId}`);
+        if (foundCharacter && foundCharacter.inCradleSystem) {
+          console.log(`[摇篮生成] 在CharacterStorageService中找到角色: ${cradleId}`);
           cradleCharacter = foundCharacter as CradleCharacter;
+        } else {
+          // Fallback to FileSystem
+          console.log(`[摇篮生成] 尝试从文件系统直接加载角色: ${cradleId}`);
+          const existingDataStr = await FileSystem.readAsStringAsync(
+            FileSystem.documentDirectory + 'characters.json'
+          ).catch(() => '[]');
+          const existingCharacters = JSON.parse(existingDataStr);
+          const foundFileCharacter: Character | CradleCharacter | undefined = existingCharacters.find((char: Character | CradleCharacter) => char.id === cradleId && char.inCradleSystem);
+          
+          if (foundFileCharacter) {
+            console.log(`[摇篮生成] 在文件系统中找到角色: ${cradleId}`);
+            cradleCharacter = foundFileCharacter as CradleCharacter;
+          }
         }
       } catch (error) {
-        console.error(`[摇篮生成] 从文件系统加载角色失败: ${error}`);
+        console.error(`[摇篮生成] 从存储加载角色失败: ${error}`);
       }
       
       // 如果文件系统没找到，再尝试从状态中查找
@@ -1307,6 +1015,14 @@ const generateCharacterFromCradle = async (cradleIdOrCharacter: string | CradleC
           apiKey: openaiKey || '',
           model: model || 'gpt-3.5-turbo'
         });
+      } else if (apiProvider === 'cradlecloud') {
+        // Use CradleCloudAdapter when provider is cradlecloud
+        try {
+          llmAdapter = new CradleCloudAdapter();
+        } catch (e) {
+          console.warn('[摇篮生成] 初始化 CradleCloudAdapter 失败，回退到 GeminiAdapter', e);
+          llmAdapter = new GeminiAdapter(apiKey);
+        }
       } else {
         throw new Error(`不支持的API提供商: ${apiProvider}`);
       }
@@ -1485,8 +1201,6 @@ const generateCharacterFromCradle = async (cradleIdOrCharacter: string | CradleC
           userMessage: "你好！",
           conversationId: updatedCharacter.id,
           status: "新建角色",
-          apiKey,
-          apiSettings, // 统一传递 settings-helper 获取的 apiSettings
           character: updatedCharacter
         });
         
@@ -1497,46 +1211,30 @@ const generateCharacterFromCradle = async (cradleIdOrCharacter: string | CradleC
           console.log('[摇篮生成] 初始化角色数据成功');
         }
         
-        // Update the character in the list - wrap in try/catch to handle errors better
+        // Update the character in the list - use CharacterStorageService
         console.log('[摇篮生成] 更新角色状态');
         try {
-          // Read the character file directly first to ensure we have latest data
-          const existingDataStr = await FileSystem.readAsStringAsync(
-            FileSystem.documentDirectory + 'characters.json'
-          ).catch(() => '[]');
-          const existingCharacters = JSON.parse(existingDataStr);
+          // Check if character already exists in storage
+          const existingCharacter = await storageService.getCharacter(updatedCharacter.id);
           
-          // Check if character already exists
-            const characterIndex: number = existingCharacters.findIndex((c: Character) => c.id === updatedCharacter.id);
-          
-          if (characterIndex >= 0) {
-            // Update existing character in file
-            console.log('[摇篮生成] 角色已存在于文件系统中，执行更新');
-            existingCharacters[characterIndex] = updatedCharacter;
+          if (existingCharacter) {
+            // Update existing character using storage service
+            console.log('[摇篮生成] 角色已存在，执行更新');
+            await storageService.updateCharacter(updatedCharacter);
             
-            // Save updated list
-            await FileSystem.writeAsStringAsync(
-              FileSystem.documentDirectory + 'characters.json',
-              JSON.stringify(existingCharacters),
-              { encoding: FileSystem.EncodingType.UTF8 }
+            // Update local state
+            setCharacters(prevChars => 
+              prevChars.map(char => 
+                char.id === updatedCharacter.id ? updatedCharacter : char
+              )
             );
-            
-            // Update state to match file system
-            setCharacters(existingCharacters);
           } else {
-            // Add as new character
-            console.log('[摇篮生成] 角色不存在于文件系统中，执行添加');
-            const newCharacters = [...existingCharacters, updatedCharacter];
+            // Add as new character using storage service
+            console.log('[摇篮生成] 角色不存在，执行添加');
+            await storageService.addCharacter(updatedCharacter);
             
-            // Save updated list
-            await FileSystem.writeAsStringAsync(
-              FileSystem.documentDirectory + 'characters.json',
-              JSON.stringify(newCharacters),
-              { encoding: FileSystem.EncodingType.UTF8 }
-            );
-            
-            // Update state
-            setCharacters(newCharacters);
+            // Update local state
+            setCharacters(prevChars => [...prevChars, updatedCharacter]);
           }
           
           console.log('[摇篮生成] 角色文件更新成功');
@@ -1651,82 +1349,7 @@ const generateCharacterFromCradle = async (cradleIdOrCharacter: string | CradleC
     console.log('[摇篮系统] 成功导入角色到摇篮:', character.name);
   };
 
-  // Add feed to cradle service
-
-  // Load Cradle API settings
-  const loadCradleApiSettings = async () => {
-    try {
-      console.log('[摇篮系统] 开始加载摇篮API设置');
-      const settingsStr = await FileSystem.readAsStringAsync(
-        FileSystem.documentDirectory + 'cradle_api_settings.json',
-        { encoding: FileSystem.EncodingType.UTF8 }
-      ).catch(() => JSON.stringify({
-        apiProvider: 'gemini'
-      }));
-
-      const settings = JSON.parse(settingsStr);
-      console.log('[摇篮系统] 加载的API设置:', settings);
-      
-      setCradleApiSettings(settings);
-      
-      // Update the cradle service with the loaded settings
-      if (settings.apiProvider === 'openrouter' && 
-          settings.openrouter?.enabled &&
-          settings.openrouter?.apiKey) {
-        cradleService.updateApiSettings(settings);
-      }
-      
-    } catch (error) {
-      console.error('[摇篮系统] 加载摇篮API设置失败:', error);
-      setCradleApiSettings({
-        apiProvider: 'gemini'
-      });
-    }
-  };
-  
-  // Save Cradle API settings
-  const saveCradleApiSettings = async (settings: {
-    apiProvider: 'gemini' | 'openrouter';
-    openrouter?: {
-      enabled: boolean;
-      apiKey: string;
-      model: string;
-    }
-  }) => {
-    try {
-      console.log('[摇篮系统] 保存摇篮API设置:', settings);
-      await FileSystem.writeAsStringAsync(
-        FileSystem.documentDirectory + 'cradle_api_settings.json',
-        JSON.stringify(settings),
-        { encoding: FileSystem.EncodingType.UTF8 }
-      );
-      
-      // Update the cradle service with the new settings
-      cradleService.updateApiSettings(settings);
-      
-    } catch (error) {
-      console.error('[摇篮系统] 保存摇篮API设置失败:', error);
-    }
-  };
-  
-  // Update Cradle API settings
-  const updateCradleApiSettings = async (settings: {
-    apiProvider: 'gemini' | 'openrouter';
-    openrouter?: {
-      enabled: boolean;
-      apiKey: string;
-      model: string;
-    }
-  }) => {
-    console.log('[摇篮系统] 更新摇篮API设置:', settings);
-    await saveCradleApiSettings(settings);
-    setCradleApiSettings(settings);
-  };
-  
-  // Get Cradle API settings
-  const getCradleApiSettings = () => {
-    return cradleApiSettings;
-  };
+ 
   
   // Add this function before the return statement in CharactersProvider
    const checkCradleGeneration = (): {
@@ -1768,7 +1391,7 @@ const generateCharacterFromCradle = async (cradleIdOrCharacter: string | CradleC
 };
 
 // 新增分页获取消息的方法
-const PAGE_SIZE = 30;
+const PAGE_SIZE = 15;
 
 const getMessagesPaged = async (
   conversationId: string,
@@ -1922,6 +1545,7 @@ const getMessagesPaged = async (
         getCharacterConversationId,
         updateCharacter,
         getMessages,
+        getLastMessageTime,
         addMessage,
         clearMessages,
         removeMessage,
@@ -1933,21 +1557,11 @@ const getMessagesPaged = async (
         getFavorites,
         setCharacters,
         setIsLoading,
-        // 摇篮系统相关方法
-        updateCradleSettings,
-        getCradleSettings,
         getCradleCharacters,
         checkCradleGeneration,
         addCradleCharacter,
-        updateCradleCharacter,
-        deleteCradleCharacter,
         importCharacterToCradle,   // 新增方法
-        addFeed,
-        markFeedAsProcessed,
         generateCharacterFromCradle,
-        // Add new methods for Cradle API settings
-        getCradleApiSettings,
-        updateCradleApiSettings,
         setCharacterAvatar, // 新增
         setCharacterBackgroundImage, // 新增
         updateCharacterExtraBackgroundImage, // 新增

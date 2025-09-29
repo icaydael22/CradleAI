@@ -2,6 +2,7 @@ import { RoleCardJson, WorldBookJson } from '@/shared/types';
 import { GeminiAdapter } from '../utils/gemini-adapter';
 import { OpenRouterAdapter } from '../utils/openrouter-adapter';
 import { OpenAIAdapter } from '../utils/openai-adapter';
+import CradleCloudAdapter from '../utils/cradlecloud-adapter';
 import { getApiSettings } from '@/utils/settings-helper';
 
 /**
@@ -299,6 +300,14 @@ export class CharacterGeneratorService {
           apiKey: apiSettings.OpenAIcompatible?.apiKey || '',
           model: apiSettings.OpenAIcompatible?.model || 'gpt-3.5-turbo'
         });
+      } else if (provider === 'cradlecloud') {
+        // Use CradleCloudAdapter when cradlecloud is selected in settings
+        try {
+          llmAdapter = new CradleCloudAdapter();
+        } catch (e) {
+          console.warn('[CharacterGeneratorService] 初始化 CradleCloudAdapter 失败，回退到 GeminiAdapter', e);
+          llmAdapter = new GeminiAdapter(apiSettings.apiKey || '');
+        }
       } else {
         throw new Error(`不支持的API Provider: ${provider}`);
       }

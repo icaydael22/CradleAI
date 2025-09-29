@@ -71,10 +71,19 @@ export interface OpenAICompatibleSettings {
     maxTokens?: number;        // 最大生成的标记数 (可选)
 }
 
+// CradleCloud API settings
+export interface CradleCloudSettings {
+    enabled: boolean;          // 是否启用 CradleCloud API
+    model: string;             // 当前选择的模型
+    temperature?: number;      // 温度参数
+    max_tokens?: number;       // 最大token数
+}
+
 export interface ApiSettings {
-    apiProvider: 'gemini' | 'openrouter' | 'openai-compatible';  // 当前选择的API提供商
+    apiProvider: 'gemini' | 'openrouter' | 'openai-compatible' | 'cradlecloud';  // 当前选择的API提供商
     openrouter?: OpenRouterSettings;       // OpenRouter设置
     OpenAIcompatible?: OpenAICompatibleSettings; // OpenAI兼容API设置
+    cradlecloud?: CradleCloudSettings;     // CradleCloud设置
     useCloudService?: boolean;             // 是否使用云服务
     cloudModel?: string;                   // 云服务使用的模型
     additionalGeminiKeys?: string[];

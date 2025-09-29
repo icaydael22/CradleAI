@@ -84,6 +84,48 @@ export default function PagesLayout() {
           headerShown: false,
         }}
       />
+                                          <Stack.Screen
+        name="[conversationId]"
+        options={{
+          presentation: 'modal',
+          headerShown: false,
+        }}
+      />
+                                                <Stack.Screen
+        name="group/[groupId]"
+        options={{
+          presentation: 'modal',
+          headerShown: false,
+        }}
+      />
+                                                      <Stack.Screen
+        name="create-post"
+        options={{
+          presentation: 'modal',
+          headerShown: false,
+        }}
+      />
+                                                            <Stack.Screen
+        name="favorites"
+        options={{
+          presentation: 'modal',
+          headerShown: false,
+        }}
+      />
+                                                                  <Stack.Screen
+        name="script/[scriptid]"
+        options={{
+          presentation: 'modal',
+          headerShown: false,
+        }}
+      />
+                                                                        <Stack.Screen
+        name="script-detail"
+        options={{
+          presentation: 'modal',
+          headerShown: false,
+        }}
+      />
     </Stack> 
     
   );

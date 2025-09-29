@@ -1,5 +1,4 @@
 import { mcpAdapter } from './mcp-adapter';
-import { CloudServiceProvider } from '@/services/cloud-service-provider';
 import { getCharacterTablesData } from '@/src/memory/plugins/table-memory/api';
 
 /**
@@ -60,7 +59,12 @@ export class OpenRouterAdapter {
   /**
    * 生成内容 - 与Gemini适配器接口保持一致
    */
-  async generateContent(contents: ChatMessage[]): Promise<string> {
+  async generateContent(
+    contents: ChatMessage[], 
+    characterId?: string, 
+    abortSignal?: AbortSignal,
+    onStream?: (delta: string) => void
+  ): Promise<string> {
     console.log(`【OpenRouterAdapter】开始生成内容，使用模型: ${this.model}`);
     console.log(`【OpenRouterAdapter】本次调用可能涉及角色关系更新`);
     
@@ -103,105 +107,47 @@ export class OpenRouterAdapter {
       // 发送API请求
       console.log(`【OpenRouterAdapter】发送请求到: ${this.baseUrl}/chat/completions`);
       
-      // Check if cloud service is enabled and use it if available
-      let response;
       const requestUrl = `${this.baseUrl}/chat/completions`;
       
-      if (CloudServiceProvider.isEnabled()) {
-        console.log('【OpenRouterAdapter】检测到云服务已启用');
-        console.log(`【OpenRouterAdapter】原始请求URL: ${requestUrl}`);
-        console.log(`【OpenRouterAdapter】开始时间: ${new Date().toISOString()}`);
-        console.log(`【OpenRouterAdapter】请求模型: ${this.model}`);
-        console.log(`【OpenRouterAdapter】请求体大小: ${JSON.stringify(requestBody).length} 字节`);
-        console.log(`【OpenRouterAdapter】消息数量: ${messages.length}`);
+      console.log(`【OpenRouterAdapter】请求URL: ${requestUrl}`);
+      console.log(`【OpenRouterAdapter】开始时间: ${new Date().toISOString()}`);
+      console.log(`【OpenRouterAdapter】请求模型: ${this.model}`);
+      console.log(`【OpenRouterAdapter】请求体大小: ${JSON.stringify(requestBody).length} 字节`);
+      console.log(`【OpenRouterAdapter】消息数量: ${messages.length}`);
+      
+      // 记录每条消息的角色和内容预览，但不记录API密钥
+      messages.forEach((msg, index) => {
+        let contentPreview = typeof msg.content === 'string' 
+          ? msg.content.substring(0, 50) + (msg.content.length > 50 ? '...' : '') 
+          : '[复杂内容]';
         
-        // 记录每条消息的角色和内容预览，但不记录API密钥
-        messages.forEach((msg, index) => {
-          let contentPreview = typeof msg.content === 'string' 
-            ? msg.content.substring(0, 50) + (msg.content.length > 50 ? '...' : '') 
-            : '[复杂内容]';
-          
-          // Mask potential API keys in message content
-          contentPreview = contentPreview.replace(/([A-Za-z0-9_-]{20,})/g, match => {
-            if (match.length >= 20 && /^[A-Za-z0-9_-]+$/.test(match)) {
-              return match.substring(0, 4) + '****';
-            }
-            return match;
-          });
-          
-          console.log(`【OpenRouterAdapter】消息 #${index+1}: ${msg.role} - ${contentPreview}`);
-        });
-        
-        // Forward the request through the cloud service
-        console.log('【OpenRouterAdapter】准备调用云服务转发接口...');
-        
-        try {
-          const startTime = Date.now();
-          response = await CloudServiceProvider.forwardRequest(
-            requestUrl,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${this.apiKey}`,
-                'HTTP-Referer': 'https://github.com', // 添加必要的请求头
-                'X-Title': 'AI Chat App'  // 添加应用标识
-              },
-              body: JSON.stringify(requestBody)
-            },
-            'openrouter'
-          );
-          
-          const endTime = Date.now();
-          console.log(`【OpenRouterAdapter】云服务请求完成，耗时: ${endTime - startTime}ms`);
-          console.log(`【OpenRouterAdapter】云服务响应状态: ${response.status} ${response.statusText}`);
-          
-          // 记录响应头信息
-          console.log('【OpenRouterAdapter】云服务响应头:');
-            response.headers.forEach((value: string, name: string): void => {
-              if (name.toLowerCase() === 'content-type' || 
-                name.toLowerCase() === 'content-length' || 
-                name.toLowerCase().startsWith('openrouter-')) {
-                console.log(`【OpenRouterAdapter】- ${name}: ${value}`);
-              }
-            });
-          
-          // 检查内容类型
-          const contentType = response.headers.get('content-type');
-          console.log(`【OpenRouterAdapter】响应内容类型: ${contentType}`);
-          
-          // 检查响应大小
-          const contentLength = response.headers.get('content-length');
-          if (contentLength) {
-              console.log(`【OpenRouterAdapter】响应内容大小: ${contentLength} 字节`);
+        // Mask potential API keys in message content
+        contentPreview = contentPreview.replace(/([A-Za-z0-9_-]{20,})/g, match => {
+          if (match.length >= 20 && /^[A-Za-z0-9_-]+$/.test(match)) {
+            return match.substring(0, 4) + '****';
           }
-        } catch (cloudError) {
-          console.error('【OpenRouterAdapter】云服务转发失败:', cloudError);
-          console.error('【OpenRouterAdapter】尝试回退到直接API调用...');
-          throw cloudError; // 重新抛出以便后续处理
-        }
-      } else {
-        // Use direct API call if cloud service is not enabled
-        console.log('【OpenRouterAdapter】云服务未启用，使用直接API调用');
-        console.log(`【OpenRouterAdapter】直接调用URL: ${requestUrl}`);
-        console.log(`【OpenRouterAdapter】开始时间: ${new Date().toISOString()}`);
-        
-        const startTime = Date.now();
-        response = await fetch(requestUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${this.apiKey}`,
-            'HTTP-Referer': 'https://github.com', // 添加必要的请求头
-            'X-Title': 'AI Chat App'  // 添加应用标识
-          },
-          body: JSON.stringify(requestBody)
+          return match;
         });
-        const endTime = Date.now();
         
-        console.log(`【OpenRouterAdapter】直接API调用完成，耗时: ${endTime - startTime}ms`);
-        console.log(`【OpenRouterAdapter】API响应状态: ${response.status} ${response.statusText}`);
-      }
+        console.log(`【OpenRouterAdapter】消息 #${index+1}: ${msg.role} - ${contentPreview}`);
+      });
+      
+      const startTime = Date.now();
+      const response = await fetch(requestUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`,
+          'HTTP-Referer': 'https://github.com', // 添加必要的请求头
+          'X-Title': 'AI Chat App'  // 添加应用标识
+        },
+        body: JSON.stringify(requestBody)
+      });
+      const endTime = Date.now();
+      
+      console.log(`【OpenRouterAdapter】API调用完成，耗时: ${endTime - startTime}ms`);
+      console.log(`【OpenRouterAdapter】API响应状态: ${response.status} ${response.statusText}`);
+
       
       // 如果响应不成功，处理错误情况
       if (!response.ok) {
@@ -582,60 +528,6 @@ export class OpenRouterAdapter {
       const lastMessage = contents[contents.length - 1];
       const searchQuery = lastMessage.content || (lastMessage.parts && lastMessage.parts[0]?.text) || "";
 
-      // 优先尝试通过云服务进行联网搜索
-      if (CloudServiceProvider.isEnabled()) {
-        try {
-          console.log('【OpenRouterAdapter】优先通过云服务处理联网搜索请求');
-          const response = await CloudServiceProvider.generateSearchResult(searchQuery, {
-            model: CloudServiceProvider.getMultiModalModel(),
-            temperature: 0.7,
-            max_tokens: 2048
-          });
-          if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Cloud service search HTTP error! status: ${response.status}, details: ${errorText}`);
-          }
-          const result = await response.json();
-
-          let searchResultText = "";
-          if (result.choices && result.choices.length > 0) {
-            searchResultText = result.choices[0].message?.content || "";
-          } else if (typeof result === 'string') {
-            searchResultText = result;
-          }
-          if (searchResultText) {
-            // 构建带有搜索结果的提示词
-            const searchPrompt = `${searchQuery}\n\n<websearch>\n搜索引擎返回的联网检索结果：\n${searchResultText}\n</websearch>\n\n请基于以上搜索结果回答用户的问题。`;
-            // 插入顺序：历史消息 + assistant(搜索内容) + 用户消息
-            let formattedContents = [];
-            for (let i = 0; i < contents.length - 1; i++) {
-              const msg = contents[i];
-              if (msg.content || (msg.parts && msg.parts[0]?.text)) {
-                formattedContents.push({
-                  role: msg.role,
-                  content: msg.content || (msg.parts && msg.parts[0]?.text) || ""
-                });
-              }
-            }
-            formattedContents.push({
-              role: "assistant",
-              content: searchPrompt
-            });
-            const lastMsg = contents[contents.length - 1];
-            formattedContents.push({
-              role: lastMsg.role,
-              content: lastMsg.content || (lastMsg.parts && lastMsg.parts[0]?.text) || ""
-            });
-
-            // 使用搜索结果生成回复
-            return await this.askLLM(formattedContents);
-          }
-        } catch (cloudSearchError) {
-          console.warn('【OpenRouterAdapter】云服务联网搜索失败，降级到本地BraveSearch:', cloudSearchError);
-          // 继续降级到本地bravesearch
-        }
-      }
-
       // 确保MCP适配器已连接
       if (!mcpAdapter.isReady()) {
         await mcpAdapter.connect();
@@ -762,58 +654,29 @@ export class OpenRouterAdapter {
       // 发送API请求
       const requestUrl = `${this.baseUrl}/chat/completions`;
       
-      // Check if cloud service is enabled and use it if available
-      let response;
-      if (CloudServiceProvider.isEnabled()) {
-        console.log('【OpenRouterAdapter】LLM请求 - 使用云服务转发');
-        console.log(`【OpenRouterAdapter】LLM请求URL: ${requestUrl}`);
-        console.log(`【OpenRouterAdapter】LLM请求开始时间: ${new Date().toISOString()}`);
-        
-        // 记录消息概要
-        console.log(`【OpenRouterAdapter】LLM请求包含 ${messages.length} 条消息`);
-        const lastMessagePreview = messages[messages.length - 1]?.content || '';
-        console.log(`【OpenRouterAdapter】LLM最后一条消息预览: ${typeof lastMessagePreview === 'string' ? lastMessagePreview.substring(0, 50) + '...' : '[复杂内容]'}`);
-        
-        // Forward the request through the cloud service
-        const startTime = Date.now();
-        response = await CloudServiceProvider.forwardRequest(
-          requestUrl,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${this.apiKey}`,
-              'HTTP-Referer': 'https://github.com',
-              'X-Title': 'AI Chat App'
-            },
-            body: JSON.stringify(requestBody)
-          },
-          'openrouter'
-        );
-        const endTime = Date.now();
-        
-        console.log(`【OpenRouterAdapter】LLM云服务请求完成，耗时: ${endTime - startTime}ms`);
-        console.log(`【OpenRouterAdapter】LLM云服务响应状态: ${response.status} ${response.statusText}`);
-      } else {
-        // Use direct API call if cloud service is not enabled
-        console.log('【OpenRouterAdapter】LLM请求 - 使用直接API调用');
-        console.log(`【OpenRouterAdapter】LLM请求URL: ${requestUrl}`);
-        
-        const startTime = Date.now();
-        response = await fetch(requestUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${this.apiKey}`,
-            'HTTP-Referer': 'https://github.com',
-            'X-Title': 'AI Chat App'
-          },
-          body: JSON.stringify(requestBody)
-        });
-        const endTime = Date.now();
-        
-        console.log(`【OpenRouterAdapter】LLM直接API调用完成，耗时: ${endTime - startTime}ms`);
-      }
+      console.log('【OpenRouterAdapter】LLM请求 - 使用直接API调用');
+      console.log(`【OpenRouterAdapter】LLM请求URL: ${requestUrl}`);
+      console.log(`【OpenRouterAdapter】LLM请求开始时间: ${new Date().toISOString()}`);
+      
+      // 记录消息概要
+      console.log(`【OpenRouterAdapter】LLM请求包含 ${messages.length} 条消息`);
+      const lastMessagePreview = messages[messages.length - 1]?.content || '';
+      console.log(`【OpenRouterAdapter】LLM最后一条消息预览: ${typeof lastMessagePreview === 'string' ? lastMessagePreview.substring(0, 50) + '...' : '[复杂内容]'}`);
+      
+      const startTime = Date.now();
+      const response = await fetch(requestUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`,
+          'HTTP-Referer': 'https://github.com',
+          'X-Title': 'AI Chat App'
+        },
+        body: JSON.stringify(requestBody)
+      });
+      const endTime = Date.now();
+      
+      console.log(`【OpenRouterAdapter】LLM API调用完成，耗时: ${endTime - startTime}ms`);
       
       if (!response.ok) {
         console.error(`【OpenRouterAdapter】LLM请求失败: ${response.status} ${response.statusText}`);
@@ -869,37 +732,16 @@ export class OpenRouterAdapter {
     console.log(`【OpenRouterAdapter】使用API密钥: ${this.maskApiKey(this.apiKey)}`);
     
     try {
-      // Check if cloud service is enabled and use it if available
-      let response;
       const requestUrl = `${this.baseUrl}/models`;
       
-      if (CloudServiceProvider.isEnabled()) {
-        console.log('【OpenRouterAdapter】使用云服务获取模型列表');
-        
-        // Forward the request through the cloud service
-        response = await CloudServiceProvider.forwardRequest(
-          requestUrl,
-          {
-            method: 'GET',
-            headers: {
-              'Authorization': `Bearer ${this.apiKey}`,
-              'HTTP-Referer': 'https://github.com', // Required header
-              'X-Title': 'AI Chat App'  // Add application identifier
-            }
-          },
-          'openrouter'
-        );
-      } else {
-        // Use direct API call if cloud service is not enabled
-        response = await fetch(requestUrl, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${this.apiKey}`,
-            'HTTP-Referer': 'https://github.com', // Required header
-            'X-Title': 'AI Chat App'  // Add application identifier
-          }
-        });
-      }
+      const response = await fetch(requestUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'HTTP-Referer': 'https://github.com', // Required header
+          'X-Title': 'AI Chat App'  // Add application identifier
+        }
+      });
 
       if (!response.ok) {
         const text = await response.text();

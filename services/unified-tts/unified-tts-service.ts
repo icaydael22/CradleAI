@@ -1,21 +1,24 @@
 import { getTTSSettingsAsync } from '@/utils/settings-helper';
+import { getApiSettings } from '@/utils/settings-helper';
+import { TTSProvider } from '@/shared/types';
 import { 
-  TTSProvider, 
   TTSProviderConfig, 
   UnifiedTTSRequest, 
   UnifiedTTSResponse, 
   UnifiedTTSStatus,
-  TTSStatusCallback 
+  TTSStatusCallback,
+  ExtendedTTSProvider
 } from './types';
 import { 
   TTSProviderAdapter, 
   CosyVoiceAdapter, 
   DoubaoAdapter, 
-  MinimaxAdapter 
+  MinimaxAdapter
 } from './adapters';
+import { CradleCloudTtsAdapter } from './adapters/cradleCloudTtsAdapter';
 
 export class UnifiedTTSService {
-  private adapters: Map<TTSProvider, TTSProviderAdapter> = new Map();
+  private adapters: Map<ExtendedTTSProvider, TTSProviderAdapter> = new Map();
   private statusCallbacks: Map<string, TTSStatusCallback> = new Map();
   private config: TTSProviderConfig = {};
 
@@ -100,6 +103,15 @@ export class UnifiedTTSService {
         console.log('[UnifiedTTSService] Minimax adapter NOT initialized - missing apiToken');
       }
 
+      // Initialize CradleCloud TTS adapter if API provider is CradleCloud
+      const apiSettings = getApiSettings();
+      if (apiSettings.apiProvider === 'cradlecloud') {
+        this.adapters.set('cradlecloud-tts', new CradleCloudTtsAdapter());
+        console.log('[UnifiedTTSService] CradleCloud TTS adapter initialized');
+      } else {
+        console.log('[UnifiedTTSService] CradleCloud TTS adapter NOT initialized - API provider is not CradleCloud');
+      }
+
       console.log('[UnifiedTTSService] Available providers:', this.getAvailableProviders());
     } catch (error) {
       console.error('[UnifiedTTSService] Failed to initialize adapters:', error);
@@ -109,14 +121,14 @@ export class UnifiedTTSService {
   /**
    * Get available TTS providers
    */
-  getAvailableProviders(): TTSProvider[] {
+  getAvailableProviders(): ExtendedTTSProvider[] {
     return Array.from(this.adapters.keys());
   }
 
   /**
    * Check if a provider is available
    */
-  isProviderAvailable(provider: TTSProvider): boolean {
+  isProviderAvailable(provider: ExtendedTTSProvider): boolean {
     return this.adapters.has(provider);
   }
 

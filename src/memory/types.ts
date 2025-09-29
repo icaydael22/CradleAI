@@ -39,9 +39,12 @@ export interface SearchResult {
  * Embedder 配置
  */
 export interface EmbeddingConfig {
-  apiKey: string;
+  apiKey?: string;
   model?: string;
   url?: string;
+  dimensions?: number;
+  fallbackProvider?: string; // 新增：备用嵌入器提供商
+  fallbackConfig?: Record<string, any>; // 新增：备用嵌入器配置
   [key: string]: any;
 }
 
@@ -79,6 +82,8 @@ export interface MemoryConfig {
   embedder: {
     provider: string;
     config: EmbeddingConfig;
+    fallbackProvider?: string; // 新增：备用嵌入器提供商
+    fallbackConfig?: EmbeddingConfig; // 新增：备用嵌入器配置
   };
   vectorStore: {
     provider: string;

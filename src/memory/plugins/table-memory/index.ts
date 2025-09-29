@@ -115,7 +115,7 @@ async function createDefaultTemplates(): Promise<void> {
         { value: "角色名", valueIsOnly: true, columnDataType: "text", columnNote: "角色的名称" },
         { value: "对用户关系", valueIsOnly: false, columnDataType: "text", columnNote: "关系类型，如朋友、敌人等" },
         { value: "对用户态度", valueIsOnly: false, columnDataType: "text", columnNote: "情感态度，如友好、敌对等" },
-        { value: "对用户好感", valueIsOnly: false, columnDataType: "text", columnNote: "好感度，如高、中、低等" }
+        { value: "对用户好感", valueIsOnly: false, columnDataType: "text", columnNote: "goodwill，如高、中、低等" }
       ],
       rows: 2,
       note: "记录角色与用户的社交关系",

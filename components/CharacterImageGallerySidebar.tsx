@@ -12,6 +12,7 @@ import {
   Modal,
   Alert,
   Platform,
+  TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { CharacterImage, CradleCharacter } from '@/shared/types';
@@ -21,6 +22,7 @@ import * as FileSystem from 'expo-file-system';
 import * as MediaLibrary from 'expo-media-library';
 import * as Sharing from 'expo-sharing';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import ImageRegenerationModal from './ImageRegenerationModal';
 import { downloadAndSaveImage } from '@/utils/imageUtils';
 import { BlurView } from 'expo-blur';
@@ -84,14 +86,22 @@ const CharacterImageGallerySidebar: React.FC<CharacterImageGallerySidebarProps> 
   const [notificationMessage, setNotificationMessage] = useState({ title: '', message: '' });
   const notificationAnim = useRef(new Animated.Value(0)).current;
   const [persistedImages, setPersistedImages] = useState<CharacterImage[]>([]);
+  const [activeFilter, setActiveFilter] = useState<'all' | 'emoticons' | 'gallery'>('all');
   const { setCharacterAvatar, setCharacterBackgroundImage } = useCharacters();
 
   const [lastImageGenSettings, setLastImageGenSettings] = useState<any>(null);
   const [lastImageGenSeed, setLastImageGenSeed] = useState<string | number | undefined>(undefined);
 
+  // 新增：表情包命名弹窗相关状态
+  const [showNameModal, setShowNameModal] = useState(false);
+  const [pendingUploadUri, setPendingUploadUri] = useState<string | null>(null);
+  const [pendingAsEmoticon, setPendingAsEmoticon] = useState<boolean>(false);
+  const [emoticonName, setEmoticonName] = useState<string>('');
+
   const loadPersistedImagesFromFS = async () => {
     try {
       const dir = getCharacterImageDir(character.id);
+      const emoticonDir = `${dir}emoticons/`;
       const metaFile = getGalleryMetaFile(character.id);
       const dirInfo = await FileSystem.getInfoAsync(dir);
       let meta: Record<string, any> = {};
@@ -109,8 +119,17 @@ const CharacterImageGallerySidebar: React.FC<CharacterImageGallerySidebarProps> 
         return;
       }
       const files = await FileSystem.readDirectoryAsync(dir);
-      const images: CharacterImage[] = files
-        .filter(f => /\.(jpg|jpeg|png|webp)$/i.test(f))
+      // read emoticon subdir if exists
+      let emoticonFiles: string[] = [];
+      try {
+        const emoInfo = await FileSystem.getInfoAsync(emoticonDir);
+        if (emoInfo.exists && (emoInfo as any).isDirectory) {
+          emoticonFiles = await FileSystem.readDirectoryAsync(emoticonDir);
+        }
+      } catch {}
+
+      const baseImages: CharacterImage[] = files
+        .filter(f => /\.(jpg|jpeg|png|webp|gif)$/i.test(f))
         .map(f => {
           const uri = dir + f;
           const metaItem = meta[f];
@@ -132,7 +151,26 @@ const CharacterImageGallerySidebar: React.FC<CharacterImageGallerySidebarProps> 
             seed: metaItem?.seed,
           };
         });
-      setPersistedImages(images);
+
+      const emoImages: CharacterImage[] = emoticonFiles
+        .filter(f => /\.(jpg|jpeg|png|webp|gif)$/i.test(f))
+        .map(f => {
+          const uri = emoticonDir + f;
+          const key = `emoticons/${f}`;
+          const metaItem = meta[key] || meta[f];
+          return {
+            id: key,
+            url: uri,
+            localUri: uri,
+            characterId: character.id,
+            createdAt: metaItem?.createdAt || Date.now(),
+            isFavorite: metaItem?.isFavorite || false,
+            isUserUploaded: true,
+            generationStatus: 'success',
+            tags: metaItem?.tags,
+          };
+        });
+      setPersistedImages([...baseImages, ...emoImages]);
     } catch (e) {
       console.warn('[图库侧栏] 加载文件系统图片失败', e);
       setPersistedImages([]);
@@ -211,8 +249,15 @@ const CharacterImageGallerySidebar: React.FC<CharacterImageGallerySidebarProps> 
     combinedImages = combinedImages.filter(
       img => !(img.generationStatus === 'pending' && !img.generationTaskId)
     );
-    return combinedImages;
-  }, [persistedImages, images, character.avatar, character.backgroundImage, lastUpdateTimestamp]);
+    // filter by tab
+    const filtered = combinedImages.filter(img => {
+      if (activeFilter === 'all') return true;
+      const path = (img.localUri || img.url || '').toLowerCase();
+      const isEmoticon = path.includes(`/character_${character.id}/emoticons/`) || /(^|\/)emoticon_/i.test(path);
+      return activeFilter === 'emoticons' ? isEmoticon : !isEmoticon;
+    });
+    return filtered;
+  }, [persistedImages, images, character.avatar, character.backgroundImage, lastUpdateTimestamp, activeFilter]);
 
   const handleSetAsAvatar = async (imageId: string) => {
     const image = allImages.find(img => img.id === imageId);
@@ -458,11 +503,6 @@ const CharacterImageGallerySidebar: React.FC<CharacterImageGallerySidebarProps> 
         } else {
           await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
         }
-        Alert.alert(
-          "保存成功",
-          "图片已保存到您的相册中的'AI伙伴'相册",
-          [{ text: "太好了", style: "default" }]
-        );
       } catch (saveError) {
         console.error("保存到媒体库失败:", saveError);
         if (Platform.OS !== 'web' && await Sharing.isAvailableAsync()) {
@@ -518,7 +558,16 @@ const CharacterImageGallerySidebar: React.FC<CharacterImageGallerySidebarProps> 
       }
 
       const selectedAsset = result.assets[0];
-      await uploadImageToCharacter(selectedAsset.uri);
+      const asEmoticon = activeFilter === 'emoticons';
+      if (asEmoticon) {
+        // 表情包上传必须要命名
+        setPendingUploadUri(selectedAsset.uri);
+        setPendingAsEmoticon(true);
+        setEmoticonName('');
+        setShowNameModal(true);
+      } else {
+        await uploadImageToCharacter(selectedAsset.uri, false);
+      }
 
     } catch (error) {
       console.error("[图库侧栏] 选择图片失败:", error);
@@ -530,7 +579,15 @@ const CharacterImageGallerySidebar: React.FC<CharacterImageGallerySidebarProps> 
     }
   };
 
-  const uploadImageToCharacter = async (imageUri: string) => {
+  // 工具：清理文件名（仅保留字母数字、下划线和中划线，并将空白替换为下划线）
+  const sanitizeFileBaseName = (name: string): string => {
+    const trimmed = name.trim();
+    const replaced = trimmed.replace(/\s+/g, '_');
+    const cleaned = replaced.replace(/[^\u4e00-\u9fa5A-Za-z0-9_-]/g, '');
+    return cleaned || `emoticon_${Date.now()}`;
+  };
+
+  const uploadImageToCharacter = async (imageUri: string, asEmoticon?: boolean, customBaseName?: string) => {
     if (!character) {
       Alert.alert("错误", "角色信息不完整，无法上传图片");
       return;
@@ -538,20 +595,50 @@ const CharacterImageGallerySidebar: React.FC<CharacterImageGallerySidebarProps> 
     try {
       setIsUploading(true);
       const timestamp = Date.now();
-      const destinationUri = `${FileSystem.documentDirectory}character_${character.id}/uploaded_${timestamp}.jpg`;
-      const dirUri = `${FileSystem.documentDirectory}character_${character.id}`;
+      const baseDir = `${FileSystem.documentDirectory}character_${character.id}`;
+      const emoDir = `${baseDir}emoticons/`;
+      const dirUri = asEmoticon ? emoDir : baseDir;
+      const ext = (imageUri.split('.').pop() || 'jpg').toLowerCase();
+      const isGif = ext === 'gif';
+      // 文件名：表情包支持自定义名称；非GIF表情统一转PNG
+      const baseName = asEmoticon && customBaseName ? sanitizeFileBaseName(customBaseName) : (asEmoticon ? `emoticon_${timestamp}` : `uploaded_${timestamp}`);
+      let fileName = asEmoticon ? `${baseName}.${isGif ? 'gif' : 'png'}` : `${baseName}.${ext}`;
+      let destinationUri = `${dirUri}${fileName}`;
       try {
         const dirInfo = await FileSystem.getInfoAsync(dirUri);
         if (!dirInfo.exists) {
           await FileSystem.makeDirectoryAsync(dirUri, { intermediates: true });
         }
       } catch (dirError) {}
-      await FileSystem.copyAsync({
-        from: imageUri,
-        to: destinationUri
-      });
+      // 若重名则追加序号避免覆盖
+      try {
+        let idx = 1;
+        let fileInfo = await FileSystem.getInfoAsync(destinationUri);
+        while (fileInfo.exists) {
+          const nameOnly = fileName.replace(/\.[^.]+$/, '');
+          const suffix = `_${idx++}`;
+          const finalExt = fileName.split('.').pop();
+          fileName = `${nameOnly}${suffix}.${finalExt}`;
+          destinationUri = `${dirUri}${fileName}`;
+          fileInfo = await FileSystem.getInfoAsync(destinationUri);
+        }
+      } catch {}
+      if (asEmoticon && !isGif) {
+        try {
+          const manipulated = await ImageManipulator.manipulateAsync(
+            imageUri,
+            [{ resize: { width: 256 } }],
+            { compress: 0.9, format: ImageManipulator.SaveFormat.PNG }
+          );
+          await FileSystem.copyAsync({ from: manipulated.uri, to: destinationUri });
+        } catch (e) {
+          await FileSystem.copyAsync({ from: imageUri, to: destinationUri });
+        }
+      } else {
+        await FileSystem.copyAsync({ from: imageUri, to: destinationUri });
+      }
       const newImage: CharacterImage = {
-        id: `uploaded_${timestamp}`,
+        id: asEmoticon ? `emoticons/${fileName}` : `uploaded_${timestamp}`,
         url: destinationUri,
         localUri: destinationUri,
         characterId: character.id,
@@ -561,7 +648,6 @@ const CharacterImageGallerySidebar: React.FC<CharacterImageGallerySidebarProps> 
         generationStatus: 'success',
       };
       addImageAndPersist(newImage);
-      displayNotification("上传成功", "图片已添加到角色图库");
       setUpdateCounter(prev => prev + 1);
     } catch (error) {
       Alert.alert(
@@ -572,6 +658,20 @@ const CharacterImageGallerySidebar: React.FC<CharacterImageGallerySidebarProps> 
     } finally {
       setIsUploading(false);
     }
+  };
+
+  // 确认命名后执行上传
+  const handleConfirmEmoticonName = async () => {
+    if (!pendingUploadUri) {
+      setShowNameModal(false);
+      return;
+    }
+    const name = sanitizeFileBaseName(emoticonName || '');
+    await uploadImageToCharacter(pendingUploadUri, true, name);
+    setShowNameModal(false);
+    setPendingUploadUri(null);
+    setPendingAsEmoticon(false);
+    setEmoticonName('');
   };
 
   const handleDeleteImage = (imageId: string) => {
@@ -648,6 +748,17 @@ const CharacterImageGallerySidebar: React.FC<CharacterImageGallerySidebarProps> 
               </View>
             </View>
             <View style={styles.content}>
+              <View style={styles.tabBar}>
+                <TouchableOpacity onPress={() => setActiveFilter('all')} style={[styles.tabItem, activeFilter==='all' && styles.tabItemActive]}>
+                  <Text style={styles.tabText}>全部</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setActiveFilter('gallery')} style={[styles.tabItem, activeFilter==='gallery' && styles.tabItemActive]}>
+                  <Text style={styles.tabText}>图库</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setActiveFilter('emoticons')} style={[styles.tabItem, activeFilter==='emoticons' && styles.tabItemActive]}>
+                  <Text style={styles.tabText}>表情包</Text>
+                </TouchableOpacity>
+              </View>
               {isLoading ? (
                 <View style={styles.loadingContainer}>
                   <ActivityIndicator size="large" color="#ff9f1c" />
@@ -950,6 +1061,60 @@ const CharacterImageGallerySidebar: React.FC<CharacterImageGallerySidebarProps> 
             existingImageConfig={regenerationImageConfig}
           />
         )}
+
+        {/* 表情包命名弹窗 */}
+        <Modal
+          visible={showNameModal}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => {
+            setShowNameModal(false);
+            setPendingUploadUri(null);
+            setPendingAsEmoticon(false);
+            setEmoticonName('');
+          }}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.nameModalContainer}>
+              <Text style={styles.nameModalTitle}>表情包命名</Text>
+              <Text style={styles.nameModalSubtitle}>请为这个表情包起一个名字</Text>
+              
+              <TextInput
+                style={styles.nameInput}
+                value={emoticonName}
+                onChangeText={setEmoticonName}
+                placeholder="输入表情包名称..."
+                placeholderTextColor="#888"
+                autoFocus={true}
+                maxLength={20}
+              />
+              
+              <View style={styles.nameModalButtons}>
+                <TouchableOpacity
+                  style={[styles.nameModalButton, styles.cancelButton]}
+                  onPress={() => {
+                    setShowNameModal(false);
+                    setPendingUploadUri(null);
+                    setPendingAsEmoticon(false);
+                    setEmoticonName('');
+                  }}
+                >
+                  <Text style={styles.cancelButtonText}>取消</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[styles.nameModalButton, styles.confirmButton]}
+                  onPress={handleConfirmEmoticonName}
+                  disabled={!emoticonName.trim()}
+                >
+                  <Text style={[styles.confirmButtonText, !emoticonName.trim() && styles.disabledButtonText]}>
+                    确认
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </View>
     </Modal>
   );
@@ -1021,6 +1186,28 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  tabBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.1)'
+  },
+  tabItem: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    backgroundColor: 'transparent'
+  },
+  tabItemActive: {
+    backgroundColor: 'rgba(255,255,255,0.08)'
+  },
+  tabText: {
+    color: '#fff',
+    fontSize: 12
   },
   emptyContainer: {
     flex: 1,
@@ -1217,6 +1404,69 @@ const styles = StyleSheet.create({
   },
   deleteMenuItemText: {
     color: '#FF6B6B',
+  },
+  nameModalContainer: {
+    backgroundColor: 'rgba(40,40,40,0.98)',
+    borderRadius: 20,
+    padding: 24,
+    width: '80%',
+    maxWidth: 300,
+    alignSelf: 'center',
+    marginTop: 'auto',
+    marginBottom: 'auto',
+  },
+  nameModalTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  nameModalSubtitle: {
+    color: '#ccc',
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  nameInput: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 12,
+    padding: 16,
+    color: '#fff',
+    fontSize: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  nameModalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  nameModalButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  confirmButton: {
+    backgroundColor: '#ff9f1c',
+  },
+  cancelButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  confirmButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  disabledButtonText: {
+    opacity: 0.5,
   },
 });
 

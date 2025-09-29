@@ -166,48 +166,9 @@ ${chatContext}
 
 请直接开始撰写日记，不要有任何前缀或标题，符合${character.name}的风格。`;
 
-      // Get API settings from settings-helper
-      const apiSettings = getApiSettings();
+      // Unified API now reads settings automatically from settings-helper
+      // No need to manually configure adapter options
       
-      if (!apiSettings.apiKey && !apiSettings.useCloudService) {
-        throw new Error('No API key available and cloud service is disabled');
-      }
-
-      // Prepare unified API options based on provider
-      let unifiedOptions: any = {
-        adapter: apiSettings.apiProvider as any,
-        apiKey: apiSettings.apiKey,
-        characterId: character.id
-      };
-
-      // Configure provider-specific options
-      if (apiSettings.apiProvider === 'openai-compatible' && apiSettings.OpenAIcompatible?.enabled) {
-        unifiedOptions.openaiConfig = {
-          endpoint: apiSettings.OpenAIcompatible.endpoint,
-          model: apiSettings.OpenAIcompatible.model,
-          temperature: apiSettings.OpenAIcompatible.temperature,
-          max_tokens: apiSettings.OpenAIcompatible.max_tokens,
-          stream: apiSettings.OpenAIcompatible.stream
-        };
-        unifiedOptions.modelId = apiSettings.OpenAIcompatible.model;
-      } else if (apiSettings.apiProvider === 'openrouter' && apiSettings.openrouter?.enabled) {
-        unifiedOptions.openrouterConfig = {
-          enabled: true,
-          apiKey: apiSettings.openrouter.apiKey,
-          model: apiSettings.openrouter.model
-        };
-        unifiedOptions.modelId = apiSettings.openrouter.model;
-      } else if (apiSettings.apiProvider === 'gemini') {
-        unifiedOptions.geminiConfig = {
-          additionalKeys: apiSettings.additionalGeminiKeys,
-          useKeyRotation: apiSettings.useGeminiKeyRotation,
-          useModelLoadBalancing: apiSettings.useGeminiModelLoadBalancing,
-          backupModel: apiSettings.geminiBackupModel,
-          retryDelay: apiSettings.retryDelay
-        };
-        unifiedOptions.modelId = apiSettings.geminiPrimaryModel;
-      }
-
       // Create messages array for unified API
       const messages = [
         {
@@ -216,8 +177,10 @@ ${chatContext}
         }
       ];
 
-      // Generate diary content using unified API
-      const response = await unifiedGenerateContent(messages, unifiedOptions);
+      // Generate diary content using unified API (auto-detects adapter and settings)
+      const response = await unifiedGenerateContent(messages, {
+        characterId: character.id
+      });
 
       if (!response) {
         throw new Error('Failed to generate diary content');

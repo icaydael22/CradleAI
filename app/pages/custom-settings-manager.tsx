@@ -14,6 +14,7 @@ import {
   ActivityIndicator,
   StatusBar,
   Platform,
+  Modal,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, useRouter } from 'expo-router';
@@ -315,20 +316,21 @@ const CustomSettingsManager = () => {
   const renderEditor = () => {
     if (!isEditing || !editedSetting) return null;
     return (
-      <View style={styles.editorOverlay}>
-        <View style={styles.editorCard}>
-          <View style={styles.editorHeader}>
-            <Text style={styles.editorTitle}>
-              编辑{currentSetting?.isGlobal ? '全局自设' : '角色自设'}
-            </Text>
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => setIsEditing(false)}
-            >
-              <Ionicons name="close" size={24} color="#fff" />
-            </TouchableOpacity>
-          </View>
-          <ScrollView style={styles.editorContent}>
+      <Modal visible transparent animationType="fade" statusBarTranslucent>
+        <View style={styles.editorOverlay}>
+          <View style={styles.editorCard}>
+            <View style={styles.editorHeader}>
+              <Text style={styles.editorTitle}>
+                编辑{currentSetting?.isGlobal ? '全局自设' : '角色自设'}
+              </Text>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => setIsEditing(false)}
+              >
+                <Ionicons name="close" size={24} color="#fff" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.editorContent}>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>标题</Text>
               <TextInput
@@ -431,9 +433,10 @@ const CustomSettingsManager = () => {
             >
               <Text style={styles.saveButtonText}>保存</Text>
             </TouchableOpacity>
-          </ScrollView>
+            </ScrollView>
+          </View>
         </View>
-      </View>
+      </Modal>
     );
   };
 

@@ -62,7 +62,20 @@ export class MobileFileVectorStore implements VectorStore {
       if (!file.endsWith('.json')) continue;
       const content = await FileSystem.readAsStringAsync(`${this.baseDir}/${file}`);
       const item = JSON.parse(content);
-      if (filters && !Object.entries(filters).every(([k, v]) => item.payload[k] === v)) continue;
+      if (filters) {
+        const matchedAll = Object.entries(filters).every(([k, v]) => {
+          // If the payload doesn't have the key, treat as not equal (allow caller to decide fallback)
+          if (!(k in item.payload)) return false;
+          const payloadVal = item.payload[k];
+          // Coerce to string to avoid number/string mismatches
+          try {
+            return String(payloadVal) === String(v);
+          } catch {
+            return payloadVal === v;
+          }
+        });
+        if (!matchedAll) continue;
+      }
       const score = this.cosineSimilarity(query, item.vector);
       results.push({ id: item.id, payload: item.payload, score });
     }

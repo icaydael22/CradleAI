@@ -1,17 +1,17 @@
-import React, { useCallback, useState } from 'react';
-import {
+import React, { useCallback, useState, useEffect } from 'react';
+import { 
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
   Image,
-  SafeAreaView,
   StatusBar,
   Platform,
   Alert,
   Linking,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useUser } from '@/constants/UserContext';
@@ -19,8 +19,11 @@ import { useRouter } from 'expo-router';
 import ListItem from '@/components/ListItem';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import LoadingIndicator from '@/components/LoadingIndicator';
+import DiscordOAuth2WebView from '@/components/DiscordOAuth2WebView';
+import { discordAuthService, DiscordUser } from '@/services/discordAuthService';
 import { theme } from '@/constants/theme';
-import NovelAITestModal from '@/components/NovelAITestModal';
+import { isDiscordConfigured } from '@/utils/appConfig';
+import { ImageBackground } from 'react-native';
 
 const Profile: React.FC = () => {
   const { user, updateAvatar } = useUser();
@@ -28,6 +31,29 @@ const Profile: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [showPermissionDialog, setShowPermissionDialog] = useState(false);
   const [showNovelAITestModal, setShowNovelAITestModal] = useState(false);
+  const [showDiscordAuth, setShowDiscordAuth] = useState(false);
+  const [showVariableSystemTester, setShowVariableSystemTester] = useState(false);
+  const [discordUser, setDiscordUser] = useState<DiscordUser | null>(null);
+  const [discordAuthLoading, setDiscordAuthLoading] = useState(false);
+
+  // 检查Discord登录状态
+  useEffect(() => {
+    checkDiscordAuthStatus();
+  }, []);
+
+  const checkDiscordAuthStatus = async () => {
+    try {
+      const isLoggedIn = await discordAuthService.isLoggedIn();
+      if (isLoggedIn) {
+        const userData = await discordAuthService.getUser();
+        if (userData) {
+          setDiscordUser(userData);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to check Discord auth status:', error);
+    }
+  };
 
   const pickImage = useCallback(async () => {
     try {
@@ -61,28 +87,101 @@ const Profile: React.FC = () => {
     Alert.alert('成功', '图像已成功生成并保存到应用中');
   };
 
+  // Discord OAuth2 处理函数
+  const handleDiscordLogin = () => {
+    if (!isDiscordConfigured()) {
+      Alert.alert(
+        '配置错误',
+        'Discord认证配置不完整，请检查环境变量配置。',
+        [{ text: '确定' }]
+      );
+      return;
+    }
+    setShowDiscordAuth(true);
+  };
+
+  const handleDiscordAuthSuccess = async (token: string, user: DiscordUser) => {
+    try {
+      setDiscordAuthLoading(true);
+      await discordAuthService.handleAuthSuccess(token, user);
+      setDiscordUser(user);
+      Alert.alert(
+        '登录成功',
+        `欢迎, ${user.username}!\n您已成功连接Discord账号。`,
+        [{ text: '确定' }]
+      );
+    } catch (error) {
+      console.error('Failed to handle Discord auth success:', error);
+      Alert.alert('登录失败', '保存认证信息时出错，请重试。');
+    } finally {
+      setDiscordAuthLoading(false);
+    }
+  };
+
+  const handleDiscordAuthError = (error: string) => {
+    Alert.alert('Discord登录失败', error);
+  };
+
+  const handleDiscordLogout = () => {
+    Alert.alert(
+      '确认登出',
+      '您确定要断开Discord连接吗？',
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '确认',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await discordAuthService.logout();
+              setDiscordUser(null);
+              Alert.alert('已登出', 'Discord连接已断开');
+            } catch (error) {
+              console.error('Failed to logout from Discord:', error);
+              Alert.alert('登出失败', '断开连接时出错');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor={theme.colors.background} />
-
-      {/* Header Image */}
-      <Image 
-        source={require('@/assets/images/default-background.jpg')}
-        style={styles.headerImage}
-        resizeMode="cover"
-      />
-
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <StatusBar barStyle="light-content" translucent={false} backgroundColor={theme.colors.background} />
+      <ImageBackground
+        source={require('../../assets/images/default-background.jpg')}
+        style={{ flex: 1 }}
+        imageStyle={{ resizeMode: 'cover', opacity: 0.35 }}
+      >
       {/* User Profile */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={pickImage}>
-          <Image
-            source={user?.avatar ? { uri: user.avatar } : require('@/assets/images/default-avatar.png')}
-            style={styles.avatar}
-          />
-          <View style={styles.editAvatarButton}>
-            <Ionicons name="camera" size={16} color="black" />
+        <View style={styles.userInfoContainer}>
+          <TouchableOpacity onPress={pickImage}>
+            <Image
+              source={user?.avatar ? { uri: user.avatar } : require('../../assets/images/default-avatar.png')}
+              style={styles.avatar}
+            />
+            <View style={styles.editAvatarButton}>
+              <Ionicons name="camera" size={16} color="black" />
+            </View>
+          </TouchableOpacity>
+          <View style={styles.userInfoDetails}>
+            {discordUser ? (
+              <>
+                <Text style={styles.username}>{discordUser.username}</Text>
+                <TouchableOpacity onPress={handleDiscordLogout} style={[styles.discordButton, {backgroundColor: theme.colors.danger}]}>
+                  <Text style={styles.discordButtonText}>断开连接</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <TouchableOpacity onPress={handleDiscordLogin} style={[styles.discordButton, styles.loginButton]}>
+                <Ionicons name="logo-discord" size={20} color="white" style={{ marginRight: 8 }} />
+                <Text style={styles.discordButtonText}>连接 Discord</Text>
+              </TouchableOpacity>
+            )}
           </View>
-        </TouchableOpacity>
+        </View>
       </View>
 
       {/* Menu Items */}
@@ -91,19 +190,15 @@ const Profile: React.FC = () => {
         contentContainerStyle={styles.menuContent}
         showsVerticalScrollIndicator={false}
       >
+
+
         <ListItem
           title="API 设置"
           leftIcon="cloud-outline"
           chevron={true}
           onPress={() => router.push('/pages/api-settings')}
         />
-        
-        <ListItem
-          title="模型预算"
-          leftIcon="calculator-outline"
-          chevron={true}
-          onPress={() => router.push('../pages/token-planner')}
-        />
+
 
         {/* Add new option for custom user settings manager */}
         <ListItem
@@ -122,14 +217,6 @@ const Profile: React.FC = () => {
           subtitle="测试NovelAI连接和图像生成"
         /> */}
 
-        {/* 新增：rFramework测试入口 */}
-        <ListItem
-          title="预设/世界书测试"
-          leftIcon="flask-outline"
-          chevron={true}
-          onPress={() => router.push('/components/testframework')}
-          subtitle="测试消息格式"
-        />
 
         {/* 新增：工具设置入口 */}
         <ListItem
@@ -167,6 +254,21 @@ const Profile: React.FC = () => {
           subtitle="管理插件"
         /> */}
 
+        {/* Discord认证调试 - 开发时使用 */}
+        {/* {__DEV__ && (
+          <>
+            <ListItem
+              title="Discord认证调试"
+              leftIcon="bug-outline"
+              chevron={true}
+              onPress={() => router.push('/pages/discord-auth-debug')}
+              subtitle="测试Discord OAuth2认证"
+            />
+            
+
+          </>
+        )} */}
+
         {/* <ListItem
           title="加入社区"
           leftIcon="people-outline"
@@ -189,7 +291,7 @@ const Profile: React.FC = () => {
           title="关于"
           leftIcon="information-circle-outline"
           chevron={false}
-          subtitle="GitHub | CradleAI | 1.0.4"
+          subtitle="GitHub | CradleAI | 1.0.6"
           onPress={() => Linking.openURL('https://github.com/AliceSyndrome285/CradleAI')}
         />
       </ScrollView>
@@ -207,20 +309,24 @@ const Profile: React.FC = () => {
         icon="alert-circle"
       />
 
-      {/* NovelAI Test Modal */}
-      <NovelAITestModal
-        visible={showNovelAITestModal}
-        onClose={() => setShowNovelAITestModal(false)}
-        onImageGenerated={handleNovelAIImageGenerated}
-      />
-
       {/* 使用新的LoadingIndicator组件 */}
       <LoadingIndicator 
-        visible={isLoading} 
-        text="处理中..."
+        visible={isLoading || discordAuthLoading} 
+        text={discordAuthLoading ? "处理Discord认证..." : "处理中..."}
         overlay={true}
         useModal={true}
       />
+
+      {/* Discord OAuth2 WebView */}
+      <DiscordOAuth2WebView
+        visible={showDiscordAuth}
+        onClose={() => setShowDiscordAuth(false)}
+        onSuccess={handleDiscordAuthSuccess}
+        onError={handleDiscordAuthError}
+      />
+
+
+      </ImageBackground>
     </SafeAreaView>
   );
 };
@@ -230,51 +336,71 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
-  headerImage: {
-    width: '100%',
-    height: 160, // Reduced from 200
-  },
   header: {
-    marginTop: -50, // Reduced from -60
-    padding: 12, // Reduced from 16
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 20,
-    alignItems: 'center',
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 12 : 12,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  userInfoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingTop: 0,
   },
   avatar: {
-    width: 75, // Reduced from 90
-    height: 75, // Reduced from 90
-    borderRadius: 37.5, // Adjusted accordingly
-    marginBottom: 12, // Reduced from 16
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     borderWidth: 3,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 3,
-    elevation: 3,
   },
   editAvatarButton: {
     position: 'absolute',
-    bottom: 12, // Adjusted from 16
+    bottom: 0,
     right: 0,
     backgroundColor: theme.colors.primary,
-    width: 26, // Reduced from 30
-    height: 26, // Reduced from 30
-    borderRadius: 13, // Adjusted accordingly
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
     borderColor: theme.colors.background,
   },
+  userInfoDetails: {
+    flex: 1,
+    marginLeft: 16,
+    height: 80,
+    justifyContent: 'center',
+  },
+  username: {
+    color: 'white',
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  discordButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  loginButton: {
+    backgroundColor: '#5865F2', // Discord blue
+  },
+  discordButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+  },
   menuContainer: {
     flex: 1,
-    paddingHorizontal: 8, // Add horizontal padding
+    paddingHorizontal: 8,
   },
   menuContent: {
-    paddingVertical: 8, // Add vertical padding
-    paddingBottom: 20, // Extra bottom padding
+    paddingVertical: 18,
+    paddingBottom: 20,
   },
   content: {
     flex: 1,

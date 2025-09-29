@@ -39,6 +39,7 @@ export interface CharactersContextType {
   getCharacterConversationId: (characterId: string) => string | undefined;
   updateCharacter: (character: Character) => Promise<void>;
   getMessages: (conversationId: string) => Promise<Message[]>;
+  getLastMessageTime: (conversationId: string) => Promise<number | null>;
   addMessage: (conversationId: string, message: Message) => Promise<void>;
   clearMessages: (conversationId: string) => Promise<void>;
   removeMessage: (conversationId: string, messageId: string) => Promise<void>;

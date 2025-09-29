@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GeminiAdapter } from '../utils/gemini-adapter';
 import { OpenRouterAdapter } from '../utils/openrouter-adapter';
 import { OpenAIAdapter } from '../utils/openai-adapter';
+import { CradleCloudAdapter } from '../utils/cradlecloud-adapter';
 import { CharacterUtils } from '../utils/character-utils';
 import { 
     RoleCardJson,
@@ -13,14 +14,237 @@ import {
     ChatHistoryEntity,
     GeminiMessage,
     RegexScript,
-    GlobalSettings,GlobalPresetConfig, GlobalWorldbookConfig,
+    GlobalSettings,
+    Character,
 } from '../../../shared/types';
 import { MessagePart } from '@/shared/types';
 import { memoryService } from '@/services/memory-service';
+import { ScriptVariableService } from '@/services/variables/ScriptVariableService';
+import { VariableProcessor } from '@/services/variables/VariableProcessor';
+import { FileOperationLockManager } from '@/services/variables/core/FileOperationLockManager';
 import { StorageAdapter } from '../utils/storage-adapter';
 import { getApiSettings } from '@/utils/settings-helper';
+import { CharacterStorageService } from '@/services/CharacterStorageService';
+import MemoOverlay from '@/app/pages/MemoOverlay';
+
+interface FileSystemConfig {
+    maxDataSize: number;           // 最大数据大小 (bytes)
+    maxJsonStringLength: number;   // JSON 字符串最大长度
+    maxRetryAttempts: number;      // 最大重试次数
+    retryDelayMs: number;          // 重试延迟 (ms)
+    atomicOperationTimeout: number; // 原子操作超时 (ms)
+}
+
+// 默认配置
+const DEFAULT_FS_CONFIG: FileSystemConfig = {
+    maxDataSize: 50 * 1024 * 1024,     // 50MB
+    maxJsonStringLength: 10 * 1024 * 1024, // 10MB JSON 字符串
+    maxRetryAttempts: 3,
+    retryDelayMs: 100,
+    atomicOperationTimeout: 30000      // 30秒
+};
+
+// 安全 JSON 处理器
+class SafeJsonProcessor {
+    private static readonly config = DEFAULT_FS_CONFIG;
+
+    static async safeStringify(data: any): Promise<string> {
+        return new Promise((resolve, reject) => {
+            try {
+                // 检查数据大小估算
+                const roughSize = JSON.stringify(data).length;
+                if (roughSize > this.config.maxJsonStringLength) {
+                    throw new Error(`JSON string too large: ${roughSize} bytes exceeds ${this.config.maxJsonStringLength} bytes`);
+                }
+
+                // 使用 setTimeout 在下一个事件循环中执行，避免阻塞主线程
+                setTimeout(() => {
+                    try {
+                        const result = JSON.stringify(data);
+                        resolve(result);
+                    } catch (error) {
+                        reject(new Error(`JSON stringify failed: ${error instanceof Error ? error.message : String(error)}`));
+                    }
+                }, 0);
+            } catch (error) {
+                reject(error);
+            }
+        });
+    }
+
+    static async safeParse<T>(jsonString: string): Promise<T> {
+        return new Promise((resolve, reject) => {
+            try {
+                // 检查字符串长度
+                if (jsonString.length > this.config.maxJsonStringLength) {
+                    throw new Error(`JSON string too large: ${jsonString.length} characters exceeds ${this.config.maxJsonStringLength}`);
+                }
+
+                // 使用 setTimeout 在下一个事件循环中执行，避免阻塞主线程
+                setTimeout(() => {
+                    try {
+                        const result = JSON.parse(jsonString);
+                        resolve(result);
+                    } catch (error) {
+                        reject(new Error(`JSON parse failed: ${error instanceof Error ? error.message : String(error)}`));
+                    }
+                }, 0);
+            } catch (error) {
+                reject(error);
+            }
+        });
+    }
+}
+
+// 路径安全校验器
+class PathValidator {
+    private static readonly INVALID_CHARS = /[<>:"|?*\x00-\x1f]/;
+    private static readonly RESERVED_NAMES = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i;
+
+    static validateKey(key: string): boolean {
+        if (!key || typeof key !== 'string') {
+            return false;
+        }
+
+        // 检查长度
+        if (key.length === 0 || key.length > 255) {
+            return false;
+        }
+
+        // 检查非法字符
+        if (this.INVALID_CHARS.test(key)) {
+            return false;
+        }
+
+        // 检查保留名称
+        if (this.RESERVED_NAMES.test(key)) {
+            return false;
+        }
+
+        // 检查路径遍历攻击
+        if (key.includes('..') || key.includes('/') || key.includes('\\')) {
+            return false;
+        }
+
+        return true;
+    }
+
+    static sanitizeKey(key: string): string {
+        if (!key || typeof key !== 'string') {
+            throw new Error('Invalid key: must be a non-empty string');
+        }
+
+        // 移除非法字符
+        const sanitized = key.replace(this.INVALID_CHARS, '_').replace(/[\/\\]/g, '_');
+        
+        // 截断长度
+        const truncated = sanitized.substring(0, 200);
+        
+        if (!this.validateKey(truncated)) {
+            throw new Error(`Cannot sanitize key: ${key}`);
+        }
+
+        return truncated;
+    }
+}
+
+// 角色数据缓存接口
+interface CharacterCacheData {
+    roleCard: RoleCardJson;
+    worldBook: WorldBookJson;
+    preset: PresetJson;
+    authorNote?: AuthorNoteJson;
+    chatHistory: ChatHistoryEntity;
+    contents: ChatMessage[];
+    lastModified: number;
+}
+
+// 内存缓存管理类
+class CharacterCacheManager {
+    private static instance: CharacterCacheManager;
+    private cache = new Map<string, CharacterCacheData>();
+    private readonly maxCacheSize = 50; // 最大缓存数量
+    private readonly cacheExpirationTime = 30 * 60 * 1000; // 30分钟过期
+
+    static getInstance(): CharacterCacheManager {
+        if (!CharacterCacheManager.instance) {
+            CharacterCacheManager.instance = new CharacterCacheManager();
+        }
+        return CharacterCacheManager.instance;
+    }
+
+    // 获取缓存数据
+    get(conversationId: string): CharacterCacheData | null {
+        const data = this.cache.get(conversationId);
+        if (!data) return null;
+
+        // 检查是否过期
+        if (Date.now() - data.lastModified > this.cacheExpirationTime) {
+            this.cache.delete(conversationId);
+            console.log(`[CharacterCache] Cache expired for ${conversationId}`);
+            return null;
+        }
+
+        console.log(`[CharacterCache] Cache hit for ${conversationId}`);
+        return data;
+    }
+
+    // 设置缓存数据
+    set(conversationId: string, data: Omit<CharacterCacheData, 'lastModified'>): void {
+        // 如果缓存已满，删除最旧的条目
+        if (this.cache.size >= this.maxCacheSize) {
+            const oldestKey = this.cache.keys().next().value;
+            if (typeof oldestKey === 'string') {
+                this.cache.delete(oldestKey);
+                console.log(`[CharacterCache] Evicted oldest cache entry: ${oldestKey}`);
+            }
+        }
+
+        this.cache.set(conversationId, {
+            ...data,
+            lastModified: Date.now()
+        });
+        console.log(`[CharacterCache] Cached data for ${conversationId}`);
+    }
+
+    // 更新缓存中的特定字段
+    updateField<K extends keyof CharacterCacheData>(
+        conversationId: string, 
+        field: K, 
+        value: CharacterCacheData[K]
+    ): void {
+        const data = this.cache.get(conversationId);
+        if (data) {
+            (data as any)[field] = value;
+            data.lastModified = Date.now();
+            console.log(`[CharacterCache] Updated ${field} for ${conversationId}`);
+        }
+    }
+
+    // 清除缓存
+    clear(conversationId: string): void {
+        this.cache.delete(conversationId);
+        console.log(`[CharacterCache] Cleared cache for ${conversationId}`);
+    }
+
+    // 清除所有缓存
+    clearAll(): void {
+        this.cache.clear();
+        console.log(`[CharacterCache] Cleared all cache`);
+    }
+
+    // 获取缓存统计信息
+    getStats(): { size: number; keys: string[] } {
+        return {
+            size: this.cache.size,
+            keys: Array.from(this.cache.keys())
+        };
+    }
+}
 
 export class NodeSTCore {
+    // D类条目处理窗口大小 - 优化性能，避免对整个历史记录进行处理
+    private static readonly D_ENTRY_PROCESSING_WINDOW = 20;
 
     // 添加静态属性用于存储最新请求/响应
     private static latestRequestData: {
@@ -35,6 +259,9 @@ export class NodeSTCore {
 
     // 添加静态属性用于存储当前的 AbortController
     private static currentAbortController: AbortController | null = null;
+
+    // 添加缓存管理器实例
+    private cacheManager = CharacterCacheManager.getInstance();
 
     // 添加静态方法用于中止当前请求
     public static abortCurrentRequest(): boolean {
@@ -59,58 +286,6 @@ export class NodeSTCore {
 
         return NodeSTCore.latestRequestData;
     }
-
-    // 添加静态方法用于记录请求/响应
-    public static logRequestResponse(request: any, response: string | null, adapter: string) {
-        let statusCode: number | undefined = undefined;
-        let statusText: string | undefined = undefined;
-        let errorMessage: string | undefined = undefined;
-       if (response) {
-            try {
-                let respObj: any = response;
-                if (typeof response === 'string') {
-                    // 可能是JSON字符串
-                    if (response.trim().startsWith('{') || response.trim().startsWith('[')) {
-                        respObj = JSON.parse(response);
-                    }
-                }
-                // OpenAI/Gemini/OpenRouter 错误结构
-                if (respObj && typeof respObj === 'object') {
-                    // OpenAI: { error: { code, message, type } }
-                    if (respObj.error) {
-                        statusCode = respObj.error.code && typeof respObj.error.code === 'number'
-                            ? respObj.error.code
-                            : undefined;
-                        statusText = respObj.error.type || respObj.error.code || 'error';
-                        errorMessage = respObj.error.message || undefined;
-                    }
-                    // Gemini: { status: { code, message }, error: { message } }
-                    if (respObj.status && typeof respObj.status === 'object') {
-                        statusCode = respObj.status.code;
-                        statusText = respObj.status.message;
-                        if (respObj.error && respObj.error.message) {
-                            errorMessage = respObj.error.message;
-                        }
-                    }
-                    // OpenRouter: { detail, status_code }
-                    if (respObj.status_code) {
-                        statusCode = respObj.status_code;
-                        statusText = respObj.detail || 'error';
-                        errorMessage = respObj.detail || undefined;
-                    }
-                }
-            } catch (e) {
-                // ignore parse error
-            }
-        }
-        NodeSTCore.latestRequestData = {
-            request,
-            response: response || undefined,
-            timestamp: Date.now(),
-            adapter
-        };
-        console.log(`[NodeSTCore][RequestLog] 已记录请求/响应，适配器: ${adapter}, 请求长度: ${JSON.stringify(request).length}, 响应长度: ${response?.length || 0}`);
-    }    // 已知标签白名单（从ChatDialog.tsx同步）
 
 
     /**
@@ -204,14 +379,33 @@ export class NodeSTCore {
 
     // 角色数据文件存储目录
     private static characterDataDir = FileSystem.documentDirectory + 'nodest_characters/';
-        // 辅助方法：获取角色数据文件路径
+    
+    // 改进的文件路径获取方法，增加安全验证
     private getCharacterDataFilePath(key: string): string {
-        // key 形如 nodest_{conversationId}_{suffix}
-        return NodeSTCore.characterDataDir + key + '.json';
+        // 验证键值安全性
+        if (!PathValidator.validateKey(key)) {
+            throw new Error(`Invalid key for file path: ${key}`);
+        }
+        
+        // 确保目录路径是安全的
+        if (!NodeSTCore.characterDataDir || !FileSystem.documentDirectory) {
+            throw new Error('FileSystem.documentDirectory is not available');
+        }
+        
+        const sanitizedKey = PathValidator.sanitizeKey(key);
+        const filePath = NodeSTCore.characterDataDir + sanitizedKey + '.json';
+        
+        // 额外的路径安全检查
+        if (!filePath.startsWith(NodeSTCore.characterDataDir)) {
+            throw new Error(`Generated file path is outside allowed directory: ${filePath}`);
+        }
+        
+        return filePath;
     }
     private geminiAdapter: GeminiAdapter | null = null;
     private openRouterAdapter: OpenRouterAdapter | null = null;
     private openAICompatibleAdapter: OpenAIAdapter | null = null;
+    private cradleCloudAdapter: CradleCloudAdapter | null = null;
     private currentContents: ChatMessage[] | null = null;
     private apiKey: string;
     private apiSettings: Partial<GlobalSettings['chat']> = {
@@ -226,7 +420,7 @@ export class NodeSTCore {
         conversationId: string,
         characterId: string,
         apiKey: string,
-        summaryRange?: { start: number, end: number },
+        summaryRangePercent?: { start: number, end: number },
         apiSettings?: Partial<GlobalSettings['chat']>
     ): Promise<boolean> {
         // 直接调用 memoryService 的 summarizeMemoryNow
@@ -246,7 +440,7 @@ export class NodeSTCore {
                     apiProvider,
                     openrouter
                 },
-                summaryRange
+                summaryRangePercent
             );
         } catch (e) {
             // console.error('[NodeSTCore] summarizeMemoryNow error:', e);
@@ -381,12 +575,28 @@ export class NodeSTCore {
             this.openAICompatibleAdapter = null;
         }
 
+        // 初始化 CradleCloudAdapter
+        if (apiSettings?.apiProvider === 'cradlecloud' && apiSettings.cradlecloud?.enabled) {
+            this.cradleCloudAdapter = new CradleCloudAdapter();
+        } else {
+            this.cradleCloudAdapter = null;
+        }
+
         if (apiSettings) {
             this.apiSettings = apiSettings;
         }
     }
 
     private getActiveAdapter() {
+        // 检查是否使用 CradleCloud
+        if (this.apiSettings?.apiProvider === 'cradlecloud' && 
+            this.apiSettings.cradlecloud?.enabled && 
+            this.cradleCloudAdapter) {
+            console.log('[NodeSTCore] Using CradleCloud adapter with model:', 
+                this.apiSettings.cradlecloud.model || 'gemini-2.0-flash-exp');
+            return this.cradleCloudAdapter;
+        }
+
         // 检查是否使用 OpenRouter
         if (this.apiSettings?.apiProvider === 'openrouter' && 
             this.apiSettings.openrouter?.enabled && 
@@ -412,32 +622,435 @@ export class NodeSTCore {
         return this.geminiAdapter;
     }
 
-    private getStorageKey(conversationId: string, suffix: string = ''): string {
-        return `nodest_${conversationId}${suffix}`;
+    // 文件系统健壮性检查
+    private static async ensureFileSystemReady(): Promise<void> {
+        const documentDir = FileSystem.documentDirectory;
+        if (!documentDir) {
+            throw new Error('FileSystem.documentDirectory is not available');
+        }
+
+        // 检查目录是否可写
+        try {
+            const testFilePath = documentDir + 'test_write_' + Date.now() + '.tmp';
+            await FileSystem.writeAsStringAsync(testFilePath, 'test');
+            await FileSystem.deleteAsync(testFilePath, { idempotent: true });
+        } catch (error) {
+            throw new Error(`FileSystem is not writable: ${error instanceof Error ? error.message : String(error)}`);
+        }
     }
 
+    private static async initializeCharacterDataDir(): Promise<void> {
+        const lockManager = FileOperationLockManager.getInstance();
+        return lockManager.acquire('init_character_dir', async () => {
+            await this.ensureFileSystemReady();
+            
+            // 安全创建目录
+            try {
+                await FileSystem.makeDirectoryAsync(NodeSTCore.characterDataDir, { 
+                    intermediates: true 
+                });
+            } catch (error) {
+                // 检查目录是否已存在
+                const dirInfo = await FileSystem.getInfoAsync(NodeSTCore.characterDataDir);
+                if (!dirInfo.exists) {
+                    throw new Error(`Failed to create character data directory: ${error instanceof Error ? error.message : String(error)}`);
+                }
+            }
+        });
+    }
+
+    private getStorageKey(conversationId: string, suffix: string = ''): string {
+        // 验证输入参数
+        if (!PathValidator.validateKey(conversationId)) {
+            throw new Error(`Invalid conversationId: ${conversationId}`);
+        }
+        if (suffix && !PathValidator.validateKey(suffix)) {
+            throw new Error(`Invalid suffix: ${suffix}`);
+        }
+        
+        return `nodest_${PathValidator.sanitizeKey(conversationId)}${suffix}`;
+    }
+
+    // 改进的安全 JSON 保存方法
     private async saveJson(key: string, data: any): Promise<void> {
+        const lockManager = FileOperationLockManager.getInstance();
+        return lockManager.acquire(`save_${key}`, async () => {
+            try {
+                // 验证键值
+                if (!PathValidator.validateKey(key)) {
+                    throw new Error(`Invalid key for file operation: ${key}`);
+                }
+
+                // 确保文件系统就绪
+                await NodeSTCore.initializeCharacterDataDir();
+
+                // 安全序列化 JSON
+                const jsonString = await SafeJsonProcessor.safeStringify(data);
+
+                // 检查数据大小
+                if (jsonString.length > DEFAULT_FS_CONFIG.maxDataSize) {
+                    throw new Error(`Data too large: ${jsonString.length} bytes exceeds ${DEFAULT_FS_CONFIG.maxDataSize} bytes`);
+                }
+
+                const filePath = this.getCharacterDataFilePath(key);
+                await FileSystem.writeAsStringAsync(filePath, jsonString);
+                
+                console.log(`[NodeSTCore] Successfully saved data for key: ${key}`);
+            } catch (error) {
+                console.error(`[NodeSTCore] Error saving data for key ${key}:`, error);
+                throw error;
+            }
+        });
+    }
+
+    // 安全的原子性移动操作
+    private async safeAtomicMove(sourcePath: string, targetPath: string): Promise<void> {
         try {
-            // 统一全部写入文件
-            await FileSystem.makeDirectoryAsync(NodeSTCore.characterDataDir, { intermediates: true }).catch(() => {});
-            const filePath = this.getCharacterDataFilePath(key);
-            await FileSystem.writeAsStringAsync(filePath, JSON.stringify(data));
+            // 检查目标文件是否存在，如果存在先删除
+            const targetExists = await this.fileExists(targetPath);
+            if (targetExists) {
+                await FileSystem.deleteAsync(targetPath, { idempotent: true });
+            }
+
+            // 执行移动操作
+            await FileSystem.moveAsync({
+                from: sourcePath,
+                to: targetPath
+            });
         } catch (error) {
-            console.error(`Error saving data for key ${key}:`, error);
+            // 如果移动失败，尝试复制+删除的方式
+            try {
+                await FileSystem.copyAsync({
+                    from: sourcePath,
+                    to: targetPath
+                });
+                await FileSystem.deleteAsync(sourcePath, { idempotent: true });
+            } catch (fallbackError) {
+                throw new Error(`Both move and copy+delete failed. Move error: ${error instanceof Error ? error.message : String(error)}. Fallback error: ${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}`);
+            }
+        }
+    }
+
+    // 文件存在性检查
+    private async fileExists(filePath: string): Promise<boolean> {
+        try {
+            const fileInfo = await FileSystem.getInfoAsync(filePath);
+            return fileInfo.exists;
+        } catch {
+            return false;
+        }
+    }
+
+    // 改进的事务性多文件保存方法
+    private async saveMultipleJsonAtomic(operations: Array<{ key: string; data: any }>): Promise<void> {
+        const lockManager = FileOperationLockManager.getInstance();
+        const lockKeys = operations.map(op => `save_multi_${op.key}`).join('_');
+        
+        return lockManager.acquire(lockKeys, async () => {
+            const tempFiles: string[] = [];
+            const targetFiles: Array<{ temp: string; target: string; backup?: string }> = [];
+            const backupFiles: string[] = [];
+            
+            try {
+                // 确保文件系统就绪
+                await NodeSTCore.initializeCharacterDataDir();
+                
+                // 第一阶段：验证所有键值并准备备份
+                for (const operation of operations) {
+                    if (!PathValidator.validateKey(operation.key)) {
+                        throw new Error(`Invalid key for multi-file operation: ${operation.key}`);
+                    }
+
+                    const targetFilePath = this.getCharacterDataFilePath(operation.key);
+                    const tempFilePath = targetFilePath + '.tmp';
+                    const backupFilePath = targetFilePath + '.backup';
+
+                    // 创建备份（如果目标文件存在）
+                    if (await this.fileExists(targetFilePath)) {
+                        await FileSystem.copyAsync({
+                            from: targetFilePath,
+                            to: backupFilePath
+                        });
+                        backupFiles.push(backupFilePath);
+                        targetFiles.push({ temp: tempFilePath, target: targetFilePath, backup: backupFilePath });
+                    } else {
+                        targetFiles.push({ temp: tempFilePath, target: targetFilePath });
+                    }
+                }
+                
+                // 第二阶段：准备所有临时文件
+                for (let i = 0; i < operations.length; i++) {
+                    const operation = operations[i];
+                    const { temp } = targetFiles[i];
+                    
+                    // 安全序列化
+                    const jsonString = await SafeJsonProcessor.safeStringify(operation.data);
+                    
+                    // 检查数据大小
+                    if (jsonString.length > DEFAULT_FS_CONFIG.maxDataSize) {
+                        throw new Error(`Data too large for key ${operation.key}: ${jsonString.length} bytes exceeds ${DEFAULT_FS_CONFIG.maxDataSize} bytes`);
+                    }
+                    
+                    // 写入临时文件
+                    await FileSystem.writeAsStringAsync(temp, jsonString);
+                    
+                    // 验证临时文件
+                    const tempFileInfo = await FileSystem.getInfoAsync(temp);
+                    if (!tempFileInfo.exists) {
+                        throw new Error(`Temporary file creation failed for key: ${operation.key}`);
+                    }
+                    
+                    // 验证数据完整性
+                    const tempContent = await FileSystem.readAsStringAsync(temp);
+                    await SafeJsonProcessor.safeParse(tempContent);
+                    
+                    tempFiles.push(temp);
+                }
+                
+                // 第三阶段：原子性提交所有文件
+                for (const fileOp of targetFiles) {
+                    await this.safeAtomicMove(fileOp.temp, fileOp.target);
+                }
+
+                // 清理备份文件
+                for (const backupFile of backupFiles) {
+                    await FileSystem.deleteAsync(backupFile, { idempotent: true });
+                }
+                
+                console.log(`[NodeSTCore] Transactional save successful for ${operations.length} files`);
+            } catch (error) {
+                console.error('[NodeSTCore] Transactional save failed, performing rollback:', error);
+                
+                // 回滚操作：恢复备份文件
+                for (const fileOp of targetFiles) {
+                    if (fileOp.backup && await this.fileExists(fileOp.backup)) {
+                        try {
+                            await FileSystem.moveAsync({
+                                from: fileOp.backup,
+                                to: fileOp.target
+                            });
+                            console.log(`[NodeSTCore] Restored backup for ${fileOp.target}`);
+                        } catch (restoreError) {
+                            console.error(`[NodeSTCore] Failed to restore backup for ${fileOp.target}:`, restoreError);
+                        }
+                    }
+                }
+                
+                // 清理临时文件
+                for (const tempFile of tempFiles) {
+                    try {
+                        if (await this.fileExists(tempFile)) {
+                            await FileSystem.deleteAsync(tempFile, { idempotent: true });
+                        }
+                    } catch (cleanupError) {
+                        console.warn(`[NodeSTCore] Failed to cleanup temp file: ${tempFile}`, cleanupError);
+                    }
+                }
+                
+                // 清理剩余的备份文件
+                for (const backupFile of backupFiles) {
+                    try {
+                        if (await this.fileExists(backupFile)) {
+                            await FileSystem.deleteAsync(backupFile, { idempotent: true });
+                        }
+                    } catch (cleanupError) {
+                        console.warn(`[NodeSTCore] Failed to cleanup backup file: ${backupFile}`, cleanupError);
+                    }
+                }
+                
+                throw error;
+            }
+        });
+    }
+
+    // 更新缓存并保存到文件
+    private async updateCacheAndSave(conversationId: string, updates: Partial<CharacterCacheData>): Promise<void> {
+        try {
+            // 同时更新缓存和保存到文件
+            const operations: Array<{ key: string; data: any }> = [];
+            
+            if (updates.chatHistory) {
+                operations.push({
+                    key: this.getStorageKey(conversationId, '_history'),
+                    data: updates.chatHistory as any
+                });
+                this.cacheManager.updateField(conversationId, 'chatHistory', updates.chatHistory);
+            }
+            
+            if (updates.contents) {
+                operations.push({
+                    key: this.getStorageKey(conversationId, '_contents'),
+                    data: updates.contents as any
+                });
+                this.cacheManager.updateField(conversationId, 'contents', updates.contents);
+            }
+            
+            if (updates.roleCard) {
+                operations.push({
+                    key: this.getStorageKey(conversationId, '_role'),
+                    data: updates.roleCard as any
+                });
+                this.cacheManager.updateField(conversationId, 'roleCard', updates.roleCard);
+            }
+            
+            if (updates.worldBook) {
+                operations.push({
+                    key: this.getStorageKey(conversationId, '_world'),
+                    data: updates.worldBook as any
+                });
+                this.cacheManager.updateField(conversationId, 'worldBook', updates.worldBook);
+            }
+            
+            if (updates.preset) {
+                operations.push({
+                    key: this.getStorageKey(conversationId, '_preset'),
+                    data: updates.preset as any
+                });
+                this.cacheManager.updateField(conversationId, 'preset', updates.preset);
+            }
+            
+            if (updates.authorNote !== undefined) {
+                operations.push({
+                    key: this.getStorageKey(conversationId, '_note'),
+                    data: updates.authorNote as any
+                });
+                this.cacheManager.updateField(conversationId, 'authorNote', updates.authorNote);
+            }
+            
+            // 使用事务性保存
+            if (operations.length > 0) {
+                await this.saveMultipleJsonAtomic(operations);
+            }
+            
+            console.log(`[NodeSTCore] Cache and files updated successfully for ${conversationId}`);
+        } catch (error) {
+            console.error(`[NodeSTCore] Failed to update cache and save for ${conversationId}:`, error);
+            // 在失败时清除缓存，确保下次从文件重新加载
+            this.cacheManager.clear(conversationId);
             throw error;
         }
     }
 
+    // 改进的安全 JSON 加载方法
     private async loadJson<T>(key: string): Promise<T | null> {
+        const lockManager = FileOperationLockManager.getInstance();
+        return lockManager.acquire(`load_${key}`, async () => {
+            try {
+                // 验证键值
+                if (!PathValidator.validateKey(key)) {
+                    throw new Error(`Invalid key for file operation: ${key}`);
+                }
+
+                const filePath = this.getCharacterDataFilePath(key);
+                
+                // 安全检查文件是否存在
+                if (!await this.fileExists(filePath)) {
+                    return null;
+                }
+
+                // 检查文件信息
+                const fileInfo = await FileSystem.getInfoAsync(filePath);
+                if (!fileInfo.exists) {
+                    return null;
+                }
+
+                // 检查文件大小
+                if (fileInfo.size && fileInfo.size > DEFAULT_FS_CONFIG.maxDataSize) {
+                    throw new Error(`File too large: ${fileInfo.size} bytes exceeds ${DEFAULT_FS_CONFIG.maxDataSize} bytes`);
+                }
+
+                // 读取文件内容
+                const content = await FileSystem.readAsStringAsync(filePath);
+                if (!content) {
+                    return null;
+                }
+
+                // 检查内容长度
+                if (content.length > DEFAULT_FS_CONFIG.maxJsonStringLength) {
+                    throw new Error(`File content too large: ${content.length} characters exceeds ${DEFAULT_FS_CONFIG.maxJsonStringLength}`);
+                }
+
+                // 安全解析 JSON
+                const result = await SafeJsonProcessor.safeParse<T>(content);
+                console.log(`[NodeSTCore] Successfully loaded data for key: ${key}`);
+                return result;
+            } catch (error) {
+                console.error(`[NodeSTCore] Error loading data for key ${key}:`, error);
+                
+                // 对于解析错误，尝试恢复
+                if (error instanceof Error && error.message.includes('JSON parse failed')) {
+                    console.warn(`[NodeSTCore] Attempting to recover corrupted file: ${key}`);
+                    await this.handleCorruptedFile(key);
+                }
+                
+                return null;
+            }
+        });
+    }
+
+    // 处理损坏的文件
+    private async handleCorruptedFile(key: string): Promise<void> {
         try {
-            // 统一全部从文件读取
             const filePath = this.getCharacterDataFilePath(key);
-            const fileInfo = await FileSystem.getInfoAsync(filePath);
-            if (!fileInfo.exists) return null;
-            const content = await FileSystem.readAsStringAsync(filePath);
-            return content ? JSON.parse(content) : null;
+            const corruptedPath = filePath + '.corrupted.' + Date.now();
+            
+            // 重命名损坏的文件以保留证据
+            if (await this.fileExists(filePath)) {
+                await FileSystem.moveAsync({
+                    from: filePath,
+                    to: corruptedPath
+                });
+                console.log(`[NodeSTCore] Moved corrupted file to: ${corruptedPath}`);
+            }
         } catch (error) {
-            console.error(`Error loading data for key ${key}:`, error);
+            console.error(`[NodeSTCore] Failed to handle corrupted file for key ${key}:`, error);
+        }
+    }
+
+    // 带缓存的字符数据加载方法
+    private async loadCharacterDataWithCache(conversationId: string): Promise<CharacterCacheData | null> {
+        // 首先尝试从缓存获取
+        const cachedData = this.cacheManager.get(conversationId);
+        if (cachedData) {
+            return cachedData;
+        }
+
+        console.log(`[CharacterCache] Cache miss for ${conversationId}, loading from disk`);
+        
+        try {
+            // 从文件系统加载所有必需的数据
+            const [roleCard, worldBook, preset, authorNote, chatHistory, contents] = await Promise.all([
+                this.loadJson<RoleCardJson>(this.getStorageKey(conversationId, '_role')),
+                this.loadJson<WorldBookJson>(this.getStorageKey(conversationId, '_world')),
+                this.loadJson<PresetJson>(this.getStorageKey(conversationId, '_preset')),
+                this.loadJson<AuthorNoteJson>(this.getStorageKey(conversationId, '_note')),
+                this.loadJson<ChatHistoryEntity>(this.getStorageKey(conversationId, '_history')),
+                this.loadJson<ChatMessage[]>(this.getStorageKey(conversationId, '_contents'))
+            ]);
+
+            // 验证必需数据
+            if (!roleCard || !worldBook || !chatHistory) {
+                console.error(`[CharacterCache] Missing required data for ${conversationId}`);
+                return null;
+            }
+
+            // 构建缓存数据对象
+            const characterData: CharacterCacheData = {
+                roleCard,
+                worldBook,
+                preset: preset || { prompts: [], prompt_order: [{ order: [] }] },
+                authorNote: authorNote ?? undefined,
+                chatHistory,
+                contents: contents || [],
+                lastModified: Date.now()
+            };
+
+            // 缓存数据
+            this.cacheManager.set(conversationId, characterData);
+            
+            return characterData;
+        } catch (error) {
+            console.error(`[CharacterCache] Error loading character data for ${conversationId}:`, error);
             return null;
         }
     }
@@ -490,7 +1103,7 @@ export class NodeSTCore {
                 name: "Unnamed Character",
                 first_mes: "Hello! (Default message)",
                 description: "This character was created with missing information.",
-                personality: "Friendly",
+                personality: "",
                 scenario: "",
                 mes_example: ""
             };
@@ -510,24 +1123,28 @@ export class NodeSTCore {
                 prompt_order: [{ order: [] }]
             };
 
-            // 保存角色相关文件 - use safe versions
-            await Promise.all([
-                this.saveJson(this.getStorageKey(conversationId, '_role'), safeRoleCard),
-                this.saveJson(this.getStorageKey(conversationId, '_world'), safeWorldBook),
-                this.saveJson(this.getStorageKey(conversationId, '_preset'), safePreset)
-            ]);
+            // 使用事务性保存角色相关文件
+            const saveOperations = [
+                { key: this.getStorageKey(conversationId, '_role'), data: safeRoleCard },
+                { key: this.getStorageKey(conversationId, '_world'), data: safeWorldBook },
+                { key: this.getStorageKey(conversationId, '_preset'), data: safePreset }
+            ];
 
             if (authorNote) {
-                await this.saveJson(this.getStorageKey(conversationId, '_note'), authorNote);
+                saveOperations.push({ 
+                    key: this.getStorageKey(conversationId, '_note'), 
+                    data: authorNote as any 
+                });
             }
 
             // 初始化聊天历史
+            let initialChatHistory: ChatHistoryEntity;
             if (chatHistory) {
                 try {
                     console.log('[NodeSTCore] 初始化聊天历史，使用传入的聊天历史');
                     
                     // Ensure chatHistory has all required fields
-                    const historyEntity: ChatHistoryEntity = {
+                    initialChatHistory = {
                         name: chatHistory.name || "Chat History",
                         role: chatHistory.role || "system",
                         parts: chatHistory.parts || [],
@@ -536,12 +1153,23 @@ export class NodeSTCore {
                     
                     // If no first_mes in chatHistory but roleCard has it, add it
                     if (safeRoleCard.first_mes && 
-                        !historyEntity.parts.some(p => p.is_first_mes)) {
+                        !initialChatHistory.parts.some(p => p.is_first_mes)) {
                         
                         console.log('[NodeSTCore] 添加缺失的first_mes到聊天历史');
-                        historyEntity.parts.unshift({
+                        
+                        // Apply regex to first_mes before adding to chat history
+                        let processedFirstMes = safeRoleCard.first_mes;
+                        try {
+                            const { applyRegexToGreetingForCharacter } = await import('@/utils/regex-helper');
+                            processedFirstMes = await applyRegexToGreetingForCharacter(safeRoleCard.first_mes, conversationId);
+                            console.log('[NodeSTCore] Applied regex to first_mes during character creation');
+                        } catch (regexError) {
+                            console.warn('[NodeSTCore] Failed to apply regex to first_mes:', regexError);
+                        }
+                        
+                        initialChatHistory.parts.unshift({
                             role: "model",
-                            parts: [{ text: safeRoleCard.first_mes }],
+                            parts: [{ text: processedFirstMes }],
                             is_first_mes: true
                         });
                     }
@@ -556,43 +1184,30 @@ export class NodeSTCore {
                     // Insert D-entries if there are any
                     if (dEntries.length > 0) {
                         console.log('[NodeSTCore] 向聊天历史注入D类条目，数量:', dEntries.length);
-                        const updatedHistory = this.insertDEntriesToHistory(
-                            historyEntity,
+                        initialChatHistory = this.insertDEntriesToHistory(
+                            initialChatHistory,
                             dEntries,
                             ""  // No user message for initial history
                         );
-                        
-                        // Save the updated history with D-entries
-                        await this.saveJson(
-                            this.getStorageKey(conversationId, '_history'),
-                            updatedHistory
-                        );
-                        
                         console.log('[NodeSTCore] 聊天历史（含D类条目）初始化成功');
                     } else {
-                        // Save the history without D-entries
-                        await this.saveJson(
-                            this.getStorageKey(conversationId, '_history'),
-                            historyEntity
-                        );
-                        
                         console.log('[NodeSTCore] 聊天历史（无D类条目）初始化成功');
                     }
                 } catch (historyError) {
                     console.error('[NodeSTCore] Error initializing chat history:', historyError);
                     // Create default chat history as a fallback
-                    this.createDefaultChatHistory(conversationId, safeRoleCard, safePreset, safeWorldBook, authorNote);
+                    initialChatHistory = await this.createDefaultChatHistoryInternal(safeRoleCard, safePreset, safeWorldBook, authorNote);
                 }
             } else {
                 console.log('[NodeSTCore] 未提供聊天历史，创建默认聊天历史');
                 // Create default chat history when none is provided
-                this.createDefaultChatHistory(conversationId, safeRoleCard, safePreset, safeWorldBook, authorNote);
+                initialChatHistory = await this.createDefaultChatHistoryInternal(safeRoleCard, safePreset, safeWorldBook, authorNote);
             }
 
             try {
                 // 构建初始框架 - wrap in try/catch to isolate errors
                 console.log('[NodeSTCore] Building initial framework...');
-                const [rFramework, chatHistory] = CharacterUtils.buildRFramework(
+                const [rFramework, chatHistoryEntity] = CharacterUtils.buildRFramework(
                     safePreset,
                     safeRoleCard,
                     safeWorldBook,
@@ -601,58 +1216,30 @@ export class NodeSTCore {
                 
                 console.log('[NodeSTCore] Framework built successfully:', {
                     rFrameworkLength: rFramework?.length || 0,
-                    hasChatHistory: !!chatHistory
+                    hasChatHistory: !!chatHistoryEntity
                 });
 
-                // 确保保存完整的框架内容
-                await this.saveJson(
-                    this.getStorageKey(conversationId, '_contents'),
-                    rFramework
-                );
+                // 添加 contents 到保存操作
+                saveOperations.push({ key: this.getStorageKey(conversationId, '_contents'), data: rFramework as any });
+                saveOperations.push({ key: this.getStorageKey(conversationId, '_history'), data: initialChatHistory as any });
 
-                // Safely extract D-entries
-                const dEntries = CharacterUtils.extractDEntries(safePreset, safeWorldBook, authorNote);
+                // 使用事务性保存所有文件
+                await this.saveMultipleJsonAtomic(saveOperations);
 
-                // 初始化聊天历史
-                if (chatHistory) {
-                    try {
-                        // 添加开场白
-                        let historyParts: ChatMessage[] = [];
-                        
-                        if (safeRoleCard.first_mes) {
-                            historyParts.push({
-                                role: "model",
-                                parts: [{ text: safeRoleCard.first_mes }],
-                                is_first_mes: true
-                            });
-                        }
+                // 缓存所有数据
+                this.cacheManager.set(conversationId, {
+                    roleCard: safeRoleCard,
+                    worldBook: safeWorldBook,
+                    preset: safePreset,
+                    authorNote,
+                    chatHistory: initialChatHistory,
+                    contents: rFramework
+                });
 
-                        const historyEntity: ChatHistoryEntity = {
-                            name: chatHistory.name || "Chat History",
-                            role: chatHistory.role || "system",
-                            parts: historyParts,
-                            identifier: chatHistory.identifier
-                        };
-
-                        // 插入D类条目
-                        const updatedHistory = this.insertDEntriesToHistory(
-                            historyEntity,
-                            dEntries,
-                            ""
-                        );
-                        
-                        await this.saveJson(
-                            this.getStorageKey(conversationId, '_history'),
-                            updatedHistory
-                        );
-                        
-                        console.log('[NodeSTCore] Chat history initialized successfully');
-                    } catch (historyError) {
-                        console.error('[NodeSTCore] Error initializing chat history:', historyError);
-                        // Continue even if history initialization fails
-                    }
-                }
-
+                // 自动应用角色级别的正则脚本到全局设置
+                await this.autoApplyCharacterRegexScripts(conversationId, safeRoleCard);
+                
+                console.log('[NodeSTCore] Character creation completed successfully with caching and atomic saves');
                 return true;
             } catch (frameworkError) {
                 console.error('[NodeSTCore] Error in framework creation:', frameworkError);
@@ -660,6 +1247,16 @@ export class NodeSTCore {
                 // Try a minimal framework as fallback
                 try {
                     console.log('[NodeSTCore] Attempting to create minimal framework as fallback...');
+                    
+                    // Apply regex to first_mes for fallback case
+                    let processedFirstMes = safeRoleCard.first_mes || "Hello!";
+                    try {
+                        const { applyRegexToGreetingForCharacter } = await import('@/utils/regex-helper');
+                        processedFirstMes = await applyRegexToGreetingForCharacter(processedFirstMes, conversationId);
+                        console.log('[NodeSTCore] Applied regex to first_mes in fallback framework');
+                    } catch (regexError) {
+                        console.warn('[NodeSTCore] Failed to apply regex to first_mes in fallback:', regexError);
+                    }
                     
                     // Create very simple framework
                     const minimalFramework: ChatMessage[] = [
@@ -673,32 +1270,44 @@ export class NodeSTCore {
                             role: "system",
                             parts: [{
                                 role: "model", 
-                                parts: [{ text: safeRoleCard.first_mes || "Hello!" }],
+                                parts: [{ text: processedFirstMes }],
                                 is_first_mes: true
                             } as unknown as MessagePart]
                         }
                     ];
-                    
-                    await this.saveJson(
-                        this.getStorageKey(conversationId, '_contents'),
-                        minimalFramework
-                    );
                     
                     const minimalHistoryEntity: ChatHistoryEntity = {
                         name: "Chat History",
                         role: "system",
                         parts: [{
                             role: "model",
-                            parts: [{ text: safeRoleCard.first_mes || "Hello!" }],
+                            parts: [{ text: processedFirstMes }],
                             is_first_mes: true
                         } as ChatMessage],
                         identifier: "chatHistory"
                     };
                     
-                    await this.saveJson(
-                        this.getStorageKey(conversationId, '_history'),
-                        minimalHistoryEntity
-                    );
+                    // 更新保存操作以包含最小框架
+                    const minimalSaveOps = [
+                        ...saveOperations.filter(op => !op.key.includes('_contents') && !op.key.includes('_history')),
+                        { key: this.getStorageKey(conversationId, '_contents'), data: minimalFramework },
+                        { key: this.getStorageKey(conversationId, '_history'), data: minimalHistoryEntity }
+                    ];
+                    
+                    await this.saveMultipleJsonAtomic(minimalSaveOps);
+                    
+                    // 缓存最小数据
+                    this.cacheManager.set(conversationId, {
+                        roleCard: safeRoleCard,
+                        worldBook: safeWorldBook,
+                        preset: safePreset,
+                        authorNote,
+                        chatHistory: minimalHistoryEntity,
+                        contents: minimalFramework
+                    });
+                    
+                    // 自动应用角色级别的正则脚本到全局设置
+                    await this.autoApplyCharacterRegexScripts(conversationId, safeRoleCard);
                     
                     console.log('[NodeSTCore] Minimal framework created as fallback');
                     return true;
@@ -713,14 +1322,128 @@ export class NodeSTCore {
         }
     }
     
-    // Helper method to create a default chat history
-    private async createDefaultChatHistory(
-        conversationId: string, 
+    /**
+     * 自动应用角色级别的正则脚本到全局设置
+     * 当角色导入时，如果角色包含正则脚本，自动创建或更新全局正则脚本组，并绑定到该角色
+     */
+    private async autoApplyCharacterRegexScripts(conversationId: string, roleCard: RoleCardJson): Promise<void> {
+        try {
+            // 检查角色是否包含正则脚本 - 支持多种数据路径
+            let characterRegexScripts = null;
+            
+            // 路径1: roleCard.data.extensions.regex_scripts (直接结构)
+            if (roleCard?.data?.extensions?.regex_scripts) {
+                characterRegexScripts = roleCard.data.extensions.regex_scripts;
+                console.log(`[NodeSTCore] Found regex_scripts at path: roleCard.data.extensions.regex_scripts`);
+            }
+            // 路径2: roleCard.data.chara.data.extensions.regex_scripts (嵌套结构)
+            else if ((roleCard?.data as any)?.chara?.data?.extensions?.regex_scripts) {
+                characterRegexScripts = (roleCard.data as any).chara.data.extensions.regex_scripts;
+                console.log(`[NodeSTCore] Found regex_scripts at path: roleCard.data.chara.data.extensions.regex_scripts`);
+            }
+            
+            if (!characterRegexScripts || !Array.isArray(characterRegexScripts) || characterRegexScripts.length === 0) {
+                console.log('[NodeSTCore] No character-level regex scripts found, skipping auto-application');
+                return;
+            }
+            
+            console.log(`[NodeSTCore] Found ${characterRegexScripts.length} character-level regex scripts, applying to global settings`);
+            
+            // 使用与 create_char.tsx 相同的存储机制以避免冲突
+            const { loadGlobalSettingsState, saveGlobalSettingsState } = await import('@/app/pages/global-settings');
+            const globalState = await loadGlobalSettingsState?.();
+            
+            if (!globalState) {
+                console.warn('[NodeSTCore] Could not load global settings for regex script auto-application');
+                return;
+            }
+            
+            // 为该角色创建或找到专用的脚本组
+            const characterName = roleCard.name || 'Unknown Character';
+            const groupName = `${characterName} (Auto-Applied)`;
+            const timestamp = Date.now();
+            
+            // 检查是否已存在该角色的脚本组
+            const currentGroups = Array.isArray(globalState.regexScriptGroups) 
+                ? globalState.regexScriptGroups 
+                : [];
+            
+            const existingGroupIndex = currentGroups.findIndex((group: any) => 
+                group.bindType === 'character' && 
+                group.bindCharacterId === conversationId &&
+                group.autoCreated === true
+            );
+            
+            // 转换角色脚本格式为全局脚本格式
+            const convertedScripts = characterRegexScripts.map((script: any, index: number) => ({
+                id: script.id || `auto_regex_${timestamp}_${index}`,
+                scriptName: script.scriptName || script.name || `Auto Script ${index + 1}`,
+                findRegex: script.findRegex || script.find || script.pattern || '',
+                replaceString: script.replaceString || script.replace || script.replacement || '',
+                trimStrings: script.trimStrings || [],
+                placement: script.placement || [2], // 默认只对AI输出生效
+                disabled: script.disabled || false,
+                markdownOnly: script.markdownOnly || false,
+                promptOnly: script.promptOnly || false,
+                runOnEdit: script.runOnEdit || false,
+                substituteRegex: script.substituteRegex || 0,
+                minDepth: script.minDepth || null,
+                maxDepth: script.maxDepth || null,
+                flags: script.flags || 'g'
+            }));
+            
+            // 创建字符绑定的正则脚本组
+            const characterGroup: any = {
+                id: `character_group_${conversationId}_${timestamp}`,
+                name: groupName,
+                scripts: convertedScripts,
+                bindType: 'character' as const,
+                bindCharacterId: conversationId,
+                autoCreated: true // 标记为自动创建，避免与手动创建的冲突
+            };
+            
+            let updatedGroups;
+            if (existingGroupIndex >= 0) {
+                // 更新现有组
+                updatedGroups = [...currentGroups];
+                updatedGroups[existingGroupIndex] = characterGroup;
+                console.log(`[NodeSTCore] Updated existing regex script group for character: ${groupName}`);
+            } else {
+                // 添加新组
+                updatedGroups = [...currentGroups, characterGroup];
+                console.log(`[NodeSTCore] Created new regex script group for character: ${groupName}`);
+            }
+            
+            // 使用与 create_char.tsx 相同的机制更新全局设置
+            await saveGlobalSettingsState?.({
+                ...globalState,
+                regexScriptGroups: updatedGroups,
+                selectedRegexGroupId: characterGroup.id // Auto-select the new group
+            });
+            
+            // 启用全局正则脚本（如果尚未启用）
+            const AsyncStorage = await import('@react-native-async-storage/async-storage');
+            const regexEnabled = await AsyncStorage.default.getItem('nodest_global_regex_enabled');
+            if (regexEnabled !== 'true') {
+                await AsyncStorage.default.setItem('nodest_global_regex_enabled', 'true');
+                console.log('[NodeSTCore] Enabled global regex scripts for character import');
+            }
+            
+            console.log(`[NodeSTCore] Successfully applied ${convertedScripts.length} character regex scripts to global settings`);
+            
+        } catch (error) {
+            console.error('[NodeSTCore] Error applying character regex scripts to global settings:', error);
+            // 不抛出错误，因为这是一个辅助功能，不应该影响角色导入的主流程
+        }
+    }
+    
+    // Helper method to create a default chat history (refactored for reuse)
+    private async createDefaultChatHistoryInternal(
         roleCard: RoleCardJson,
         preset: PresetJson,
         worldBook: WorldBookJson,
         authorNote?: AuthorNoteJson
-    ): Promise<void> {
+    ): Promise<ChatHistoryEntity> {
         try {
             console.log('[NodeSTCore] 创建默认聊天历史...');
             
@@ -764,24 +1487,18 @@ export class NodeSTCore {
                     ""  // No user message for initial history
                 );
                 
-                await this.saveJson(
-                    this.getStorageKey(conversationId, '_history'),
-                    updatedHistory
-                );
+                console.log('[NodeSTCore] 默认聊天历史创建完成');
+                return updatedHistory;
             } else {
-                await this.saveJson(
-                    this.getStorageKey(conversationId, '_history'),
-                    historyEntity
-                );
+                console.log('[NodeSTCore] 默认聊天历史创建完成');
+                return historyEntity;
             }
-            
-            console.log('[NodeSTCore] 默认聊天历史创建完成');
         } catch (error) {
             console.error('[NodeSTCore] Error creating default chat history:', error);
             throw error;
         }
     }
-
+    
     async updateCharacter(
         conversationId: string,
         roleCard: RoleCardJson,
@@ -790,10 +1507,18 @@ export class NodeSTCore {
         authorNote?: AuthorNoteJson
     ): Promise<boolean> {
         try {
-            // 1. 保存原有聊天历史
-            const existingHistory = await this.loadJson<ChatHistoryEntity>(
-                this.getStorageKey(conversationId, '_history')
-            );
+            // 1. 保存原有聊天历史 (从缓存或文件)
+            let existingHistory: ChatHistoryEntity | null = null;
+            const cachedData = this.cacheManager.get(conversationId);
+            if (cachedData) {
+                existingHistory = cachedData.chatHistory;
+                console.log('[NodeSTCore] Using cached chat history for update');
+            } else {
+                existingHistory = await this.loadJson<ChatHistoryEntity>(
+                    this.getStorageKey(conversationId, '_history')
+                );
+                console.log('[NodeSTCore] Loaded chat history from disk for update');
+            }
 
             // 2. 强制重建框架内容
             const [rFramework, _] = CharacterUtils.buildRFramework(
@@ -809,18 +1534,23 @@ export class NodeSTCore {
                 authorNote
             );
 
-            // 4. 立即保存更新的文件和框架内容
-            await Promise.all([
-                this.saveJson(this.getStorageKey(conversationId, '_role'), roleCard),
-                this.saveJson(this.getStorageKey(conversationId, '_world'), worldBook),
-                this.saveJson(this.getStorageKey(conversationId, '_preset'), preset),
-                this.saveJson(this.getStorageKey(conversationId, '_contents'), rFramework), // 保存新的框架内容
-                authorNote ? 
-                    this.saveJson(this.getStorageKey(conversationId, '_note'), authorNote) : 
-                    Promise.resolve()
-            ]);
+            // 4. 准备事务性保存操作
+            const updateOperations = [
+                { key: this.getStorageKey(conversationId, '_role'), data: roleCard as any },
+                { key: this.getStorageKey(conversationId, '_world'), data: worldBook as any },
+                { key: this.getStorageKey(conversationId, '_preset'), data: preset as any },
+                { key: this.getStorageKey(conversationId, '_contents'), data: rFramework as any }
+            ];
+
+            if (authorNote) {
+                updateOperations.push({ 
+                    key: this.getStorageKey(conversationId, '_note'), 
+                    data: authorNote as any 
+                });
+            }
 
             // 5. 如果存在原有聊天历史，立即应用新的D类条目
+            let updatedHistory: ChatHistoryEntity | null = null;
             if (existingHistory) {
                 // 清除旧的D类条目
                 existingHistory.parts = existingHistory.parts.filter(
@@ -828,17 +1558,17 @@ export class NodeSTCore {
                 );
 
                 // 重新插入新的D类条目
-                const updatedHistory = this.insertDEntriesToHistory(
+                updatedHistory = this.insertDEntriesToHistory(
                     existingHistory,
                     dEntries,
                     existingHistory.parts[existingHistory.parts.length - 1]?.parts[0]?.text || ''
                 );
 
-                // 保存更新后的历史
-                await this.saveJson(
-                    this.getStorageKey(conversationId, '_history'),
-                    updatedHistory
-                );
+                // 添加历史到保存操作
+                updateOperations.push({
+                    key: this.getStorageKey(conversationId, '_history'),
+                    data: updatedHistory as any
+                });
 
                 console.log('[NodeSTCore] Updated character data:', {
                     hasNewFramework: !!rFramework?.length,
@@ -848,9 +1578,61 @@ export class NodeSTCore {
                 });
             }
 
+            // 6. 使用事务性保存所有更新
+            await this.saveMultipleJsonAtomic(updateOperations);
+
+            // 7. 更新缓存
+            const cacheUpdates: Partial<CharacterCacheData> = {
+                roleCard,
+                worldBook,
+                preset,
+                authorNote,
+                contents: rFramework
+            };
+
+            if (updatedHistory) {
+                cacheUpdates.chatHistory = updatedHistory;
+            }
+
+            // 如果有现有缓存，更新缓存字段；否则设置新缓存
+            if (cachedData) {
+                // 手动更新每个字段以确保类型安全
+                if (cacheUpdates.roleCard !== undefined) {
+                    this.cacheManager.updateField(conversationId, 'roleCard', cacheUpdates.roleCard);
+                }
+                if (cacheUpdates.worldBook !== undefined) {
+                    this.cacheManager.updateField(conversationId, 'worldBook', cacheUpdates.worldBook);
+                }
+                if (cacheUpdates.preset !== undefined) {
+                    this.cacheManager.updateField(conversationId, 'preset', cacheUpdates.preset);
+                }
+                if (cacheUpdates.authorNote !== undefined) {
+                    this.cacheManager.updateField(conversationId, 'authorNote', cacheUpdates.authorNote);
+                }
+                if (cacheUpdates.contents !== undefined) {
+                    this.cacheManager.updateField(conversationId, 'contents', cacheUpdates.contents);
+                }
+                if (cacheUpdates.chatHistory !== undefined) {
+                    this.cacheManager.updateField(conversationId, 'chatHistory', cacheUpdates.chatHistory);
+                }
+            } else if (existingHistory) {
+                // 创建新的完整缓存条目
+                this.cacheManager.set(conversationId, {
+                    roleCard,
+                    worldBook,
+                    preset,
+                    authorNote,
+                    chatHistory: updatedHistory || existingHistory,
+                    contents: rFramework
+                });
+            }
+
+            console.log('[NodeSTCore] Character update completed successfully with atomic saves and caching');
             return true;
         } catch (error) {
             console.error('[NodeSTCore] Error updating character:', error);
+            // 清除缓存以确保下次从文件重新加载
+            this.cacheManager.clear(conversationId);
             return false;
         }
     }
@@ -923,6 +1705,10 @@ export class NodeSTCore {
                 this.getStorageKey(conversationId, '_history'),
                 updatedHistory
             );
+            
+            // 更新缓存
+            this.cacheManager.updateField(conversationId, 'chatHistory', updatedHistory);
+            
             // 可选：日志
             console.log(`[NodeSTCore] 已删除AI消息及其用户消息，aiIndex=${messageIndex}, 新消息数=${updatedHistory.parts.length}`);
             return true;
@@ -991,6 +1777,10 @@ export class NodeSTCore {
                 this.getStorageKey(conversationId, '_history'),
                 updatedHistory
             );
+            
+            // 更新缓存
+            this.cacheManager.updateField(conversationId, 'chatHistory', updatedHistory);
+            
             console.log(`[NodeSTCore] 已编辑AI消息内容，aiIndex=${messageIndex}，新内容已保存`);
 
             // 不再自动重建D类条目，直接返回
@@ -1009,7 +1799,7 @@ export class NodeSTCore {
         customUserName?: string,
         useToolCalls: boolean = false,
         onStream?: (delta: string) => void ,
-        summaryRange?: { start: number, end: number } 
+        summaryRangePercent?: { start: number, end: number } 
     ): Promise<string | null> {
         try {
             // 创建新的 AbortController
@@ -1036,13 +1826,24 @@ export class NodeSTCore {
                 // 不再抛出错误
             }
 
-            // 确保加载最新的角色数据
-            const roleCard = await this.loadJson<RoleCardJson>(
-                this.getStorageKey(conversationId, '_role')
-            );
-            const worldBook = await this.loadJson<WorldBookJson>(
-                this.getStorageKey(conversationId, '_world')
-            );
+            // 使用缓存加载角色数据
+            console.log(`[NodeSTCore] Loading character data with cache for ${conversationId}`);
+            const characterData = await this.loadCharacterDataWithCache(conversationId);
+            
+            if (!characterData) {
+                console.error('[NodeSTCore] Failed to load character data');
+                return null;
+            }
+
+            const { roleCard, worldBook, chatHistory } = characterData;
+            
+            console.log('[NodeSTCore] Character data loaded from cache:', {
+                hasRoleCard: !!roleCard,
+                hasWorldBook: !!worldBook,
+                hasChatHistory: !!chatHistory,
+                historyLength: chatHistory?.parts?.length
+            });
+
             // === 新增：全局正则脚本处理（支持绑定） ===
             let globalRegexScripts: any[] = [];
             let globalRegexEnabled = false;
@@ -1111,6 +1912,7 @@ export class NodeSTCore {
                     console.log(`[全局正则] 已对用户输入应用正则处理，原文: ${userMessage}，结果: ${processedUserMessage}`);
                 }
             }
+            
             // === 新增：优先读取全局预设 ===
             let preset: PresetJson | null = null;
             const globalPresetConfig = await StorageAdapter.loadGlobalPresetConfig();
@@ -1118,39 +1920,10 @@ export class NodeSTCore {
                 preset = globalPresetConfig.presetJson;
                 console.log('[NodeSTCore] Using global preset for continueChat');
             } else {
-                preset = await this.loadJson<PresetJson>(
-                    this.getStorageKey(conversationId, '_preset')
-                );
+                preset = characterData.preset;
             }
 
-            const authorNote = await this.loadJson<AuthorNoteJson>(
-                this.getStorageKey(conversationId, '_note')
-            );
-            const chatHistory = await this.loadJson<ChatHistoryEntity>(
-                this.getStorageKey(conversationId, '_history')
-            );
-
-            console.log('[NodeSTCore] Character data loaded:', {
-                hasRoleCard: !!roleCard,
-                hasWorldBook: !!worldBook,
-                hasPreset: !!preset,
-                hasAuthorNote: !!authorNote,
-                hasChatHistory: !!chatHistory,
-                historyLength: chatHistory?.parts?.length
-            });
-
-            // Validate required data
-            if (!roleCard || !worldBook || !preset || !chatHistory) {
-                const missingData = [];
-                if (!roleCard) missingData.push('roleCard');
-                if (!worldBook) missingData.push('worldBook');
-                if (!preset) missingData.push('preset');
-                if (!chatHistory) missingData.push('chatHistory');
-
-                const errorMessage = `Missing required data: ${missingData.join(', ')}`;
-                console.error('[NodeSTCore]', errorMessage);
-                return null;
-            }
+            const authorNote = characterData.authorNote;
 
             // 重要：强制重新提取D类条目，确保使用最新的worldBook
             const dEntries = CharacterUtils.extractDEntries(
@@ -1269,19 +2042,29 @@ export class NodeSTCore {
             let memorySearchResults = null;
             if (characterId) {
                 try {
-                    console.log('[NodeSTCore] 开始搜索角色相关记忆:', {
-                        characterId,
-                        conversationId,
-                        queryLength: userMessage.length
-                    });
-                    
-                    // 尝试导入并使用Mem0Service
-                    let Mem0Service = null;
+                      // 检查向量记忆功能是否开启
+                    let vectorMemoryEnabled = true;
                     try {
-                        // 动态导入以避免循环依赖
-                        Mem0Service = (await import('@/src/memory/services/Mem0Service.ts')).default.getInstance();
-                    } catch (importError) {
-                        console.log('[NodeSTCore] 无法导入Mem0Service:', importError);
+                        // 导入 MemoOverlay 设置
+                        const MemoOverlay = await import('@/app/pages/MemoOverlay');
+                        const settings = await MemoOverlay.default.getSettings();
+                        vectorMemoryEnabled = settings.vectorMemoryEnabled;
+                        console.log('[NodeSTCore] 向量记忆功能状态:', vectorMemoryEnabled);
+                    } catch (settingsError) {
+                        console.log('[NodeSTCore] 无法获取向量记忆设置，使用默认值:', settingsError);
+                    }
+                    
+                    // 只有在向量记忆功能开启时才尝试导入并使用Mem0Service
+                    let Mem0Service = null;
+                    if (vectorMemoryEnabled) {
+                        try {
+                            // 动态导入以避免循环依赖
+                            Mem0Service = (await import('@/src/memory/services/Mem0Service.ts')).default.getInstance();
+                        } catch (importError) {
+                            console.log('[NodeSTCore] 无法导入Mem0Service:', importError);
+                        }
+                    } else {
+                        console.log('[NodeSTCore] 向量记忆功能已关闭，跳过Mem0Service初始化');
                     }
                     
                     if (Mem0Service) {
@@ -1344,7 +2127,7 @@ export class NodeSTCore {
                                 apiProvider: this.apiSettings.apiProvider === 'openrouter' ? 'openrouter' : 'gemini',
                                 openrouter: this.apiSettings.openrouter,
                             },
-                            summaryRange
+                            summaryRangePercent
                         ) : updatedChatHistory;
                     
                     // Use the potentially summarized history
@@ -1416,6 +2199,92 @@ export class NodeSTCore {
                 }
             }
 
+            // === 新增：剧本变量处理 ===
+            if (processedResponse && characterId) {
+                console.log('📚 [变量系统] 开始检查角色的剧本变量绑定...');
+                
+                try {
+                    // 获取角色数据以检查scriptId绑定
+                    // Prefer new CharacterStorageService (file-based storage used by CharactersContext.addCharacter)
+                    let characterData: any | null = null;
+                    try {                        
+                        const storageService = CharacterStorageService.getInstance();
+                        try {
+                            const storedChar = await storageService.getCharacter(characterId);
+                            if (storedChar) {
+                                characterData = storedChar;
+                                console.log(`📚 [变量系统] Loaded character from CharacterStorageService: ${characterId}`);
+                            }
+                        } catch (svcErr) {
+                            console.warn(`📚 [变量系统] CharacterStorageService.getCharacter failed for ${characterId}:`, svcErr);
+                        }
+                    } catch (importErr) {
+                        // If import fails (e.g. runtime environment), fall back to AsyncStorage legacy key
+                        console.warn('📚 [变量系统] Failed to import CharacterStorageService, will fallback to AsyncStorage:', importErr);
+                    }
+                    
+                    if (characterData && characterData.scriptId) {
+                        console.log(`📚 [变量系统] 发现角色 ${characterId} 绑定了剧本 ${characterData.scriptId}`);
+                        
+                        try {
+                            // 首先确保角色在该剧本的变量系统中已初始化
+                            try {
+                                await ScriptVariableService.initCharacterForScript(characterData.scriptId, characterId);
+                                console.log(`📚 [变量系统] 角色变量系统初始化完成`);
+                            } catch (initError) {
+                                console.error(`📚 [变量系统] 角色变量系统初始化失败:`, initError);
+                                // 初始化失败时跳过变量处理，避免后续错误
+                                throw new Error(`角色变量系统初始化失败: ${initError instanceof Error ? initError.message : '未知错误'}`);
+                            }
+                            
+                            // 使用 VariableProcessor 统一处理变量操作
+                            const variableResult = await VariableProcessor.processAIResponse(characterData.scriptId, processedResponse);
+                            
+                            if (variableResult.hasVariableOperations) {
+                                console.log(`📚 [变量系统] 发现并处理了变量操作命令`);
+                                
+                                if (variableResult.logs && variableResult.logs.length > 0) {
+                                    console.log(`📚 [变量系统] 变量操作执行日志:`, variableResult.logs);
+                                }
+                                
+                                // 更新响应文本，使用处理后的清理文本
+                                processedResponse = variableResult.cleanText;
+                                console.log(`📚 [变量系统] 已清理响应文本中的变量操作标签并应用宏替换`);
+                            } else {
+                                // 即使没有变量操作，也可能需要进行宏替换
+                                processedResponse = variableResult.cleanText;
+                                console.log('📚 [变量系统] AI响应中未发现变量操作命令，但已进行宏替换处理');
+                            }
+                            
+                        } catch (variableError) {
+                            console.error('📚 [变量系统] 处理剧本变量时发生严重错误:', variableError);
+                            // 不抛出错误，允许对话继续，但记录详细错误信息
+                            if (variableError instanceof Error) {
+                                console.error('📚 [变量系统] 错误详情:', {
+                                    name: variableError.name,
+                                    message: variableError.message,
+                                    stack: variableError.stack
+                                });
+                            }
+                        }
+                        
+                    } else {
+                        console.log('📚 [变量系统] 角色未绑定剧本，跳过变量处理');
+                    }
+                    
+                } catch (error) {
+                    console.error('📚 [变量系统] 剧本变量检查过程中发生错误:', error);
+                    // 增强错误日志记录
+                    if (error instanceof Error) {
+                        console.error('📚 [变量系统] 错误详情:', {
+                            name: error.name,
+                            message: error.message,
+                            stack: error.stack
+                        });
+                    }
+                }
+            }
+
             // 如果收到响应，将AI回复也添加到历史记录
             if (processedResponse) {
                 // 使用 updateChatHistory 方法
@@ -1426,41 +2295,15 @@ export class NodeSTCore {
                     dEntries
                 );
 
-                // 保存更新后的历史
-                await this.saveJson(
-                    this.getStorageKey(conversationId, '_history'),
-                    updatedHistory
-                );
+                // 使用原子性保存更新后的历史并更新缓存
+                await this.updateCacheAndSave(conversationId, {
+                    chatHistory: updatedHistory
+                });
 
-                console.log('[NodeSTCore] Chat history saved:', {
+                console.log('[NodeSTCore] Chat history saved with atomic writes:', {
                     totalMessages: updatedHistory.parts.length,
                     lastMessage: processedResponse.substring(0, 50) + '...'
                 });
-            }
-
-            // Save updated history if we have a response
-            if (processedResponse) {
-                console.log('[NodeSTCore] Saving updated history...');
-                
-                // 检查是否已被中止
-                if (abortController.signal.aborted) {
-                    console.log('[NodeSTCore] 请求在保存历史前被中止，不保存历史');
-                    NodeSTCore.currentAbortController = null;
-                    return null;
-                }
-
-                const updatedHistory = this.updateChatHistory(
-                    updatedChatHistory,
-                    userMessage,
-                    processedResponse, // 用正则处理后的响应
-                    dEntries
-                );
-                
-                await this.saveJson(
-                    this.getStorageKey(conversationId, '_history'),
-                    updatedHistory
-                );
-                console.log('[NodeSTCore] History saved successfully');
             }
 
             // 清理 AbortController
@@ -1555,120 +2398,124 @@ export class NodeSTCore {
         dEntries: ChatMessage[],
         userMessage: string
     ): ChatHistoryEntity {
-        console.log('[NodeSTCore] Starting D-entries insertion:', {
+        console.log('[NodeSTCore] Starting optimized D-entries insertion:', {
             chatHistoryMessages: chatHistory.parts.length,
             dEntriesCount: dEntries.length,
-            baseMessage: userMessage.substring(0, 30)
+            baseMessage: userMessage.substring(0, 30),
+            processingWindow: NodeSTCore.D_ENTRY_PROCESSING_WINDOW
         });
 
         // 1. 先移除所有旧的D类条目，确保不会重复
-        const chatMessages = chatHistory.parts.filter(msg => !msg.is_d_entry);
-        
-        console.log(`[NodeSTCore] Removed ${chatHistory.parts.length - chatMessages.length} old D-entries`);
+        const cleanMessages = chatHistory.parts.filter(msg => !msg.is_d_entry);
+        console.log(`[NodeSTCore] Removed ${chatHistory.parts.length - cleanMessages.length} old D-entries`);
 
-        // 2. 找到基准消息（最新的用户消息）的索引
-        const baseMessageIndex = chatMessages.findIndex(
+        // 2. 检查历史长度，决定是否需要分割
+        let archivedMessages: ChatMessage[] = [];
+        let recentMessages: ChatMessage[] = [];
+
+        if (cleanMessages.length <= NodeSTCore.D_ENTRY_PROCESSING_WINDOW) {
+            // 历史记录较短，全部作为recent处理
+            recentMessages = [...cleanMessages];
+            console.log('[NodeSTCore] Chat history is short, processing all messages');
+        } else {
+            // 历史记录较长，进行分割
+            const splitPoint = cleanMessages.length - NodeSTCore.D_ENTRY_PROCESSING_WINDOW;
+            archivedMessages = cleanMessages.slice(0, splitPoint);
+            recentMessages = cleanMessages.slice(splitPoint);
+            console.log(`[NodeSTCore] Split chat history: ${archivedMessages.length} archived, ${recentMessages.length} recent`);
+        }
+
+        // 3. 在recentMessages范围内找到基准消息（最新的用户消息）的索引
+        const baseMessageIndex = recentMessages.findIndex(
             msg => msg.role === "user" && msg.parts[0]?.text === userMessage
         );
 
         if (baseMessageIndex === -1) {
-            console.warn('[NodeSTCore] Base message not found in history');
+            console.warn('[NodeSTCore] Base message not found in recent messages');
             return {
                 ...chatHistory,
-                parts: chatMessages // 返回没有D类条目的干净历史
+                parts: [...archivedMessages, ...recentMessages] // 返回没有D类条目的干净历史
             };
         }
 
-        // 3. 先过滤符合条件的 D 类条目
+        // 4. 先过滤符合条件的 D 类条目（只在recent范围内判断）
         const validDEntries = dEntries.filter(entry => 
-            this.shouldIncludeDEntry(entry, chatMessages)
+            this.shouldIncludeDEntry(entry, recentMessages)
         );
 
-        console.log(`[NodeSTCore] Filtered D-entries: ${validDEntries.length} valid out of ${dEntries.length} total`);
+        console.log(`[NodeSTCore] Filtered D-entries: ${validDEntries.length} valid out of ${dEntries.length} total (based on recent ${recentMessages.length} messages)`);
 
-        // 对过滤后的条目按注入深度分组，确保只在正确的位置插入
+        // 5. 对过滤后的条目按注入深度分组
         const position4EntriesByDepth = validDEntries
             .filter(entry => entry.position === 4)
             .reduce((acc, entry) => {
-                // 确保注入深度是有效数字，默认为0
                 const depth = typeof entry.injection_depth === 'number' ? entry.injection_depth : 0;
                 if (!acc[depth]) acc[depth] = [];
                 acc[depth].push({
                     ...entry,
-                    // 确保明确标记为D类条目，以便下一次更新时可以清除
                     is_d_entry: true
                 });
                 return acc;
             }, {} as Record<number, ChatMessage[]>);
 
-        // 4. 构建新的消息序列
-        const finalMessages: ChatMessage[] = [];
+        // 6. 构建新的recent消息序列（仅在recent范围内进行D类条目插入）
+        const processedRecentMessages: ChatMessage[] = [];
         
-        // 4.1 从第一条消息开始，往后遍历插入消息和D类条目
-        for (let i = 0; i < chatMessages.length; i++) {
-            const msg = chatMessages[i];
+        for (let i = 0; i < recentMessages.length; i++) {
+            const msg = recentMessages[i];
 
-            // 只有非基准消息（不是最新用户消息）且在基准消息之前的消息可能有D类条目插入前面
+            // 只有非基准消息且在基准消息之前的消息可能有D类条目插入前面
             if (i < baseMessageIndex) {
-                // 计算与基准消息的深度差
                 const depthFromBase = baseMessageIndex - i;
-                // 只有深度大于0时才在消息前插入D类条目（depth=0的条目只在基准消息后插入）
                 if (depthFromBase > 0 && position4EntriesByDepth[depthFromBase]) {
-                    console.log(`[NodeSTCore] Inserting ${position4EntriesByDepth[depthFromBase].length} D-entries with depth=${depthFromBase} before message at position ${i}`);
-                    finalMessages.push(...position4EntriesByDepth[depthFromBase]);
+                    console.log(`[NodeSTCore] Inserting ${position4EntriesByDepth[depthFromBase].length} D-entries with depth=${depthFromBase} before recent message at position ${i}`);
+                    processedRecentMessages.push(...position4EntriesByDepth[depthFromBase]);
                 }
             }
 
             // 插入当前消息
-            finalMessages.push(msg);
+            processedRecentMessages.push(msg);
 
-            // 如果是基准消息（最新用户消息），在其后插入depth=0的条目
+            // 如果是基准消息，在其后插入depth=0的条目
             if (i === baseMessageIndex && position4EntriesByDepth[0]) {
                 console.log(`[NodeSTCore] Inserting ${position4EntriesByDepth[0].length} D-entries with depth=0 after base message`);
-                finalMessages.push(...position4EntriesByDepth[0]);
+                processedRecentMessages.push(...position4EntriesByDepth[0]);
             }
         }
 
-        // 5. 处理其他position的条目（从validDEntries中筛选）
+        // 7. 处理其他position的条目
         const otherDEntries = validDEntries.filter(entry => entry.position !== 4).map(entry => ({
             ...entry,
-            is_d_entry: true // 确保明确标记为D类条目
+            is_d_entry: true
         }));
         
         for (const entry of otherDEntries) {
-            // 对于authorNote相关条目（position=2或3），如果存在作者注释，则在前后插入
-            const authorNoteIndex = finalMessages.findIndex(msg => msg.is_author_note);
+            const authorNoteIndex = processedRecentMessages.findIndex(msg => msg.is_author_note);
             if (authorNoteIndex !== -1) {
                 if (entry.position === 2) {
-                    finalMessages.splice(authorNoteIndex, 0, entry);
+                    processedRecentMessages.splice(authorNoteIndex, 0, entry);
                     console.log(`[NodeSTCore] Inserted position=2 entry before author note: ${entry.name}`);
                 } else if (entry.position === 3) {
-                    finalMessages.splice(authorNoteIndex + 1, 0, entry);
+                    processedRecentMessages.splice(authorNoteIndex + 1, 0, entry);
                     console.log(`[NodeSTCore] Inserted position=3 entry after author note: ${entry.name}`);
                 }
             } else if (entry.is_author_note) {
-                // 如果条目本身是作者注释且历史中尚不存在，添加到末尾
-                finalMessages.push(entry);
+                processedRecentMessages.push(entry);
                 console.log(`[NodeSTCore] Added missing author note: ${entry.name}`);
             }
         }
 
-        // 6. 检查最终的消息序列中的D类条目数量，确保正确标记
-        const dEntryCount = finalMessages.filter(msg => msg.is_d_entry).length;
-        console.log(`[NodeSTCore] Final message sequence has ${dEntryCount} D-entries out of ${finalMessages.length} total messages`);
-
-        // 7. 添加详细的调试日志，显示消息顺序和类型以及D类条目的注入深度
-        // console.log('[NodeSTCore] Message sequence after D-entry insertion:', 
-        //     finalMessages.map((msg, idx) => ({
-        //         index: idx,
-        //         type: msg.is_d_entry ? 'D-entry' : 'chat',
-        //         role: msg.role,
-        //         depth: msg.is_d_entry ? msg.injection_depth || 0 : 'N/A',
-        //         position: msg.position,
-        //         isBaseMessage: msg.parts[0]?.text === userMessage,
-        //         preview: msg.parts[0]?.text?.substring(0, 30)
-        //     }))
-        // );
+        // 8. 重新拼接：archived + processed recent messages
+        const finalMessages = [...archivedMessages, ...processedRecentMessages];
+        const dEntryCount = processedRecentMessages.filter(msg => msg.is_d_entry).length;
+        
+        console.log(`[NodeSTCore] Optimized D-entry insertion completed:`, {
+            archivedCount: archivedMessages.length,
+            processedRecentCount: processedRecentMessages.length,
+            finalTotalCount: finalMessages.length,
+            dEntriesInserted: dEntryCount,
+            performanceGain: cleanMessages.length > NodeSTCore.D_ENTRY_PROCESSING_WINDOW ? `Processed only ${NodeSTCore.D_ENTRY_PROCESSING_WINDOW} messages instead of ${cleanMessages.length}` : 'No optimization needed'
+        });
 
         return {
             ...chatHistory,
@@ -1746,7 +2593,7 @@ export class NodeSTCore {
         sessionId: string,
         roleCard: RoleCardJson,
         characterId: string, // 必需参数移到前面
-        adapter?: GeminiAdapter | OpenRouterAdapter | OpenAIAdapter | null,
+        adapter?: GeminiAdapter | OpenRouterAdapter | OpenAIAdapter | CradleCloudAdapter | null,
         customUserName?: string,
         memorySearchResults?: any,
         onStream?: (delta: string) => void,
@@ -1755,11 +2602,13 @@ export class NodeSTCore {
         try {
             console.log('[NodeSTCore] Starting processChat with:', {
                 userMessage: userMessage.substring(0, 30) + (userMessage.length > 30 ? '...' : ''),
+                userMessageFull: userMessage, // 完整的用户消息内容，包含重写意见
                 chatHistoryMessagesCount: chatHistory?.parts?.length,
                 dEntriesCount: dEntries.length,
                 apiProvider: this.apiSettings?.apiProvider,
                 hasCustomUserName: !!customUserName,
-                characterId: characterId // <--- 记录characterId
+                characterId: characterId, // <--- 记录characterId
+                hasRewriteOpinion: userMessage.includes('【重写要求】') // 检查是否包含重写意见
             });
 
             // 检查是否已被中止
@@ -1950,6 +2799,9 @@ export class NodeSTCore {
                 throw new Error('No valid messages to send to Gemini API');
             }
 
+            // === 新增：在发送给适配器前进行剧本宏替换 ===
+            await this.replaceScriptMacrosInMessageArray(cleanedContents, characterId, sessionId);
+
             // 使用传入的适配器或获取活跃适配器
             const activeAdapter = adapter || this.getActiveAdapter();
             if (!activeAdapter) {
@@ -1968,7 +2820,7 @@ export class NodeSTCore {
                 apiProvider: this.apiSettings?.apiProvider
             });
         // === 新增：记录请求体数据 ===
-        NodeSTCore.logRequestResponse(cleanedContents, null, adapter ? adapter.constructor.name : 'unknown');
+       
             // 发送到API
             let responseText: string | null = null;
             // === 修正：只在没有记忆搜索结果时才直接请求chatCompletion ===
@@ -2003,13 +2855,23 @@ export class NodeSTCore {
             }
             } else if (shouldUseMemoryResults && activeAdapter) {
                 // console.log('[NodeSTCore] 调用generateContentWithTools，传递characterId:', characterId); // <--- 记录
-                const response = await activeAdapter.generateContentWithTools(cleanedContents as any, characterId, memorySearchResults, userMessage);
+                let response: string | null = null;
+                
+                // Check if adapter has generateContentWithTools method
+                if ('generateContentWithTools' in activeAdapter && activeAdapter.generateContentWithTools) {
+                    response = await activeAdapter.generateContentWithTools(cleanedContents as any, characterId, memorySearchResults, userMessage, abortController?.signal);
+                } else {
+                    // Fallback to generateContent for adapters that don't support tools (like CradleCloudAdapter)
+                    console.log('[NodeSTCore] Adapter does not support generateContentWithTools, using generateContent');
+                    response = await (activeAdapter as any).generateContent(cleanedContents as any, characterId, memorySearchResults, abortController?.signal, onStream);
+                }
+                
                 console.log('[NodeSTCore] API response received:', {
                     hasResponse: !!response,
                     responseLength: response?.length || 0
                 });
                             // === 新增：记录响应数据 ===
-            NodeSTCore.logRequestResponse(cleanedContents, response, adapter ? adapter.constructor.name : 'unknown');
+            
                 if (response) {
                     console.log('[NodeSTCore] Saving updated history and framework...');
                     // 保存更新后的框架内容
@@ -2028,13 +2890,13 @@ export class NodeSTCore {
                     return null;
                 }
                 // console.log('[NodeSTCore] 调用generateContent，传递characterId:', characterId); 
-                const response = await activeAdapter.generateContent(cleanedContents as any, characterId);
+                const response = await (activeAdapter as any).generateContent(cleanedContents as any, characterId, memorySearchResults, abortController?.signal, onStream);
                 console.log('[NodeSTCore] API response received:', {
                     hasResponse: !!response,
                     responseLength: response?.length || 0
                 });
                             // === 新增：记录响应数据 ===
-            NodeSTCore.logRequestResponse(cleanedContents, response, adapter ? adapter.constructor.name : 'unknown');
+         
                 if (response) {
                     responseText = response;
                 }
@@ -2085,6 +2947,206 @@ export class NodeSTCore {
         }
     }
 
+    // Specialized method for regeneration that doesn't add user message to history
+    async processRegenerationChat(
+        chatHistory: ChatHistoryEntity,
+        dEntries: ChatMessage[],
+        sessionId: string,
+        roleCard: RoleCardJson,
+        characterId: string,
+        adapter?: GeminiAdapter | OpenRouterAdapter | OpenAIAdapter | CradleCloudAdapter | null,
+        customUserName?: string,
+        memorySearchResults?: any,
+        onStream?: (delta: string) => void,
+        abortController?: AbortController
+    ): Promise<string | null> {
+        try {
+            console.log('[NodeSTCore] Starting processRegenerationChat with:', {
+                chatHistoryMessagesCount: chatHistory?.parts?.length,
+                dEntriesCount: dEntries.length,
+                apiProvider: this.apiSettings?.apiProvider,
+                hasCustomUserName: !!customUserName,
+                characterId: characterId
+            });
+
+            // Check if aborted
+            if (abortController?.signal.aborted) {
+                console.log('[NodeSTCore] processRegenerationChat was aborted');
+                return null;
+            }
+
+            // Load global preset first
+            let preset: PresetJson | null = null;
+            const globalPresetConfig = await StorageAdapter.loadGlobalPresetConfig();
+            const isGlobalPreset = !!(globalPresetConfig && globalPresetConfig.enabled && globalPresetConfig.presetJson);
+            if (isGlobalPreset) {
+                preset = globalPresetConfig.presetJson;
+                console.log('[NodeSTCore] Using global preset for processRegenerationChat');
+            } else {
+                preset = await this.loadJson<PresetJson>(`nodest_${sessionId}_preset`);
+            }
+
+            const worldBook = await this.loadJson<WorldBookJson>(`nodest_${sessionId}_world`);
+            if (!preset || !worldBook) {
+                throw new Error('Required data not found');
+            }
+
+            // Build the framework
+            const [rFramework, _] = CharacterUtils.buildRFramework(
+                preset,
+                roleCard,
+                worldBook
+            );
+            let contents: ChatMessage[] = [...rFramework];
+
+            // Apply regex to framework contents
+            const applyAllRegex = (text: string) => {
+                let t = text;
+                if (roleCard?.data?.extensions?.regex_scripts) {
+                    t = this.applyRegexScripts(t, roleCard.data.extensions.regex_scripts);
+                }
+                return t;
+            };
+
+            const regexProcessedContents: ChatMessage[] = contents.map(item => {
+                if (item.name === "Chat History" && Array.isArray(item.parts)) {
+                    return {
+                        ...item,
+                        parts: item.parts.map((msg: any) => ({
+                            ...msg,
+                            parts: msg.parts?.map((part: any) => ({
+                                ...part,
+                                text: applyAllRegex(part.text || "")
+                            })) || []
+                        }))
+                    };
+                } else {
+                    return {
+                        ...item,
+                        parts: item.parts?.map(part => ({
+                            ...part,
+                            text: applyAllRegex(part.text || "")
+                        })) || []
+                    };
+                }
+            });
+
+            // Find chat history placeholder
+            const chatHistoryPlaceholderIndex = regexProcessedContents.findIndex(
+                item => item.is_chat_history_placeholder ||
+                       (item.identifier === chatHistory.identifier)
+            );
+
+            // Insert D-entries into the provided chat history (which already contains the modified user message)
+            // Get the last user message from the history to use as reference for D-entry insertion
+            const lastUserMessage = chatHistory.parts
+                .filter(msg => !msg.is_d_entry && msg.role === "user")
+                .pop();
+            const userMessageForDEntry = lastUserMessage?.parts[0]?.text || "";
+            
+            const historyWithDEntries = this.insertDEntriesToHistory(
+                {
+                    ...chatHistory,
+                    parts: chatHistory.parts.filter(msg => !msg.is_d_entry)
+                },
+                dEntries,
+                userMessageForDEntry // Use the actual user message text from history
+            );
+
+            // Replace or add chat history
+            if (chatHistoryPlaceholderIndex !== -1) {
+                regexProcessedContents[chatHistoryPlaceholderIndex] = {
+                    name: "Chat History",
+                    role: "system",
+                    parts: historyWithDEntries.parts,
+                    identifier: chatHistory.identifier
+                };
+            } else {
+                regexProcessedContents.push({
+                    name: "Chat History",
+                    role: "system",
+                    parts: historyWithDEntries.parts,
+                    identifier: chatHistory.identifier
+                });
+            }
+
+            // Remove duplicates
+            const chatHistoryEntries = regexProcessedContents.filter(
+                item => item.name === "Chat History" ||
+                       (item.identifier && item.identifier.toLowerCase().includes('chathistory'))
+            );
+            if (chatHistoryEntries.length > 1) {
+                regexProcessedContents.splice(
+                    regexProcessedContents.findIndex((item, idx) =>
+                        (item.name === "Chat History" ||
+                        (item.identifier && item.identifier.toLowerCase().includes('chathistory'))) &&
+                        idx !== chatHistoryPlaceholderIndex
+                    ), 1
+                );
+            }
+
+            // Clean contents for API
+            let cleanedContents = this.cleanContentsForGemini(
+                regexProcessedContents,
+                "", // No user message since it's already in history
+                roleCard.name,
+                customUserName || "",
+                roleCard
+            );
+
+            // Prepare global regex scripts
+            let globalRegexScripts: any[] = [];
+            let globalRegexEnabled = false;
+
+            this.currentContents = regexProcessedContents;
+
+            console.log('[NodeSTCore] Final regeneration request structure:', {
+                totalMessages: cleanedContents.length
+            });
+
+            // === 新增：在发送给适配器前进行剧本宏替换 ===
+            await this.replaceScriptMacrosInMessageArray(cleanedContents, characterId, sessionId);
+
+            // Get active adapter
+            const activeAdapter = adapter || this.getActiveAdapter();
+            if (!activeAdapter) {
+                throw new Error("API adapter not initialized");
+            }
+
+    
+            // Send to API
+            let responseText: string | null = null;
+            const shouldUseMemoryResults = memorySearchResults && memorySearchResults.results && memorySearchResults.results.length > 0;
+            if (shouldUseMemoryResults) {
+                responseText = await (activeAdapter as any).generateContentWithMemory(
+                    cleanedContents as any, 
+                    characterId, 
+                    memorySearchResults, 
+                    abortController?.signal, 
+                    onStream
+                );
+            } else {
+                responseText = await (activeAdapter as any).generateContent(
+                    cleanedContents as any, 
+                    characterId, 
+                    memorySearchResults, 
+                    abortController?.signal, 
+                    onStream
+                );
+            }
+
+            // Record response
+            if (responseText && NodeSTCore.latestRequestData) {
+                NodeSTCore.latestRequestData.response = responseText;
+            }
+
+            return responseText;
+        } catch (error) {
+            console.error('[NodeSTCore] Error in processRegenerationChat:', error);
+            return null;
+        }
+    }
+
     async processChatWithTools(
         userMessage: string,
         chatHistory: ChatHistoryEntity,
@@ -2092,7 +3154,7 @@ export class NodeSTCore {
         sessionId: string,
         roleCard: RoleCardJson,
         characterId: string, // 必需参数移到前面
-        adapter?: GeminiAdapter | OpenRouterAdapter | OpenAIAdapter | null,
+        adapter?: GeminiAdapter | OpenRouterAdapter | OpenAIAdapter | CradleCloudAdapter | null,
         customUserName?: string,
         memoryResults?: any,
         onStream?: (delta: string) => void,
@@ -2313,6 +3375,9 @@ export class NodeSTCore {
                 throw new Error('No valid messages to send to Gemini API');
             }
 
+            // === 新增：在发送给适配器前进行剧本宏替换 ===
+            await this.replaceScriptMacrosInMessageArray(cleanedContents, characterId, sessionId);
+
             // 使用传入的适配器或获取活跃适配器
             const activeAdapter = adapter || this.getActiveAdapter();
             if (!activeAdapter) {
@@ -2330,8 +3395,7 @@ export class NodeSTCore {
             //             : 'Gemini',
             //     apiProvider: this.apiSettings?.apiProvider
             // });
-        // === 新增：记录请求体数据 ===
-        NodeSTCore.logRequestResponse(cleanedContents, null, adapter ? adapter.constructor.name : 'unknown');
+
             // 发送到API，传递记忆搜索结果
         let responseText: string | null = null;
         const shouldUseMemoryResults = memoryResults && memoryResults.results && memoryResults.results.length > 0;
@@ -2343,7 +3407,7 @@ export class NodeSTCore {
             try {
                 if (shouldUseMemoryResults) {
                     responseText = await activeAdapter.generateContentWithTools(
-                        cleanedContents, characterId, memoryResults, toolUserMessage
+                        cleanedContents, characterId, memoryResults, toolUserMessage, abortController?.signal
                     );
                 } else {
                     // === 新增：支持流式回调 ===
@@ -2353,7 +3417,8 @@ export class NodeSTCore {
                         memoryResults: memoryResults,
                         characterId: characterId,
                         stream: this.apiSettings?.OpenAIcompatible?.stream,
-                        onStream // 透传
+                        onStream, // 透传
+                        abortSignal: abortController?.signal // 新增：传递中止信号
                     });
                     if (resp && resp.choices && resp.choices[0]?.message?.content) {
                         responseText = resp.choices[0].message.content;
@@ -2364,9 +3429,19 @@ export class NodeSTCore {
                 }
             } else if (activeAdapter) {
                 console.log('[NodeSTCore] 调用generateContentWithTools，传递characterId:', characterId); // <--- 记录
-                const response = await activeAdapter.generateContentWithTools(
-                    cleanedContents as any, characterId, memoryResults, toolUserMessage
-                );
+                let response: string | null = null;
+                
+                // Check if adapter has generateContentWithTools method
+                if ('generateContentWithTools' in activeAdapter && activeAdapter.generateContentWithTools) {
+                    response = await activeAdapter.generateContentWithTools(
+                        cleanedContents as any, characterId, memoryResults, toolUserMessage, abortController?.signal
+                    );
+                } else {
+                    // Fallback to generateContent for adapters that don't support tools (like CradleCloudAdapter)
+                    console.log('[NodeSTCore] Adapter does not support generateContentWithTools, using generateContent');
+                    response = await (activeAdapter as any).generateContent(cleanedContents as any, characterId, memoryResults, abortController?.signal, onStream);
+                }
+                
                 console.log('[NodeSTCore] API response received:', {
                     hasResponse: !!response,
                     responseLength: response?.length || 0
@@ -2678,7 +3753,8 @@ export class NodeSTCore {
         characterId?: string,
         customUserName?: string, // Add parameter for customUserName
         apiSettings?: Partial<GlobalSettings['chat']>,  // <--- 新增参数
-        onStream?: (delta: string) => void // 新增参数
+        onStream?: (delta: string) => void, // 新增参数
+        rewriteOpinion?: string // 新增重写意见参数
     ): Promise<string | null> {
         try {
             console.log('[NodeSTCore] Starting regenerateFromMessage:', {
@@ -2693,8 +3769,14 @@ export class NodeSTCore {
             this.updateApiSettings(apiKey, apiSettings);
 
             // === 修正：根据apiProvider初始化对应适配器 ===
-            if (apiKey) {
-                const provider = (apiSettings?.apiProvider ?? this.apiSettings?.apiProvider);
+            const provider = (apiSettings?.apiProvider ?? this.apiSettings?.apiProvider);
+            
+            // 特殊处理：CradleCloud适配器不需要API Key，使用JWT Token
+            if (provider === 'cradlecloud') {
+                if (!this.cradleCloudAdapter) {
+                    this.initAdapters(null, apiSettings ?? this.apiSettings);
+                }
+            } else if (apiKey) {
                 if (provider === 'openai-compatible' && !this.openAICompatibleAdapter) {
                     this.initAdapters(apiKey, apiSettings ?? this.apiSettings);
                 } else if (provider === 'openrouter' && !this.openRouterAdapter) {
@@ -2703,8 +3785,9 @@ export class NodeSTCore {
                     this.initAdapters(apiKey, apiSettings ?? this.apiSettings);
                 }
             }
+            
             // 确保Adapter已初始化
-            if ((!this.geminiAdapter || !this.openRouterAdapter || !this.openAICompatibleAdapter) && apiKey) {
+            if (provider !== 'cradlecloud' && (!this.geminiAdapter || !this.openRouterAdapter || !this.openAICompatibleAdapter) && apiKey) {
                 this.initAdapters(apiKey, apiSettings ?? this.apiSettings);
             }
 
@@ -2712,7 +3795,11 @@ export class NodeSTCore {
             const adapter = this.getActiveAdapter();
             
             if (!adapter) {
-                throw new Error("API adapter not initialized - missing API key");
+                if (provider === 'cradlecloud') {
+                    throw new Error("CradleCloud adapter not initialized - please check your JWT token configuration");
+                } else {
+                    throw new Error("API adapter not initialized - missing API key");
+                }
             }
 
             // 确保加载最新的角色数据
@@ -2862,12 +3949,23 @@ export class NodeSTCore {
             });
             
             // Extract the user message text
-            const userMessageText = userMessageForRegeneration.parts[0]?.text || "";
+            const originalUserMessageText = userMessageForRegeneration.parts[0]?.text || "";
             
-            if (!userMessageText) {
+            if (!originalUserMessageText) {
                 console.error('[NodeSTCore] User message text is empty');
                 return null;
             }
+            
+            // Ensure that previous rewrite suggestions do not accumulate.
+            // Strip any existing rewrite block like "\n\n【重写要求】..." from the tail of the user message.
+            const baseUserMessageText = originalUserMessageText
+                .replace(/\n+\s*【重写要求】[\s\S]*$/u, '')
+                .trim();
+
+            // Combine user message with rewrite opinion if provided (overwrite previous one)
+            const userMessageText = rewriteOpinion 
+                ? `${baseUserMessageText}\n\n【重写要求】${rewriteOpinion}`
+                : baseUserMessageText;
             
             // Create a truncated history that includes all messages up to and including our target user message
             const truncatedHistory: ChatHistoryEntity = {
@@ -2880,12 +3978,18 @@ export class NodeSTCore {
             
             // First add all messages including first_mes and D-entries up to the user message
             for (const msg of chatHistory.parts) {
-                truncatedHistory.parts.push(msg);
-                
-                // If we've reached the user message we want to regenerate from, stop
+                // If this is the user message we want to regenerate from, replace its content with the combined text
                 if (!msg.is_d_entry && msg === userMessageForRegeneration) {
+                    // Replace the user message content with the combined text (original + rewrite opinion)
+                    const modifiedUserMessage: ChatMessage = {
+                        ...msg,
+                        parts: [{ text: userMessageText }]
+                    };
+                    truncatedHistory.parts.push(modifiedUserMessage);
                     foundUserMessage = true;
                     break;
+                } else {
+                    truncatedHistory.parts.push(msg);
                 }
             }
             
@@ -2941,8 +4045,10 @@ export class NodeSTCore {
             
             // Process the chat with the truncated history
             console.log('[NodeSTCore] Processing regeneration chat with target user message');
-            const response = await this.processChat(
-                userMessageText,
+            
+            // For regeneration, we need to get the AI response without adding the user message again
+            // since we've already modified the user message in the truncated history
+            const response = await this.processRegenerationChat(
                 truncatedHistory,
                 dEntries,
                 conversationId,
@@ -3002,11 +4108,6 @@ export class NodeSTCore {
                     customUserName || "",
                     roleCard
                 );
-                NodeSTCore.logRequestResponse(
-                    cleanedContentsForLog,
-                    null,
-                    adapter ? adapter.constructor.name : 'unknown'
-                );
             } catch (logErr) {
                 console.warn('[NodeSTCore][regenerateFromMessage] 请求体记录异常:', logErr);
             }
@@ -3065,19 +4166,27 @@ export class NodeSTCore {
 
             // If we got a response, add it to history
             if (processedResponse) {
-                // Use updateChatHistory method to add the AI response
-                const updatedHistory = this.updateChatHistory(
-                    truncatedHistory,
-                    userMessageText,
-                    processedResponse,
-                    dEntries
-                );
+                // For regeneration, we don't use updateChatHistory since the user message is already in truncatedHistory
+                // We just need to add the AI response
+                const updatedHistory: ChatHistoryEntity = {
+                    ...truncatedHistory,
+                    parts: [
+                        ...truncatedHistory.parts,
+                        {
+                            role: "model",
+                            parts: [{ text: processedResponse }]
+                        }
+                    ]
+                };
                 
                 // Save the updated history
                 await this.saveJson(
                     this.getStorageKey(conversationId, '_history'),
                     updatedHistory
                 );
+                
+                // 更新缓存
+                this.cacheManager.updateField(conversationId, 'chatHistory', updatedHistory);
                 
                 console.log('[NodeSTCore] Regeneration complete, saved updated history:', {
                     totalMessages: updatedHistory.parts.length,
@@ -3320,17 +4429,25 @@ export class NodeSTCore {
             return false;
         }
     }
-    /**
-     * Delete all data associated with a specific conversation ID
-     * Does not require an API key since it's only performing deletion operations
-     * 
-     * @param conversationId The conversation ID to delete data for
-     * @returns true if deletion was successful, false otherwise
-     */
+    // 添加缓存失效方法
+    public invalidateCache(conversationId: string): void {
+        this.cacheManager.clear(conversationId);
+        console.log(`[NodeSTCore] Cache invalidated for conversation: ${conversationId}`);
+    }
 
+    // 添加获取缓存统计信息的方法
+    public getCacheStats(): { size: number; keys: string[] } {
+        return this.cacheManager.getStats();
+    }
+
+    // 删除角色数据时也要清理缓存
     async deleteCharacterData(conversationId: string): Promise<boolean> {
         try {
             console.log('[NodeSTCore] Deleting all data for conversation:', conversationId);
+            
+            // 清理缓存
+            this.cacheManager.clear(conversationId);
+            
             // 角色数据文件key列表
             const keys = [
                 this.getStorageKey(conversationId, '_role'),
@@ -3371,7 +4488,15 @@ export class NodeSTCore {
             console.log(`[NodeSTCore][GlobalPreset] 操作: ${switchStr}`);
             if (switchStr === "开启") {
                 console.log('[NodeSTCore][GlobalPreset] 传入数据:', presetJsonStr);
-                let presetJson: PresetJson = JSON.parse(presetJsonStr);
+                
+                // 使用安全 JSON 解析
+                let presetJson: PresetJson;
+                try {
+                    presetJson = await SafeJsonProcessor.safeParse<PresetJson>(presetJsonStr);
+                } catch (error) {
+                    console.error('[NodeSTCore][GlobalPreset] 预设JSON解析失败:', error);
+                    return false;
+                }
 
                 // === 新增：自动修正 prompt_order ===
                 if (
@@ -3394,27 +4519,62 @@ export class NodeSTCore {
                     console.log('[NodeSTCore][GlobalPreset] 自动生成 prompt_order:', presetJson.prompt_order);
                 }
 
-                // 备份所有角色preset
+                // 备份所有角色preset（使用 StorageAdapter helper，支持文件备份 for large data）
                 const backup = await StorageAdapter.backupAllPresets();
-                await AsyncStorage.setItem('nodest_global_preset_backup', JSON.stringify(backup));
-                console.log('[NodeSTCore][GlobalPreset] 已备份所有角色preset');
-                // 替换所有角色preset
-                const affectedIds = await StorageAdapter.replaceAllPresets(presetJson);
-                console.log(`[NodeSTCore][GlobalPreset] 已批量替换preset，受影响角色ID:`, affectedIds);
+                await StorageAdapter.saveGlobalPresetBackup(backup);
+                console.log('[NodeSTCore][GlobalPreset] 已备份所有角色preset (safe backup)');
+
+                // 替换所有角色preset -- 分批写入以避免一次性写入大量数据导致 SQLITE_FULL
+                const allIds = await StorageAdapter.getAllConversationIds();
+                const batchSize = 50; // reasonable default
+                const affectedIds: string[] = [];
+                for (let i = 0; i < allIds.length; i += batchSize) {
+                    const chunk = allIds.slice(i, i + batchSize);
+                    try {
+                        await Promise.all(chunk.map(async (id) => {
+                            await StorageAdapter.saveJson(this.getStorageKey(id, '_preset'), presetJson);
+                            affectedIds.push(id);
+                        }));
+                        console.log(`[NodeSTCore][GlobalPreset] 替换chunk成功: ${i}..${i + chunk.length - 1}`);
+                    } catch (chunkError) {
+                        console.error('[NodeSTCore][GlobalPreset] 替换chunk失败，正在退回到逐个写入重试:', chunkError);
+                        // 逐个写入并捕获失败的 id
+                        for (const id of chunk) {
+                            try {
+                                await StorageAdapter.saveJson(this.getStorageKey(id, '_preset'), presetJson);
+                                affectedIds.push(id);
+                            } catch (singleError) {
+                                console.error(`[NodeSTCore][GlobalPreset] 无法替换角色 ${id}:`, singleError);
+                                // 跳过该 id
+                            }
+                        }
+                    }
+                }
+                console.log(`[NodeSTCore][GlobalPreset] 已批量替换preset，受影响角色ID数量: ${affectedIds.length}`);
                 // 保存全局配置
-                await StorageAdapter.saveGlobalPresetConfig({
-                    enabled: true,
-                    presetJson
-                });
+                await StorageAdapter.saveGlobalPresetConfig({ enabled: true, presetJson });
                 console.log('[NodeSTCore][GlobalPreset] 全局预设配置已保存，功能已开启');
                 return true;
             } else if (switchStr === "关闭") {
                 // 恢复所有角色preset
-                const backupStr = await AsyncStorage.getItem('nodest_global_preset_backup');
-                if (backupStr) {
-                    const backup = JSON.parse(backupStr);
-                    await StorageAdapter.restoreAllPresets(backup);
-                    console.log('[NodeSTCore][GlobalPreset] 已恢复所有角色preset');
+                // Load backup from StorageAdapter (supports file-backed backups for large data)
+                const backup = await StorageAdapter.loadGlobalPresetBackup();
+                if (backup) {
+                    try {
+                        // restore in batches to avoid SQLITE_FULL
+                        const entries = Object.entries(backup);
+                        const batchSize = 50;
+                        for (let i = 0; i < entries.length; i += batchSize) {
+                            const chunk = entries.slice(i, i + batchSize);
+                            await Promise.all(chunk.map(async ([id, preset]) => {
+                                await StorageAdapter.saveJson(this.getStorageKey(id, '_preset'), preset);
+                            }));
+                        }
+                        console.log('[NodeSTCore][GlobalPreset] 已恢复所有角色preset (batched restore)');
+                    } catch (error) {
+                        console.error('[NodeSTCore][GlobalPreset] 恢复备份失败:', error);
+                        return false;
+                    }
                 } else {
                     console.warn('[NodeSTCore][GlobalPreset] 未找到preset备份，跳过恢复');
                 }
@@ -3444,10 +4604,20 @@ export class NodeSTCore {
             console.log(`[NodeSTCore][GlobalWorldbook] 操作: ${switchStr}, 优先级: ${priority}`);
             if (switchStr === "开启") {
                 console.log('[NodeSTCore][GlobalWorldbook] 传入数据:', worldbookJsonStr);
-                const worldbookJson: WorldBookJson = JSON.parse(worldbookJsonStr);
+                
+                // 使用安全 JSON 解析
+                let worldbookJson: WorldBookJson;
+                try {
+                    worldbookJson = await SafeJsonProcessor.safeParse<WorldBookJson>(worldbookJsonStr);
+                } catch (error) {
+                    console.error('[NodeSTCore][GlobalWorldbook] 世界书JSON解析失败:', error);
+                    return false;
+                }
+                
                 // 备份所有角色worldbook
                 const backup = await StorageAdapter.backupAllWorldbooks();
-                await AsyncStorage.setItem('nodest_global_worldbook_backup', JSON.stringify(backup));
+                const backupString = await SafeJsonProcessor.safeStringify(backup);
+                await AsyncStorage.setItem('nodest_global_worldbook_backup', backupString);
                 console.log('[NodeSTCore][GlobalWorldbook] 已备份所有角色worldbook');
                 // 提取全局D类条目（position=4）
                 const globalDEntries: Record<string, any> = {};
@@ -3533,6 +4703,13 @@ export class NodeSTCore {
         // 3. 查找chatHistory identifier
         const promptOrderArr = preset.prompt_order[0]?.order || [];
         let chatHistoryIdentifier = '';
+        console.log('🔍 [NodeSTCore] 查找 chatHistory identifier');
+        console.log('🔍 [NodeSTCore] promptOrderArr 长度:', promptOrderArr.length);
+        console.log('🔍 [NodeSTCore] promptOrderArr 内容:', promptOrderArr.map((item: any) => ({
+            identifier: item.identifier,
+            enabled: item.enabled || item.enable
+        })));
+        
         for (const item of promptOrderArr) {
             if (
                 typeof item.identifier === 'string' &&
@@ -3540,6 +4717,7 @@ export class NodeSTCore {
                  item.identifier.toLowerCase().includes('chat_history'))
             ) {
                 chatHistoryIdentifier = item.identifier;
+                console.log('✅ [NodeSTCore] 找到 chatHistory identifier:', chatHistoryIdentifier);
                 break;
             }
         }
@@ -3551,41 +4729,77 @@ export class NodeSTCore {
                  p.identifier.toLowerCase().includes('chat_history'))
             );
             chatHistoryIdentifier = fallback?.identifier || 'chatHistory';
+            console.log('⚠️ [NodeSTCore] 未在 prompt_order 中找到 chatHistory，使用 fallback:', chatHistoryIdentifier);
         }
 
         // 4. 构造chatHistory消息对象
-        // 支持多轮对话（如输入为多行，偶数行为user，奇数行为assistant）
+        // 支持消息数组格式或多轮对话字符串
         let chatHistoryMessages: any[] = [];
-        if (inputText.includes('\n')) {
-            // 尝试按常见对话格式分割
-            // 支持格式：用户: ...\n角色: ...\n
-            const lines = inputText.split('\n').map(l => l.trim()).filter(Boolean);
-            for (const line of lines) {
-                if (/^(用户|user)[:：]/i.test(line)) {
-                    chatHistoryMessages.push({
-                        role: 'user',
-                        content: line.replace(/^(用户|user)[:：]/i, '').trim()
-                    });
-                } else if (/^(角色|assistant|model|bot)[:：]/i.test(line)) {
-                    chatHistoryMessages.push({
-                        role: 'assistant',
-                        content: line.replace(/^(角色|assistant|model|bot)[:：]/i, '').trim()
-                    });
-                } else {
-                    // fallback: 交替分配
-                    const last = chatHistoryMessages[chatHistoryMessages.length - 1];
-                    chatHistoryMessages.push({
-                        role: (!last || last.role === 'assistant') ? 'user' : 'assistant',
-                        content: line
-                    });
+        
+        console.log('🔍 [NodeSTCore] 开始处理 inputText');
+        console.log('🔍 [NodeSTCore] inputText 长度:', inputText.length);
+        console.log('🔍 [NodeSTCore] inputText 开头:', inputText.substring(0, 200));
+        console.log('🔍 [NodeSTCore] 尝试识别消息数组或解析输入文本');
+
+        // 尝试解析为 JSON 包装的消息数组（更宽松的识别逻辑，避免仅依赖 startsWith）
+        let triedParseAsMessageArray = false;
+        if (inputText && typeof inputText === 'string') {
+            const trimmed = inputText.trim();
+            if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+                try {
+                    const parsed = JSON.parse(trimmed);
+                    if (parsed && (parsed._isMessageArray || Array.isArray(parsed.messages))) {
+                        triedParseAsMessageArray = true;
+                        const msgs = parsed._isMessageArray ? parsed.messages : parsed.messages;
+                        if (Array.isArray(msgs)) {
+                            chatHistoryMessages = msgs.map((msg: any) => ({
+                                role: msg.role || 'user',
+                                content: msg.content || ''
+                            }));
+                            console.log('✅ [NodeSTCore] 成功解析消息数组（宽松模式），消息数量:', chatHistoryMessages.length);
+                        } else {
+                            console.warn('⚠️ [NodeSTCore] 解析得到的 messages 不是数组，回退到文本处理');
+                            triedParseAsMessageArray = false;
+                        }
+                    }
+                } catch (e) {
+                    console.log('🔍 [NodeSTCore] 解析为 JSON 失败，继续按文本处理');
                 }
             }
-        } else {
-            // 单条输入，默认为user
-            chatHistoryMessages.push({
-                role: 'user',
-                content: inputText
-            });
+        }
+
+        if (!triedParseAsMessageArray) {
+            if (inputText.includes('\n')) {
+                // 尝试按常见对话格式分割
+                // 支持格式：用户: ...\n角色: ...\n
+                const lines = inputText.split('\n').map(l => l.trim()).filter(Boolean);
+                for (const line of lines) {
+                    if (/^(用户|user)[:：]/i.test(line)) {
+                        chatHistoryMessages.push({
+                            role: 'user',
+                            content: line.replace(/^(用户|user)[:：]/i, '').trim()
+                        });
+                    } else if (/^(角色|assistant|model|bot)[:：]/i.test(line)) {
+                        chatHistoryMessages.push({
+                            role: 'assistant',
+                            content: line.replace(/^(角色|assistant|model|bot)[:：]/i, '').trim()
+                        });
+                    } else {
+                        // fallback: 交替分配
+                        const last = chatHistoryMessages[chatHistoryMessages.length - 1];
+                        chatHistoryMessages.push({
+                            role: (!last || last.role === 'assistant') ? 'user' : 'assistant',
+                            content: line
+                        });
+                    }
+                }
+            } else {
+                // 单条输入，默认为user
+                chatHistoryMessages.push({
+                    role: 'user',
+                    content: inputText
+                });
+            }
         }
 
         // 5. 按prompt_order组装rframework
@@ -3593,16 +4807,25 @@ export class NodeSTCore {
         for (const p of preset.prompts) {
             if (p.identifier) promptMap.set(p.identifier, p);
         }
+        console.log('🔨 [NodeSTCore] 开始组装 rframework');
+        console.log('🔨 [NodeSTCore] promptMap 大小:', promptMap.size);
+        console.log('🔨 [NodeSTCore] chatHistoryIdentifier:', chatHistoryIdentifier);
+        console.log('🔨 [NodeSTCore] chatHistoryMessages 数量:', chatHistoryMessages.length);
+        
         const rframework: any[] = [];
         for (const orderItem of promptOrderArr) {
             const identifier = orderItem.identifier;
+            console.log(`🔨 [NodeSTCore] 处理 identifier: ${identifier}`);
+            
             if (identifier === chatHistoryIdentifier) {
+                console.log(`✅ [NodeSTCore] 找到匹配的 chatHistory identifier，插入 ${chatHistoryMessages.length} 条消息`);
                 // 插入chatHistory消息数组
                 for (const msg of chatHistoryMessages) {
                     rframework.push({
                         role: msg.role,
                         content: msg.content
                     });
+                    console.log(`📝 [NodeSTCore] 插入消息: role=${msg.role}, content长度=${msg.content.length}`);
                 }
             } else if (promptMap.has(identifier)) {
                 const prompt = promptMap.get(identifier);
@@ -3611,24 +4834,43 @@ export class NodeSTCore {
                         role: prompt.role || 'user',
                         content: prompt.content
                     });
+                    console.log(`📝 [NodeSTCore] 插入普通 prompt: identifier=${identifier}, role=${prompt.role || 'user'}, content长度=${prompt.content.length}`);
+                } else {
+                    console.log(`⚠️ [NodeSTCore] 跳过空的 prompt: identifier=${identifier}`);
                 }
+            } else {
+                console.log(`❌ [NodeSTCore] 未找到 prompt: identifier=${identifier}`);
             }
         }
 
         // 6. 如果没有worldBook，直接返回rframework（转换格式）
+        console.log(`🔨 [NodeSTCore] rframework 构建完成，共 ${rframework.length} 条消息`);
+        console.log(`🔨 [NodeSTCore] rframework 内容预览:`, rframework.map((msg, idx) => ({
+            index: idx,
+            role: msg.role,
+            contentLength: msg.content.length,
+            contentPreview: msg.content.substring(0, 50) + '...'
+        })));
+        
         if (!worldBook || !worldBook.entries || Object.keys(worldBook.entries).length === 0) {
+            console.log(`✅ [NodeSTCore] 无 worldBook，直接返回 ${adapterType} 格式的消息数组`);
             // 只构建rframework，不插入D类条目
             if (adapterType === 'gemini' || adapterType === 'openrouter') {
-                return rframework.map(msg => ({
+                const result = rframework.map(msg => ({
                     role: msg.role === 'assistant' ? 'model' : (msg.role === 'model' ? 'model' : 'user'),
                     parts: [{ text: msg.content }]
                 }));
+                console.log(`🎯 [NodeSTCore] 最终返回 ${result.length} 条消息 (${adapterType} 格式)`);
+                return result;
             } else if (adapterType === 'openai-compatible') {
-                return rframework.map(msg => ({
+                const result = rframework.map(msg => ({
                     role: msg.role === 'model' ? 'assistant' : msg.role,
                     content: msg.content
                 }));
+                console.log(`🎯 [NodeSTCore] 最终返回 ${result.length} 条消息 (${adapterType} 格式)`);
+                return result;
             } else {
+                console.log(`🎯 [NodeSTCore] 最终返回 ${rframework.length} 条消息 (default 格式)`);
                 return rframework.map(msg => ({
                     role: msg.role === 'model' ? 'assistant' : msg.role,
                     content: msg.content
@@ -3815,6 +5057,10 @@ export class NodeSTCore {
                 this.getStorageKey(conversationId, '_history'),
                 updatedHistory
             );
+            
+            // 更新缓存
+            this.cacheManager.updateField(conversationId, 'chatHistory', updatedHistory);
+            
             console.log(`[NodeSTCore] 已删除用户消息及其AI消息，userIndex=${messageIndex}, 新消息数=${updatedHistory.parts.length}`);
             return true;
         } catch (error) {
@@ -3870,6 +5116,10 @@ export class NodeSTCore {
                 this.getStorageKey(conversationId, '_history'),
                 updatedHistory
             );
+            
+            // 更新缓存
+            this.cacheManager.updateField(conversationId, 'chatHistory', updatedHistory);
+            
             console.log(`[NodeSTCore] 已编辑用户消息内容，userIndex=${messageIndex}，新内容已保存`);
             return true;
         } catch (error) {
@@ -3911,7 +5161,7 @@ export class NodeSTCore {
      * @param userMessage 用户消息内容
      * @returns true/false
      */
-    static async addUserMessage(conversationId: string, userMessage: string): Promise<boolean> {
+    static async addUserMessage(conversationId: string, userMessage: string, metadata?: Record<string, any>): Promise<boolean> {
         try {
             // 加载历史
             const filePath = NodeSTCore.characterDataDir + `nodest_${conversationId}_history.json`;
@@ -3923,12 +5173,19 @@ export class NodeSTCore {
             const content = await FileSystem.readAsStringAsync(filePath);
             const chatHistory: ChatHistoryEntity = JSON.parse(content);
 
-            // 追加用户消息，包含时间戳
-            chatHistory.parts.push({
+            // 追加用户消息，包含时间戳和元数据
+            const messageEntry: any = {
                 role: "user",
                 parts: [{ text: userMessage }],
                 timestamp: Date.now() // 添加时间戳
-            });
+            };
+            
+            // 如果有元数据，添加到消息中
+            if (metadata && Object.keys(metadata).length > 0) {
+                messageEntry.metadata = metadata;
+            }
+            
+            chatHistory.parts.push(messageEntry);
 
             // 保存
             await FileSystem.writeAsStringAsync(filePath, JSON.stringify(chatHistory));
@@ -3990,6 +5247,114 @@ export class NodeSTCore {
         } catch (error) {
             console.error('[NodeSTCore] getFirstMes error:', error);
             return null;
+        }
+    }
+
+    /**
+     * 静态方法：为指定角色的 worldbook 添加 D 类条目
+     * @param conversationId 角色的会话ID
+     * @param dEntries D 类条目字典 (key: entryKey, value: WorldBookEntry)
+     * @param isCovered 是否覆盖上一批通过该方式添加的条目，默认为false（增量添加）
+     * @returns 是否操作成功
+     */
+    static async appendDEntriesToCharacterWorldbook(
+        conversationId: string,
+        dEntries: Record<string, any>,
+        isCovered: boolean = false
+    ): Promise<boolean> {
+        return await StorageAdapter.appendDEntriesToCharacterWorldbook(conversationId, dEntries, isCovered);
+    }
+
+    /**
+     * 静态方法：删除指定角色 worldbook 中通过 appendDEntriesToCharacterWorldbook 添加的 D 类条目
+     * @param conversationId 角色的会话ID
+     * @returns 是否操作成功
+     */
+    static async removeCharacterAddedDEntries(conversationId: string): Promise<boolean> {
+        return await StorageAdapter.removeCharacterAddedDEntries(conversationId);
+    }
+
+    /**
+     * 在消息数组发送给适配器前，对其中的剧本宏变量进行替换
+     * @param messages 消息数组
+     * @param characterId 角色ID（可选，用于角色作用域的宏替换）
+     * @param scriptId 剧本ID（可选，如果有绑定剧本则进行剧本级别的宏替换）
+     * @returns 无返回值，直接修改传入的消息数组
+     */
+    private async replaceScriptMacrosInMessageArray(
+        messages: ChatMessage[], 
+        characterId?: string,
+        scriptId?: string
+    ): Promise<void> {
+        if (!messages || messages.length === 0) {
+            return;
+        }
+
+        console.log(`[NodeSTCore] 开始对 ${messages.length} 条消息进行剧本宏替换 (characterId: ${characterId}, scriptId: ${scriptId})`);
+        
+        let replacedCount = 0;
+        let errorCount = 0;
+
+        try {
+            // 遍历每条消息
+            for (let i = 0; i < messages.length; i++) {
+                const message = messages[i];
+                if (!message.parts || message.parts.length === 0) {
+                    continue;
+                }
+
+                // 遍历消息的每个部分
+                for (let j = 0; j < message.parts.length; j++) {
+                    const part = message.parts[j];
+                    if (!part.text || typeof part.text !== 'string') {
+                        continue; // 跳过非文本部分
+                    }
+
+                    const originalText = part.text;
+                    
+                    try {
+                        let replacedText = originalText;
+                        
+                        // 如果有剧本ID，优先使用剧本级别的宏替换
+                        if (scriptId) {
+                            try {
+                                replacedText = await VariableProcessor.replaceMacrosOnly(scriptId, originalText);
+                            } catch (scriptError) {
+                                console.warn(`[NodeSTCore] 剧本 ${scriptId} 宏替换失败，回退到角色级别替换:`, scriptError);
+                                // 回退到角色级别替换（如果有characterId）
+                                if (characterId) {
+                                    // 这里可以扩展为角色级别的宏替换
+                                    // 目前暂时保持原文本
+                                }
+                            }
+                        } else if (characterId) {
+                            // 仅角色级别的宏替换（这里暂时使用全局宏替换作为fallback）
+                            // 后续可以扩展为从角色绑定的剧本中获取变量管理器
+                            console.log(`[NodeSTCore] 暂时跳过角色级别宏替换 (characterId: ${characterId})`);
+                        }
+
+                        // 检查是否有实际替换
+                        if (replacedText !== originalText) {
+                            part.text = replacedText;
+                            replacedCount++;
+                            
+                            // 在debug模式下记录替换详情
+                            if (process.env.NODE_ENV === 'development') {
+                                console.log(`[NodeSTCore] 消息 ${i+1}.${j+1} 宏替换: "${originalText.substring(0, 50)}..." → "${replacedText.substring(0, 50)}..."`);
+                            }
+                        }
+                    } catch (partError) {
+                        errorCount++;
+                        console.error(`[NodeSTCore] 消息 ${i+1}.${j+1} 宏替换失败:`, partError);
+                        // 容错模式：保持原文本，继续处理下一个部分
+                    }
+                }
+            }
+
+            console.log(`[NodeSTCore] 宏替换完成: ${replacedCount} 个部分已替换, ${errorCount} 个错误`);
+        } catch (globalError) {
+            console.error(`[NodeSTCore] 宏替换过程中发生全局错误:`, globalError);
+            // 容错模式：即使出错也不阻止发送
         }
     }
 }

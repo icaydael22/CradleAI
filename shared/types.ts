@@ -16,7 +16,7 @@ export interface User {
     coverImage? : string | null;
 }
 
-export type TTSProvider = 'cosyvoice' | 'doubao' | 'minimax';
+export type TTSProvider = 'cosyvoice' | 'doubao' | 'minimax' | 'gemini' | 'cradlecloud';
 
 export interface TTSSettings {
   enabled: boolean;
@@ -36,6 +36,8 @@ export interface TTSSettings {
   minimaxEnglishNormalization?: boolean;
   cosyvoiceServerUrl?: string; // CosyVoice server URL
   useRealtimeUpdates?: boolean; // 是否使用实时更新
+  // CradleCloud TTS 字段
+  cradleCloudVoice?: string; // CradleCloud TTS voice name
 }
 
 export interface GlobalSettings {
@@ -211,9 +213,11 @@ export interface ChatMessage {
     position?: number;
     insertion_order?: number;
     timestamp?: number; 
+    renderedAt?: number;  // 前端渲染时间戳：消息在UI中显示的时间
     is_chat_history_placeholder ?: boolean;
     characterId?: string; // 角色ID
     isMemorySummary?: boolean; // 是否为记忆摘要
+    metadata?: Record<string, any>; // 元数据，用于存储额外信息
 }
 
 export interface SidebarItemProps {
@@ -374,6 +378,10 @@ export interface Character {
   // 新增：自动后处理开关
   enableAutoExtraBackground?: boolean;
   ttsConfig?: TTSConfig; // 新增：TTS配置
+  // 剧本绑定 - 角色与剧本的关联
+  scriptId?: string; // 角色所属的剧本ID
+  // 消息分段显示 - 是否将多段落消息分割显示
+  paragraphModeEnabled?: boolean;
 }
 
 export interface Message {
@@ -382,7 +390,10 @@ export interface Message {
     sender: string;
     isLoading?: boolean;
     timestamp?: number;
+    renderedAt?: number;  // 前端渲染时间戳：消息在UI中显示的时间
     rating?: number;
+    status?: 'sending' | 'sent' | 'error';  // 消息状态
+    error?: string;  // 详细错误信息，如 "401 Unauthorized" 或 "Network error"
     metadata?: {
         senderId?: string;
         type?: 'relationship_request' | 'invitation' | 'alert' | 'message';
@@ -390,6 +401,14 @@ export interface Message {
         regenerated?: boolean;  // Whether this message was regenerated
         regenerationTime?: number;  // When the message was regenerated
         error?: string;  // Error information if regeneration failed
+        isContinue?: boolean;  // 是否为继续对话消息
+        // 标记该消息属于朋友圈互动（无论发送者为用户或角色，均不应出现在私聊中）
+        isCircleInteraction?: boolean;
+        // 兼容旧键名（历史原因，小写形式）
+        iscircleinteraction?: boolean;
+        // 自动消息输入（UI 辅助用，页面可见时过滤）
+        isAutoMessageInput?: boolean;
+        isErrorMessage?: boolean;  // 是否为系统错误消息（用于向后兼容）
         [key: string]: any;  
     };
     read?: boolean;
@@ -428,6 +447,7 @@ export interface CirclePost {
     hasTriggeredResponse?: boolean;
     isFavorited?: boolean;
     thoughts?: string;
+    rating?: number; // 1-5 星评分
 }
 
 export interface CircleComment {
@@ -444,6 +464,7 @@ export interface CircleComment {
         userId: string;
         userName: string;
     };
+    emoticon?: string;
 }
 
 export interface CircleLike {
@@ -460,7 +481,6 @@ export interface ProcessChatOptions {
     userMessage: string;
     conversationId: string;
     status: "更新人设" | "新建角色" | "同一角色继续对话";
-    apiKey: string;
     character?: Character;
     jsonString?: string;
 }
@@ -687,7 +707,7 @@ export interface ChatDialogProps {
   style?: ViewStyle;
   selectedCharacter?: Character | null;
   onRateMessage?: (messageId: string, isUpvote: boolean) => void;
-  onRegenerateMessage?: (messageId: string, messageIndex: number) => void;
+  onRegenerateMessage?: (messageId: string) => void;
   savedScrollPosition?: number;
   onScrollPositionChange?: (characterId: string, position: number) => void;
   messageMemoryState?: Record<string, string>; // Add this new prop
@@ -749,6 +769,13 @@ export interface ChatSettings {
     providers?: OpenAICompatibleProviderConfig[];
     selectedProviderId?: string;
     stream?: boolean;
+    temperature?: number;
+    max_tokens?: number;
+  };
+  cradlecloud?: {
+    enabled: boolean;
+    jwtToken?: string;
+    model?: string;
     temperature?: number;
     max_tokens?: number;
   };
@@ -818,6 +845,10 @@ export interface TTSConfig {
   minimax?: {
     voiceId: string;
     emotion?: string;
+  };
+  // Gemini TTS configuration
+  gemini?: {
+    voiceName: string;
   };
 }
 

@@ -1,6 +1,6 @@
 import * as FileSystem from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Audio } from 'expo-av';
+import { createAudioPlayer } from 'expo-audio';
 
 export interface AudioCacheEntry {
   messageId: string;
@@ -24,7 +24,7 @@ export class AudioCacheManager {
   private readonly AUDIO_FILE_MAP_KEY = 'audio_file_map';
   private audioFileMap: Map<string, string> = new Map(); // messageId -> filePath
   private audioStates: Map<string, AudioState> = new Map(); // messageId -> state
-  private soundMap: Map<string, Audio.Sound> = new Map(); // messageId -> sound instance
+  private soundMap: Map<string, any> = new Map(); // messageId -> player instance (adapter)
 
   private constructor() {
     this.initializeCache();
@@ -260,7 +260,7 @@ export class AudioCacheManager {
   /**
    * 获取或创建音频实例
    */
-  public async getAudioSound(messageId: string): Promise<Audio.Sound | null> {
+  public async getAudioSound(messageId: string): Promise<any | null> {
     const filePath = this.audioFileMap.get(messageId);
     if (!filePath) return null;
 
@@ -272,12 +272,15 @@ export class AudioCacheManager {
 
     // 创建新的音频实例
     try {
-      const { sound: newSound } = await Audio.Sound.createAsync(
-        { uri: filePath },
-        { shouldPlay: false }
-      );
-      this.soundMap.set(messageId, newSound);
-      return newSound;
+      const player = createAudioPlayer({ uri: filePath });
+      // 适配旧的 Audio.Sound 接口，最小化上层改动
+      const adapter = {
+        pauseAsync: async () => { try { player.pause(); } catch {} },
+        replayAsync: async () => { try { player.seekTo?.(0); } catch {}; player.play(); },
+        setOnPlaybackStatusUpdate: (_cb: (status: any) => void) => { /* expo-audio 无直接回调，这里保留空实现 */ },
+      } as any;
+      this.soundMap.set(messageId, adapter);
+      return adapter;
     } catch (error) {
       console.error('[AudioCacheManager] Failed to create audio sound:', error);
       return null;
@@ -422,9 +425,8 @@ export class AudioCacheManager {
   public async stopAllAudio(): Promise<void> {
     for (const [messageId, sound] of this.soundMap) {
       try {
-        const status = await sound.getStatusAsync();
-        if (status.isLoaded && status.isPlaying) {
-          await sound.stopAsync();
+        if (sound && typeof sound.pauseAsync === 'function') {
+          await sound.pauseAsync();
           this.updateAudioState(messageId, { isPlaying: false });
         }
       } catch (error) {

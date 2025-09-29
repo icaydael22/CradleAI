@@ -1,10 +1,12 @@
 import { GeminiAdapter } from '@/NodeST/nodest/utils/gemini-adapter';
 import { OpenAIAdapter, OpenAICompatibleConfig } from '@/NodeST/nodest/utils/openai-adapter';
 import { OpenRouterAdapter } from '@/utils/openrouter-adapter';
+import { CradleCloudAdapter } from '@/NodeST/nodest/utils/cradlecloud-adapter';
 import { getApiSettings } from '@/utils/settings-helper';
+import NovelAIService from '@/services/novelai/NovelAIService';
 
 // 支持的适配器类型
-type AdapterType = 'gemini' | 'openai-compatible' | 'openrouter';
+type AdapterType = 'gemini' | 'openai-compatible' | 'openrouter' | 'cradlecloud';
 
 // 标准消息格式（兼容OpenAI/Gemini/OpenRouter）
 type UnifiedMessage = 
@@ -59,6 +61,8 @@ export async function unifiedGenerateContent(
       adapter = 'openrouter';
     } else if (provider.includes('openai') || provider === 'openai-compatible') {
       adapter = 'openai-compatible';
+    } else if (provider.includes('cradlecloud') || provider === 'cradlecloud') {
+      adapter = 'cradlecloud';
     } else {
       adapter = 'gemini'; // 默认fallback
     }
@@ -77,6 +81,10 @@ export async function unifiedGenerateContent(
     } else if (adapter === 'openai-compatible') {
       apiKey = apiKey || apiSettings.OpenAIcompatible?.apiKey;
       modelId = modelId || apiSettings.OpenAIcompatible?.model || 'gpt-3.5-turbo';
+    } else if (adapter === 'cradlecloud') {
+      // CradleCloud 使用 JWT token，不需要传统的 API key
+      apiKey = apiKey || '';
+      modelId = modelId || apiSettings.cradlecloud?.model || 'gemini-2.0-flash-exp';
     }
   }
 
@@ -141,23 +149,95 @@ export async function unifiedGenerateContent(
         content: (msg as any).parts?.[0]?.text || ''
       }
     );
-    if (typeof OpenRouterAdapter.executeDirectGenerateContent === 'function') {
-      return await OpenRouterAdapter.executeDirectGenerateContent(openrouterMessages, {
-        apiKey,
-        characterId,
-        modelId,
-        ...(options.openrouterConfig || {})
-      });
-    } else {
       // fallback: 实例化
       const adapterInstance = new OpenRouterAdapter(
         apiKey || '',
         modelId || 'openai/gpt-3.5-turbo',
-        options.openrouterConfig
       );
-      return await adapterInstance.generateContent(openrouterMessages, characterId);
-    }
+      return await adapterInstance.generateContent(openrouterMessages);
+    
+  }
+
+  if (adapter === 'cradlecloud') {
+    // CradleCloudAdapter: 需要 ChatMessage 格式
+    const cradlecloudMessages = messages.map(msg => {
+      if ('content' in msg) {
+        // OpenAI format -> ChatMessage format
+        return {
+          role: msg.role,
+          parts: [{ text: (msg as any).content }]
+        };
+      } else {
+        // Already in ChatMessage format
+        return msg;
+      }
+    });
+    
+    const adapterInstance = new CradleCloudAdapter();
+    return await adapterInstance.generateContent(cradlecloudMessages as any, characterId);
   }
 
   throw new Error(`不支持的适配器类型: ${adapter}`);
+}
+
+// --------------------
+// 统一图片生成（首期支持 NovelAI）
+// --------------------
+
+export type ImageProvider = 'novelai';
+
+export interface UnifiedImageGenParams {
+  provider: ImageProvider;
+  // NovelAI 基本参数
+  token?: string;
+  prompt: string;
+  negativePrompt?: string;
+  model?: string; // 默认 NAI Diffusion V4.5
+  width?: number;
+  height?: number;
+  steps?: number;
+  scale?: number;
+  sampler?: string;
+  seed?: number;
+  endpoint?: string; // 自定义端点
+}
+
+export interface UnifiedImageGenResult {
+  imageUrls: string[];
+  seed: number;
+}
+
+export async function unifiedGenerateImage(params: UnifiedImageGenParams): Promise<UnifiedImageGenResult> {
+  const provider = params.provider || 'novelai';
+  if (provider === 'novelai') {
+    const {
+      token,
+      prompt,
+      negativePrompt = '',
+      model = 'NAI Diffusion V4.5',
+      width = 1024,
+      height = 1024,
+      steps = 28,
+      scale = 5,
+      sampler = 'k_euler_ancestral',
+      seed,
+      endpoint,
+    } = params;
+
+    return await NovelAIService.generateImage({
+      token: token || '',
+      prompt,
+      negativePrompt,
+      model,
+      width,
+      height,
+      steps,
+      scale,
+      sampler,
+      seed,
+      endpoint,
+    } as any);
+  }
+
+  throw new Error(`未支持的图片生成提供商: ${provider}`);
 }

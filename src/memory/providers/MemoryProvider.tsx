@@ -59,6 +59,7 @@ export const MemoryProvider: React.FC<MemoryProviderProps> = ({ children, config
   const zhipuApiKeyRef = useRef<string>('');
   const llmConfigRef = useRef<LLMConfig | null>(null);
   const hasLoggedSkipMessage = useRef(false);
+  const lastEmbedderProviderRef = useRef<string | null>(null);
   
   // Create a stable configuration reference to break update cycles
   const configRef = useRef(config);
@@ -163,11 +164,15 @@ export const MemoryProvider: React.FC<MemoryProviderProps> = ({ children, config
       try {
         setLoading(true);
         
-        // First try to get the API key from user context
-        let zhipuApiKey = user?.settings?.chat?.zhipuApiKey || '';
+        // Determine active provider
+        const apiProvider = user?.settings?.chat?.apiProvider || 'gemini';
+        const cradleCloudEnabled = apiProvider === 'cradlecloud';
+        
+        // First try to get the Zhipu API key from user context (only if using Zhipu embedder)
+        let zhipuApiKey = apiProvider === 'cradlecloud' ? '' : (user?.settings?.chat?.zhipuApiKey || '');
         
         // If not found or empty, try to get from storage directly
-        if (!zhipuApiKey) {
+        if (!zhipuApiKey && !cradleCloudEnabled) {
           console.log('[MemoryProvider] No Zhipu API key in user context, checking storage');
           const storedKey = await fetchStoredZhipuApiKey();
           if (storedKey) {
@@ -178,15 +183,16 @@ export const MemoryProvider: React.FC<MemoryProviderProps> = ({ children, config
           console.log('[MemoryProvider] Using Zhipu API key from user context, length:', zhipuApiKey.length);
         }
         
-        // Check for significant API key changes
+        // Check for significant API key changes (only relevant for Zhipu)
         const apiKeyChanged = zhipuApiKeyRef.current !== zhipuApiKey;
         
         // If memory exists and API key hasn't changed, use existing instance
-        if (singletonMemoryInstance && !apiKeyChanged) {
+        // Reuse existing instance only if embedder provider hasn't changed and (for Zhipu) API key unchanged
+        if (singletonMemoryInstance && !apiKeyChanged && lastEmbedderProviderRef.current === (cradleCloudEnabled ? 'cradle-cloud' : 'zhipu')) {
           console.log('[MemoryProvider] Using existing memory instance');
           
           // Even if we're reusing the instance, update the embedded API key if available
-          if (zhipuApiKey && singletonMemoryInstance.embedder?.updateApiKey) {
+          if (!cradleCloudEnabled && zhipuApiKey && singletonMemoryInstance.embedder?.updateApiKey) {
             try {
               console.log('[MemoryProvider] Updating embedder API key in existing instance');
               singletonMemoryInstance.embedder.updateApiKey(zhipuApiKey);
@@ -208,34 +214,15 @@ export const MemoryProvider: React.FC<MemoryProviderProps> = ({ children, config
         zhipuApiKeyRef.current = zhipuApiKey;
         
         // Save API key to storage
-        try {
-          // 尝试使用localStorage（Web）
-          if (typeof localStorage !== 'undefined') {
-            // 先获取现有设置
-            const existingSettingsStr = localStorage.getItem('user_settings');
-            const existingSettings = existingSettingsStr ? JSON.parse(existingSettingsStr) : {};
-            
-            // 更新智谱API密钥
-            const updatedSettings = {
-              ...existingSettings,
-              chat: {
-                ...(existingSettings.chat || {}),
-                zhipuApiKey
-              }
-            };
-            
-            // 保存回localStorage
-            localStorage.setItem('user_settings', JSON.stringify(updatedSettings));
-            console.log('[MemoryProvider] 已保存智谱API密钥到localStorage');
-          }
-          
-          // 尝试使用AsyncStorage（React Native）
-          if (typeof require !== 'undefined') {
-            try {
-              const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-              const existingSettingsStr = await AsyncStorage.getItem('user_settings');
+        if (!cradleCloudEnabled) {
+          try {
+            // 尝试使用localStorage（Web）
+            if (typeof localStorage !== 'undefined') {
+              // 先获取现有设置
+              const existingSettingsStr = localStorage.getItem('user_settings');
               const existingSettings = existingSettingsStr ? JSON.parse(existingSettingsStr) : {};
               
+              // 更新智谱API密钥
               const updatedSettings = {
                 ...existingSettings,
                 chat: {
@@ -244,34 +231,70 @@ export const MemoryProvider: React.FC<MemoryProviderProps> = ({ children, config
                 }
               };
               
-              await AsyncStorage.setItem('user_settings', JSON.stringify(updatedSettings));
-              console.log('[MemoryProvider] 已保存智谱API密钥到AsyncStorage');
-            } catch (e) {
-              console.log('[MemoryProvider] 保存到AsyncStorage失败:', e);
+              // 保存回localStorage
+              localStorage.setItem('user_settings', JSON.stringify(updatedSettings));
+              console.log('[MemoryProvider] 已保存智谱API密钥到localStorage');
             }
+            
+            // 尝试使用AsyncStorage（React Native）
+            if (typeof require !== 'undefined') {
+              try {
+                const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+                const existingSettingsStr = await AsyncStorage.getItem('user_settings');
+                const existingSettings = existingSettingsStr ? JSON.parse(existingSettingsStr) : {};
+                
+                const updatedSettings = {
+                  ...existingSettings,
+                  chat: {
+                    ...(existingSettings.chat || {}),
+                    zhipuApiKey
+                  }
+                };
+                
+                await AsyncStorage.setItem('user_settings', JSON.stringify(updatedSettings));
+                console.log('[MemoryProvider] 已保存智谱API密钥到AsyncStorage');
+              } catch (e) {
+                console.log('[MemoryProvider] 保存到AsyncStorage失败:', e);
+              }
+            }
+          } catch (storageError) {
+            console.warn('[MemoryProvider] 保存API密钥到存储失败:', storageError);
+            // 继续执行，不中断主流程
           }
-        } catch (storageError) {
-          console.warn('[MemoryProvider] 保存API密钥到存储失败:', storageError);
-          // 继续执行，不中断主流程
         }
         
         // Merge configuration
         const mergedConfig = ConfigManager.mergeConfig(configRef.current || {});
         
-        // Configure Zhipu embedding
-        console.log('[MemoryProvider] Configuring Zhipu embedding service, API key length:', zhipuApiKey.length);
-        mergedConfig.embedder = {
-          provider: 'zhipu',
-          config: {
-            apiKey: zhipuApiKey,
-            model: 'embedding-3',
-            dimensions: 1024,
-            url: 'https://open.bigmodel.cn/api/paas/v4/embeddings'
-          }
-        };
-        
-        // Set vector store dimension
-        mergedConfig.vectorStore.config.dimension = 1024;
+        // Configure embedding provider (Zhipu or CradleCloud)
+        if (cradleCloudEnabled) {
+          console.log('[MemoryProvider] Configuring Cradle Cloud embedding service');
+          mergedConfig.embedder = {
+            provider: 'cradle-cloud',
+            config: {
+              model: 'gemini-embedding-001',
+              dimensions: 3072,
+              url: 'https://api.cradleintro.top'
+            }
+          } as any;
+          // Set vector store dimension for CradleCloud
+          mergedConfig.vectorStore.config.dimension = 3072;
+          lastEmbedderProviderRef.current = 'cradle-cloud';
+        } else {
+          console.log('[MemoryProvider] Configuring Zhipu embedding service, API key length:', zhipuApiKey.length);
+          mergedConfig.embedder = {
+            provider: 'zhipu',
+            config: {
+              apiKey: zhipuApiKey,
+              model: 'embedding-3',
+              dimensions: 3072,
+              url: 'https://open.bigmodel.cn/api/paas/v4/embeddings'
+            }
+          };
+          // Set vector store dimension for Zhipu
+          mergedConfig.vectorStore.config.dimension = 3072;
+          lastEmbedderProviderRef.current = 'zhipu';
+        }
         
         // Reset existing memory instance if needed
         if (singletonMemoryInstance) {
@@ -297,7 +320,12 @@ export const MemoryProvider: React.FC<MemoryProviderProps> = ({ children, config
     };
     
     initializeMemory();
-  }, [user?.settings?.chat?.zhipuApiKey, fetchStoredZhipuApiKey]); // Only depend on zhipu API key
+  }, [
+    user?.settings?.chat?.zhipuApiKey,
+    user?.settings?.chat?.apiProvider,
+    user?.settings?.chat?.cradlecloud?.jwtToken,
+    fetchStoredZhipuApiKey
+  ]); // Reinitialize when provider or keys change
 
   // Pass the processing interval to memory service after initialization
   useEffect(() => {

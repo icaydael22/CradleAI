@@ -60,6 +60,40 @@ class ChatExportService {
       return false;
     }
   }
+
+  /**
+   * Export a chat save silently to app storage without opening share sheet.
+   * Returns the file path on success, or null on failure.
+   */
+  async exportChatSaveSilently(save: ChatSave): Promise<string | null> {
+    try {
+      const exportData = {
+        version: '1.0',
+        exportedAt: new Date().toISOString(),
+        save: {
+          ...save,
+          nodestChatHistory: save.nodestChatHistory || await this.fetchChatHistory(save.conversationId)
+        }
+      };
+
+      const jsonString = JSON.stringify(exportData, null, 2);
+      const characterName = save.characterName.replace(/[^a-zA-Z0-9]/g, '_');
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const filename = `${characterName}_chat_${timestamp}.json`;
+
+      const dir = FileSystem.documentDirectory + 'chat_backups/';
+      try {
+        await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
+      } catch (e) { /* ignore */ }
+
+      const fileUri = `${dir}${filename}`;
+      await FileSystem.writeAsStringAsync(fileUri, jsonString);
+      return fileUri;
+    } catch (error) {
+      console.error('[ChatExportService] exportChatSaveSilently error:', error);
+      return null;
+    }
+  }
   
   /**
    * Import a chat save from a file

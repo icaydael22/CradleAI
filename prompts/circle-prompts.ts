@@ -16,6 +16,7 @@ export interface ScenePromptParams {
   conversationHistory?: string;
   characterJsonData?: string;
   allCommentsText?: string; // 新增：全部评论内容
+  emoticonList?: string[]; // 新增：该角色可用的表情包文件名（带扩展名）
 }
 
 export const CirclePrompts = {
@@ -37,6 +38,10 @@ ${params.conversationHistory ? `【你们的历史对话记录】\n${params.conv
 ${params.hasImages ? "4. 这条朋友圈包含图片，请优先对图片内容做出详细回应，在回复中直接提及你看到的图片具体内容" : ""}
 ${params.conversationHistory ? "5. 请参考上方的历史对话记录，保持对话的连贯性和一致性，体现出你对之前交流内容的记忆" : ""}
 
+${params.emoticonList && params.emoticonList.length > 0 ? `【可用表情包文件名】${params.emoticonList.join('，')}
+
+如果你要使用表情包，请严格从上面的文件名中选一个，并在JSON的"emoticon"字段中填写该文件名（包含扩展名）。` : ''}
+
 请以JSON格式提供你的回应：
 {
   "thoughts": "你看到这条朋友圈的内心想法（不会展示给对方）",
@@ -47,7 +52,8 @@ ${params.conversationHistory ? "5. 请参考上方的历史对话记录，保持
   "emotion": {
     "type": "positive/neutral/negative",
     "intensity": 0.0-1.0
-  }
+  },
+  "emoticon": "(可选) 仅当你要使用表情包时填写，值必须为上方列表中的一个文件名"
 }`,
 
   /**
@@ -72,12 +78,37 @@ ${params.conversationHistory ? `【你与用户的历史对话】\n${params.conv
 确保内容符合你的角色人设，展现出你独特的性格和表达方式。${params.conversationHistory ? '如果可能，可以巧妙地融入你与用户之前交流中提到的话题或内容，增强连贯性。' : ''}`,
 
   /**
+   * New: Prompt for creating a new post by a character referencing user-provided text and/or images
+   */
+  createNewPostWithHints: (params: ScenePromptParams) => `作为${params.charName ? params.charName : ''}（${params.charDescription.substring(0, 50)}），你将发布一条朋友圈。
+
+【灵感文字（可作为灵感参考）】${params.contentText || '无'}
+${params.hasImages ? '这是你朋友圈准备发布的图片，请重点关注这些图片的内容（系统会向你提供图片内容的可读描述）' : ''}
+${params.characterJsonData ? `【你的角色设定】${params.characterJsonData}` : ''}
+${params.conversationHistory ? `【你与用户的历史对话】\n${params.conversationHistory}` : ''}
+
+请在充分理解你的灵感文字与你准备发布的图片的基础上，结合你的人设进行创作。注意：
+1. 以你的口吻自然创作
+${params.hasImages ? '2. 内容需要和图片有一定相关性' : '2. 如果没有图片，仅参考文字作为你的灵感'}
+3. 内容应符合你的性格、背景与表达方式
+
+请以JSON格式提供你准备发布的朋友圈：
+{
+  "thoughts": "你构思该内容的内心想法（不会展示给他人）",
+  "post": "你要发布的朋友圈内容（融合用户图片/文字的灵感，但保持你的口吻）",
+  "emotion": {
+    "type": "positive/neutral/negative",
+    "intensity": 0.0-1.0
+  }
+}`,
+
+  /**
    * Prompt for when a character sees their own post
    */
   selfPost: (params: ScenePromptParams) => `这是你${params.charName ? '（' + params.charName + '）' : ''}自己发布的朋友圈动态，现在有人回复了你的帖子：
 
 【你发布的内容】${params.context || '无'}
-${params.hasImages ? "该动态包含图片内容，请首先关注【图片描述】部分，这是对图片内容的详细描述。" : ''}
+${params.hasImages ? "你发布的内容包含图片，请首先关注【图片描述】部分，这是对图片内容的详细描述。" : ''}
 【${params.userIdentification || '某人'}的回复】${params.contentText}
 ${params.conversationHistory ? `【你与${params.userIdentification || '对方'}的历史对话】\n${params.conversationHistory}` : ''}
 
@@ -86,6 +117,10 @@ ${params.conversationHistory ? `【你与${params.userIdentification || '对方'
 - 你想如何回应这条评论
 - 包含你的情感状态
 
+${params.emoticonList && params.emoticonList.length > 0 ? `【可用表情包文件名】${params.emoticonList.join('，')}
+
+如果你要使用表情包，请严格从上面的文件名中选一个，并在JSON的"emoticon"字段中填写该文件名（包含扩展名）。` : ''}
+
 回复，不要包含任何其他文字：
 {
   "thoughts": "你对这条回复的内心想法（不会展示给对方）",
@@ -93,7 +128,8 @@ ${params.conversationHistory ? `【你与${params.userIdentification || '对方'
   "emotion": {
     "type": "positive/neutral/negative",
     "intensity": 0.0-1.0
-  }
+  },
+  "emoticon": "(可选) 仅当你要使用表情包时填写，值必须为上方列表中的一个文件名"
 }`,
 
   /**
@@ -115,6 +151,10 @@ ${params.characterJsonData ? `【角色设定】${params.characterJsonData}` : '
 
 作为角色 ${params.charName ? params.charName : ''}（${params.charDescription.substring(0, 50)}），请根据你的性格特点和上方的历史对话上下文，回应最新的回复。请保持对话的连贯性，并确保你的回应风格与你的角色设定一致。
 
+${params.emoticonList && params.emoticonList.length > 0 ? `【可用表情包文件名】${params.emoticonList.join('，')}
+
+如果你要使用表情包，请严格从上面的文件名中选一个，并在JSON的"emoticon"字段中填写该文件名（包含扩展名）。` : ''}
+
 请以JSON格式回复：
 {
   "thoughts": "你对这个持续对话的内心想法（不会展示给对方）",
@@ -125,7 +165,8 @@ ${params.characterJsonData ? `【角色设定】${params.characterJsonData}` : '
   "emotion": {
     "type": "positive/neutral/negative",
     "intensity": 0.0-1.0
-  }
+  },
+  "emoticon": "(可选) 仅当你要使用表情包时填写，值必须为上方列表中的一个文件名"
 }`,
 
   /**
@@ -148,6 +189,10 @@ ${params.conversationHistory ? `【你与${params.authorName === '用户' || par
 4. 基于你的角色设定，你会如何回应这张图片？
 ${params.conversationHistory ? '5. 如何让你的回应与之前的对话保持连贯性？' : ''}
 
+${params.emoticonList && params.emoticonList.length > 0 ? `【可用表情包文件名】${params.emoticonList.join('，')}
+
+如果你要使用表情包，请严格从上面的文件名中选一个，并在JSON的"emoticon"字段中填写该文件名（包含扩展名）。` : ''}
+
 然后，以JSON格式提供你的回应：
 - 包含你看到这张图片时的内心想法（不会展示给对方）
 - 决定是否点赞（like: true/false）
@@ -164,7 +209,8 @@ ${params.conversationHistory ? '5. 如何让你的回应与之前的对话保持
   "emotion": {
     "type": "positive/neutral/negative",
     "intensity": 0.0-1.0
-  }
+  },
+  "emoticon": "(可选) 仅当你要使用表情包时填写，值必须为上方列表中的一个文件名"
 }`,
 
   /**
@@ -185,6 +231,10 @@ ${params.hasImages ? "该动态包含图片内容，请首先关注【图片描�
 - 可选择是否发表评论（comment字段）
 - 包含你的情感反应（emotion对象，含type和intensity）
 
+${params.emoticonList && params.emoticonList.length > 0 ? `【可用表情包文件名】${params.emoticonList.join('，')}
+
+如果你要使用表情包，请严格从上面的文件名中选一个，并在JSON的"emoticon"字段中填写该文件名（包含扩展名）。` : ''}
+
 严格按以下格式用中文回复，不要包含任何其他文字：
 {
   "thoughts": "你看到这条朋友圈的内心想法（不会展示给对方）",
@@ -195,7 +245,8 @@ ${params.hasImages ? "该动态包含图片内容，请首先关注【图片描�
   "emotion": {
     "type": "positive/neutral/negative",
     "intensity": 0.0-1.0
-  }
+  },
+  "emoticon": "(可选) 仅当你要使用表情包时填写，值必须为上方列表中的一个文件名"
 }`,
 
   /**
@@ -222,6 +273,10 @@ ${params.conversationHistory ? '3. 回应应保持与上方历史对话的连贯
 - 回复内容应结合图片内容和评论文本
 - 包含你的情感反应（emotion对象）
 
+${params.emoticonList && params.emoticonList.length > 0 ? `【可用表情包文件名】${params.emoticonList.join('，')}
+
+如果你要使用表情包，请严格从上面的文件名中选一个，并在JSON的"emoticon"字段中填写该文件名（包含扩展名）。` : ''}
+
 用中文回复，不要包含任何其他文字：
 {
   "thoughts": "你看到这条评论的内心想法（不会展示给对方）",
@@ -232,7 +287,8 @@ ${params.conversationHistory ? '3. 回应应保持与上方历史对话的连贯
   "emotion": {
     "type": "positive/neutral/negative",
     "intensity": 0.0-1.0
-  }
+  },
+  "emoticon": "(可选) 仅当你要使用表情包时填写，值必须为上方列表中的一个文件名"
 }`,
 
   /**
@@ -253,6 +309,10 @@ ${params.conversationHistory ? `【你与${params.userIdentification === '用户
 - 可选择是否回复此评论（comment字段）
 - 包含你的情感反应（emotion对象，含type和intensity）
 
+${params.emoticonList && params.emoticonList.length > 0 ? `【可用表情包文件名】${params.emoticonList.join('，')}
+
+如果你要使用表情包，请严格从上面的文件名中选一个，并在JSON的"emoticon"字段中填写该文件名（包含扩展名）。` : ''}
+
 严格按以下格式用中文回复，不要包含任何其他文字：
 {
   "thoughts": "你看到这条评论的内心想法（不会展示给对方）",
@@ -263,7 +323,8 @@ ${params.conversationHistory ? `【你与${params.userIdentification === '用户
   "emotion": {
     "type": "positive/neutral/negative",
     "intensity": 0.0-1.0
-  }
+  },
+  "emoticon": "(可选) 仅当你要使用表情包时填写，值必须为上方列表中的一个文件名"
 }`,
 };
 

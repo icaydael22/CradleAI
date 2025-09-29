@@ -50,7 +50,9 @@ function getTypedApiSettings() {
       ? 'openrouter' as const
       : settings.apiProvider === 'openai-compatible'
         ? 'openai-compatible' as const
-        : 'gemini' as const,
+        : settings.apiProvider === 'cradlecloud'
+          ? 'cradlecloud' as const
+          : 'gemini' as const,
     openrouter: settings.openrouter && {
       enabled: settings.openrouter.enabled,
       apiKey: settings.openrouter.apiKey || '',
@@ -61,6 +63,14 @@ function getTypedApiSettings() {
       apiKey: settings.OpenAIcompatible.apiKey || '',
       model: settings.OpenAIcompatible.model || '',
       endpoint: settings.OpenAIcompatible.endpoint || '',
+    },
+    cradlecloud: settings.cradlecloud && {
+      enabled: settings.cradlecloud.enabled,
+      jwtToken: settings.cradlecloud.jwtToken || '',
+      model: settings.cradlecloud.model || 'gemini-2.0-flash-exp',
+      temperature: settings.cradlecloud.temperature || 0.7,
+      max_tokens: settings.cradlecloud.max_tokens || 8192,
+      debug: !!settings.cradlecloud.debug,
     },
     useCloudService: settings.useCloudService,
     cloudModel: settings.cloudModel,
@@ -87,6 +97,11 @@ function getAdapter(apiSettings: ReturnType<typeof getTypedApiSettings>, userApi
       apiKey: openaiKey,
       model: apiSettings.openaiCompatible.model || 'gpt-3.5-turbo'
     });
+  } else if (apiSettings.apiProvider === 'cradlecloud' && apiSettings.cradlecloud?.enabled) {
+    // Use CradleCloud adapter
+    console.log('[CharacterEditDialog] Using CradleCloud adapter');
+    const { CradleCloudAdapter } = require('@/NodeST/nodest/utils/cradlecloud-adapter');
+    return new CradleCloudAdapter();
   } else {
     // ...existing code...
     return new GeminiAdapter(userApiKey, {
@@ -370,7 +385,17 @@ export default function CharacterEditDialog({
       const adapter = getAdapter(currentApiSettings, apiKey);
       
       // Send to LLM using adapter directly
-      const response = await adapter.generateContent(formattedMessages);
+      let response: string;
+      if (currentApiSettings.apiProvider === 'cradlecloud' && currentApiSettings.cradlecloud?.enabled) {
+        // CradleCloudAdapter expects ChatMessage format with parts
+        const cradleMessages = formattedMessages.map(msg => ({
+          role: msg.role,
+          parts: [{ text: (msg as any).content || msg.parts?.[0]?.text || '' }]
+        }));
+        response = await adapter.generateContent(cradleMessages, character.id);
+      } else {
+        response = await adapter.generateContent(formattedMessages);
+      }
       
       // Add bot response to chat
       const botMessage: ChatMessage = {
@@ -1063,9 +1088,6 @@ ${JSON.stringify(characterJsonData, null, 2)}
           throw new Error('角色数据为空，无法应用更改');
         }
         
-        // Get latest API settings before update
-        const apiKey = user?.settings?.chat?.characterApiKey || '';
-        const currentApiSettings = getTypedApiSettings();
         
         // UPDATED LOGIC: Handle different character types properly
         console.log('[CharacterEditDialog] Character relationships:', characterRelationships);
@@ -1100,8 +1122,6 @@ ${JSON.stringify(characterJsonData, null, 2)}
               userMessage: "",
               conversationId: updatedGeneratedCharacter.id,
               status: "更新人设",
-              apiKey,
-              apiSettings: currentApiSettings, // Use latest settings
               character: updatedGeneratedCharacter // Pass the whole character object
             });
             
@@ -1162,8 +1182,6 @@ ${JSON.stringify(characterJsonData, null, 2)}
             userMessage: "",
             conversationId: finalCradleCharacter.id,
             status: "更新人设",
-            apiKey,
-            apiSettings: currentApiSettings, // Use latest settings
             character: finalCradleCharacter // Pass the character object
           });
           
@@ -1201,8 +1219,6 @@ ${JSON.stringify(characterJsonData, null, 2)}
             userMessage: "",
             conversationId: finalCharacter.id,
             status: "更新人设",
-            apiKey,
-            apiSettings: currentApiSettings, // Use latest settings
             character: finalCharacter // Pass the character object directly
           });
           
@@ -1370,7 +1386,17 @@ ${JSON.stringify(characterJsonData, null, 2)}
       
       // Send to LLM
       console.log('[CharacterEditDialog] 请求生成角色更新');
-      const response = await adapter.generateContent(formattedMessages);
+      let response: string;
+      if (currentApiSettings.apiProvider === 'cradlecloud' && currentApiSettings.cradlecloud?.enabled) {
+        // CradleCloudAdapter expects ChatMessage format with parts
+        const cradleMessages = formattedMessages.map(msg => ({
+          role: msg.role,
+          parts: [{ text: (msg as any).content || msg.parts?.[0]?.text || '' }]
+        }));
+        response = await adapter.generateContent(cradleMessages, character.id);
+      } else {
+        response = await adapter.generateContent(formattedMessages);
+      }
       
       // Add bot response to chat
       const botMessage: ChatMessage = {
@@ -1473,7 +1499,13 @@ ${JSON.stringify(characterJsonData, null, 2)}
       const adapter = getAdapter(currentApiSettings, apiKey);
       
       // Send to LLM
-      const extractionResponse = await adapter.generateContent([...simpleHistory, extractionMessage]);
+      let extractionResponse: string;
+      if (currentApiSettings.apiProvider === 'cradlecloud' && currentApiSettings.cradlecloud?.enabled) {
+        // CradleCloudAdapter expects ChatMessage format with parts, already in correct format
+        extractionResponse = await adapter.generateContent([...simpleHistory, extractionMessage], character.id);
+      } else {
+        extractionResponse = await adapter.generateContent([...simpleHistory, extractionMessage]);
+      }
       
       // Extract JSON from response
       const jsonMatch = extractionResponse.match(/```json\s*([\s\S]*?)\s*```/);

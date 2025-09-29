@@ -1,0 +1,1496 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 强制定义 hidden 类的行为，以解决在iframe中可能出现的样式覆盖问题 */
+.hidden {
+  display: none !important;
+}
+
+/* 自定义字体和基础样式 */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700&display=swap');
+
+body {
+  font-family: 'Noto Serif SC', serif;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  /* 高度现在由 index.ts 动态设置以适应视口 */
+  /* padding-top is now handled dynamically by JS */
+  overflow:auto;
+  height: 1000px;
+}
+
+/* 主题色变量定义 - Night Mode (默认) */
+:root {
+  --bg-primary: #1a1a1a;
+  --bg-secondary: #2a2a2a;
+  --bg-card: #222222;
+  --text-primary: #e5e7eb;
+  /* gray-200 */
+  --text-secondary: #9ca3af;
+  /* gray-400 */
+  --border-color: #4b5563;
+  /* gray-600 */
+  --accent-color: #818cf8;
+  /* indigo-400 */
+  --accent-color-hover: #6366f1;
+  /* indigo-500 */
+}
+
+/* Day Mode 主题 */
+body.day-mode {
+  --bg-primary: #f3f4f6;
+  /* gray-100 */
+  --bg-secondary: #e5e7eb;
+  /* gray-200 */
+  --bg-card: #ffffff;
+  --text-primary: #1f2937;
+  /* gray-800 */
+  --text-secondary: #4b5563;
+  /* gray-600 */
+  --border-color: #d1d5db;
+  /* gray-300 */
+}
+
+/* Jade Mode 主题 */
+body.jade-mode {
+  --bg-primary: #f0fdf4;
+  /* green-50 */
+  --bg-secondary: #dcfce7;
+  /* green-100 */
+  --bg-card: #ffffff;
+  --text-primary: #14532d;
+  /* green-900 */
+  --text-secondary: #166534;
+  /* green-800 */
+  --border-color: #86efac;
+  /* green-300 */
+  --accent-color: #22c55e;
+  /* green-500 */
+  --accent-color-hover: #16a34a;
+  /* green-600 */
+}
+
+/* Classic Mode (羊皮卷) 主题 */
+body.classic-mode {
+  background-image: url('https://www.transparenttextures.com/patterns/old-paper.png');
+  --bg-primary: #fdf6e3;
+  --bg-secondary: #f5eeda;
+  --bg-card: rgba(245, 238, 218, 0.8);
+  --text-primary: #583e26;
+  --text-secondary: #6e553c;
+  --border-color: #c9bda4;
+  --accent-color: #b58900;
+  --accent-color-hover: #856703;
+}
+
+/* 通用样式 */
+.theme-transition {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+.card-hover {
+  transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+}
+
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -2px rgba(0, 0, 0, 0.1);
+}
+
+.bg-main {
+  background-color: var(--bg-card);
+}
+
+.text-accent {
+  color: var(--accent-color);
+}
+
+.border-dim {
+  border-color: color-mix(in srgb, var(--border-color) 30%, transparent);
+}
+
+.text-secondary {
+  color: var(--text-secondary);
+}
+
+details[open]>summary .group-open\:rotate-180 {
+  transform: rotate(180deg);
+}
+
+#action-owner {
+  color: var(--accent-color);
+}
+
+.theme-btn {
+  width: 3rem; /* 48px */
+  height: 3rem; /* 48px */
+  margin: 0 0.5rem; /* 8px */
+  transition: all 0.3s ease;
+}
+
+.theme-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.inner-box {
+  padding: 1rem; /* 16px */
+}
+
+.flex.flex-col.sm\:flex-row.justify-between.items-start.sm\:items-center {
+  margin-bottom: 1.5rem; /* 24px */
+}
+
+details.group {
+  margin-bottom: 1.5rem; /* 24px */
+}
+
+#options-list li {
+  background-color: color-mix(in srgb, var(--bg-secondary) 50%, transparent);
+  padding: 0.75rem 1rem; /* 12px 16px */
+  border-radius: 0.5rem; /* 8px */
+  transition: all 0.2s ease-in-out;
+}
+
+#options-list li:hover {
+  background-color: var(--accent-color);
+  color: var(--bg-card);
+  transform: translateX(4px);
+}
+
+#options-list {
+  max-height: 30vh; /* Adjust as needed */
+  overflow-y: auto;
+  padding-right: 0.5rem; /* Space for the scrollbar */
+}
+
+/* 进度条样式 */
+.progress-bar-bg {
+  background-color: color-mix(in srgb, var(--bg-secondary) 70%, transparent);
+  border: 1px solid var(--border-color);
+}
+
+.progress-bar-fg {
+  transition: width 0.5s ease-in-out;
+}
+
+/* 自定义行动对话框样式 */
+#custom-action-modal {
+  /* 默认情况下，它只是一个普通的div，由JS控制插入位置 */
+  margin-top: 0.75rem; /* 12px */
+  transition: all 0.5s ease-in-out;
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-10px);
+  overflow: hidden;
+}
+
+#custom-action-modal.is-open {
+  max-height: 500px; /* 一个足够大的值 */
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.bg-secondary {
+  background-color: var(--bg-secondary);
+}
+
+.bg-accent {
+  background-color: var(--accent-color);
+}
+
+.hover\:bg-accent-hover:hover {
+  background-color: var(--accent-color-hover);
+}
+
+#custom-action-input {
+  color: var(--text-primary);
+}
+
+#custom-action-input::placeholder {
+  color: var(--text-secondary);
+}
+
+/* 详情模态框样式 */
+#details-modal {
+  z-index: 1050; /* 确保详情模态框在最上层 */
+}
+
+/* 右上角全局控制器样式 */
+
+.clickable-item {
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.clickable-item:hover {
+  color: var(--accent-color-hover);
+  text-decoration: underline;
+}
+
+/* 右上角全局控制器样式 */
+.global-controls {
+  position: static; /* It's inside the top-bar now */
+  display: flex;
+  align-items: center;
+  gap: 0.8rem; /* Keep the increased gap */
+}
+
+.control-btn {
+  width: 2.5rem;
+  height: 2.5rem;
+  background-color: var(--bg-card);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+.control-btn:hover {
+  background-color: var(--bg-secondary);
+  color: var(--accent-color);
+  transform: translateY(-2px);
+}
+
+/* 新增：用于无背景图标按钮的样式 */
+.icon-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 0.25rem;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-btn:hover {
+  background-color: var(--bg-secondary);
+  color: var(--accent-color);
+}
+
+.theme-switcher-dropdown {
+  position: relative;
+}
+
+.dropdown-content {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.5rem;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  padding: 0.5rem;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+  /* display: flex; */ /* 移除此行以避免覆盖 .hidden */
+  flex-direction: column;
+  gap: 0.25rem;
+  width: 120px; /* 设置固定宽度 */
+}
+
+/* 仅在非隐藏状态下应用flex布局 */
+.dropdown-content:not(.hidden) {
+  display: flex;
+}
+
+.dropdown-content .theme-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0.5rem;
+  border-radius: 0.25rem;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  text-align: left;
+}
+
+.dropdown-content .theme-btn:hover {
+  background-color: var(--bg-secondary);
+  color: var(--accent-color);
+}
+
+/* 添加图鉴模态框的Tab样式 */
+.tab-btn,
+.main-tab-btn {
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.tab-btn:hover,
+.main-tab-btn:hover {
+  color: var(--text-primary);
+}
+
+.tab-btn.active,
+.main-tab-btn.active {
+  color: var(--accent-color);
+  border-bottom-color: var(--accent-color);
+}
+
+/* 动态表单字段样式 */
+.form-field-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.form-field-row input {
+  flex-grow: 1;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+}
+
+.form-field-row .remove-field-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0.25rem;
+  transition: color 0.2s ease;
+}
+
+.form-field-row .remove-field-btn:hover {
+  color: #ef4444; /* red-500 */
+}
+
+/* 全局按钮样式 */
+.btn-primary {
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  color: var(--bg-card);
+  background: linear-gradient(145deg, var(--accent-color), var(--accent-color-hover));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2), inset 0 1px 1px rgba(255,255,255,0.2);
+  transition: all 0.2s ease-in-out;
+  cursor: pointer;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.3), inset 0 1px 1px rgba(255,255,255,0.2);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2), inset 0 1px 1px rgba(255,255,255,0.2);
+}
+
+.btn-primary:disabled {
+  background: color-mix(in srgb, var(--bg-secondary) 50%, #888);
+  color: var(--text-secondary);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.btn-secondary {
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  transition: all 0.2s ease-in-out;
+  cursor: pointer;
+}
+
+.btn-secondary:hover {
+  background-color: color-mix(in srgb, var(--bg-secondary) 80%, #fff 20%);
+  color: var(--text-primary);
+  border-color: var(--accent-color);
+}
+
+/* Custom Slider Styles */
+.custom-slider {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+}
+
+.custom-slider-track {
+  display: flex;
+  transition: transform 0.3s ease-in-out;
+}
+
+.custom-slider-slide {
+  flex: 0 0 100%;
+  width: 100%;
+  padding: 0.25rem; /* Add some spacing between slides */
+  box-sizing: border-box;
+}
+
+.slider-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.slider-nav-btn {
+  width: 2.5rem;
+  height: 2.5rem;
+  background-color: var(--bg-secondary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.slider-nav-btn:hover:not(:disabled) {
+  background-color: var(--accent-color);
+  color: var(--bg-card);
+}
+
+.slider-nav-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.slider-counter {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 自定义全局滚动条样式 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: color-mix(in srgb, var(--bg-secondary) 50%, transparent);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--accent-color);
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--accent-color-hover);
+}
+
+#main-container {
+  height: 100%;
+  max-height: 100vh;
+  overflow: hidden; /* Let child elements handle scrolling */
+  display: flex;
+  flex-direction: column;
+}
+
+#game-panel {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; 
+}
+
+#main-content-grid {
+  flex-grow: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column; /* Mobile-first: stack them vertically */
+  padding-top: 60px; /* Unconditional top padding */
+}
+
+#left-panel {
+  overflow-y: auto;
+  padding: 1rem; /* Add padding for spacing */
+}
+
+#left-panel > .panel-box + .panel-box {
+  margin-top: 1.5rem; /* Add space between panel boxes */
+}
+
+#side-panel-vue {
+  overflow-y: auto;
+}
+
+/* --- Mobile Layout: Bottom Navigation --- */
+#mobile-nav-vue {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background-color: var(--bg-card);
+  border-top: 1px solid var(--border-color);
+  box-shadow: 0 -2px 10px rgba(0,0,0,0.2);
+}
+
+/* Adjust main content padding to avoid overlap with bottom nav */
+@media (max-width: 1023px) {
+  #main-content-grid {
+    padding-bottom: 60px; /* Height of the nav bar */
+  }
+}
+
+/* --- Desktop Layout (2:1 ratio) --- */
+@media (min-width: 1024px) {
+  #main-content-grid {
+    flex-direction: row; /* Side-by-side on desktop */
+    gap: 1.5rem;
+  }
+
+  #left-panel {
+    flex: 2; /* Takes up 2 parts of the space */
+    min-width: 0; /* Prevents flexbox overflow issues */
+    min-height: 0; /* Fix for flexbox scrolling */
+  }
+
+  #resizer {
+    display: none; /* Remove resizer */
+  }
+
+  #side-panel-vue {
+    flex: 1; /* Takes up 1 part of the space */
+    min-width: 0; /* Prevents flexbox overflow issues */
+    display: flex !important; /* Override the 'hidden' class */
+    padding: 1rem; /* Add padding for spacing */
+  }
+}
+
+/* 面板通用样式 */
+.panel-box {
+  background-color: var(--bg-card);
+  border-radius: 1rem;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+  overflow: hidden; /* 确保子元素不会溢出圆角 */
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--accent-color);
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between; /* 让标题和按钮分布在两端 */
+}
+
+.panel-body {
+  padding: 1.5rem;
+  overflow-y: auto; /* 内容超出时显示滚动条 */
+  flex-grow: 1;
+  min-height: 0; /* Crucial for flexbox scrolling */
+}
+
+@media (max-width: 1024px){
+  .side-panel-body {
+  padding: 0.5rem;
+  max-height: 50vh; /* 限制内容区域的最大高度 */
+  overflow-y: auto; /* 内容超出时显示滚动条 */
+}
+
+}
+.side-panel-body {
+  padding: 1.0rem;
+  overflow-y: auto; /* 内容超出时显示滚动条 */
+}
+
+/* 故事面板的特殊样式 */
+#story-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+#story-content {
+  line-height: 1.7;
+  font-size: 1.05rem;
+  flex-grow: 1; /* 让故事内容区域占据多余空间 */
+}
+
+#swipe-controls {
+  display: flex;
+  justify-content: center;
+  padding: 0.75rem 0;
+}
+
+/* 历史消息模态框特定样式 */
+#history-message-content {
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  min-height: 200px;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+#history-message-content p:first-child {
+  margin-top: 0;
+}
+#history-message-content p:last-child {
+  margin-bottom: 0;
+}
+
+/* 右侧标签页按钮样式 */
+.side-tab-btn {
+  flex-grow: 1;
+  padding: 0.75rem 0.5rem;
+  cursor: pointer;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  border-bottom: 3px solid transparent;
+  transition: all 0.2s ease;
+  font-size: 1.25rem; /* 增大图标尺寸 */
+}
+
+.side-tab-btn:hover {
+  background-color: var(--bg-secondary);
+}
+
+.side-tab-btn.active {
+  color: var(--accent-color);
+  border-bottom-color: var(--accent-color);
+}
+
+/* 历史记录模态框 - 折叠消息样式 */
+.history-entry {
+  border: 1px solid var(--border-color);
+  border-radius: 0.75rem;
+  margin-bottom: 0.5rem;
+  overflow: hidden; /* 确保内容不会溢出圆角 */
+  transition: all 0.3s ease;
+}
+.history-user-message {
+  background-color: color-mix(in srgb, var(--accent-color) 10%, transparent);
+}
+.history-assistant-message {
+  background-color: transparent;
+}
+
+.history-entry[open] {
+  background-color: var(--bg-secondary);
+}
+
+.history-summary {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  background-color: color-mix(in srgb, var(--bg-secondary) 50%, transparent);
+  transition: background-color 0.2s ease;
+  list-style: none; /* 隐藏默认的三角箭头 */
+}
+
+.history-summary::-webkit-details-marker {
+  display: none; /* 隐藏默认的三角箭头 for Chrome/Safari */
+}
+
+.history-summary:hover {
+  background-color: var(--bg-secondary);
+}
+
+.history-summary .summary-arrow {
+  margin-left: auto;
+  transition: transform 0.3s ease;
+}
+
+.history-entry[open] .summary-arrow {
+  transform: rotate(180deg);
+}
+
+.history-content {
+  padding: 1rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.history-controls {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed var(--border-color);
+}
+
+.history-edit-container {
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.history-edit-container textarea {
+  flex-grow: 1;
+}
+
+/* 新增：分支标签页特定样式 */
+.branch-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+/* 减小按钮的内边距和字体大小 */
+.btn-sm {
+  padding: 0.25rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+/* 调试模态框特定样式 */
+#debug-modal .modal-content {
+  width: 80vw;
+  max-width: 95vw;
+  height: 80vh;
+  max-height: 95vh;
+  min-width: 400px; /* Add a minimum width */
+  min-height: 300px; /* Add a minimum height */
+  resize: both; /* Enable native browser resizing */
+  overflow: hidden; /* Hide overflow from the container, let children handle scroll */
+  display: flex;
+  flex-direction: column;
+}
+
+#debug-modal .modal-body {
+  flex-grow: 1; /* Allow body to grow and fill available space */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* Prevent body from scrolling, let tab content scroll */
+  padding-top: 0; /* Remove default padding to align with flex layout */
+}
+
+#debug-modal #debug-tab-content {
+  flex-grow: 1; /* Allow tab content to grow */
+  overflow-y: auto; /* Make the tab content area scrollable */
+  max-height: none; /* Remove the previous max-height limit */
+}
+
+#debug-modal #debug-log-container {
+  height: 100%; /* Ensure log container fills the tab content area */
+  max-height: none;
+}
+
+/* 调试模式开关样式 */
+.toggle-checkbox:checked {
+  right: 0;
+  border-color: var(--accent-color);
+}
+
+.toggle-checkbox:checked + .toggle-label {
+  background-color: var(--accent-color);
+}
+
+.toggle-label {
+  transition: background-color 0.2s ease-in-out;
+}
+
+.toggle-checkbox {
+  transition: all 0.2s ease-in-out;
+}
+
+/* 调试控制台日志条目样式 */
+.debug-log-entry {
+  padding: 0.25rem 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+  word-break: break-all;
+}
+
+.debug-log-entry:last-child {
+  border-bottom: none;
+}
+
+.log-expand-btn {
+  color: #60a5fa; /* blue-400 */
+  text-decoration: underline;
+  cursor: pointer;
+  margin-left: 0.5rem;
+  font-weight: bold;
+}
+
+.log-expand-btn:hover {
+  color: #3b82f6; /* blue-500 */
+}
+
+.debug-tab-btn {
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  font-size: 0.875rem;
+}
+
+.debug-tab-btn:hover {
+  color: var(--text-primary);
+}
+
+.debug-tab-btn.active {
+  color: var(--accent-color);
+  border-bottom-color: var(--accent-color);
+}
+
+/* 状态监视器JSON树状图样式 */
+.json-list {
+  list-style-type: none;
+  padding-left: 1.5em;
+  border-left: 1px dotted var(--border-color);
+}
+.json-details {
+  display: inline-block;
+}
+.json-summary {
+  cursor: pointer;
+  display: inline-block;
+}
+.json-summary:focus {
+  outline: none;
+}
+.json-key {
+  color: var(--accent-color);
+}
+.json-string {
+  color: #a5d6a7; /* green-200 */
+}
+.json-number {
+  color: #81d4fa; /* light-blue-200 */
+}
+.json-boolean {
+  color: #ce93d8; /* purple-200 */
+}
+.json-null {
+  color: var(--text-secondary);
+}
+
+/* 状态浏览器专属样式 */
+.state-card {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.state-card.main-character {
+  border-left: 3px solid var(--accent-color);
+}
+
+.state-card h2 {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: var(--accent-color);
+  margin-top: 0;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.state-card h3 {
+  font-size: 1.25rem;
+  font-weight: bold;
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+}
+
+.state-card h4 {
+  font-size: 1.1rem;
+  font-weight: bold;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  color: var(--text-secondary);
+}
+
+.state-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.5rem;
+}
+
+.state-table th,
+.state-table td {
+  padding: 0.5rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.state-table th {
+  background-color: color-mix(in srgb, var(--bg-card) 50%, transparent);
+}
+
+.item-list {
+  list-style-type: none;
+  padding-left: 0;
+}
+
+.item-list li {
+  padding: 0.25rem 0;
+}
+
+
+/* --- Setup Screen Styles --- */
+
+.card-radio-label,
+.card-checkbox-label {
+  display: block;
+  padding: 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0.75rem;
+  background-color: color-mix(in srgb, var(--bg-secondary) 50%, transparent);
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  position: relative;
+}
+
+.card-radio-label:hover,
+.card-checkbox-label:hover {
+  border-color: var(--accent-color);
+  background-color: var(--bg-secondary);
+}
+
+.card-radio-content,
+.card-checkbox-content {
+  padding-left: 2.25rem; /* Space for the custom radio/checkbox */
+  position: relative;
+  min-height: 1.5rem; /* Ensure alignment */
+}
+
+/* Custom radio/checkbox button */
+.card-radio-content::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 2px solid var(--border-color);
+  border-radius: 50%;
+  transition: all 0.2s ease;
+  background-color: var(--bg-card);
+}
+
+.card-checkbox-content::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 2px solid var(--border-color);
+  border-radius: 0.375rem; /* A bit rounded square */
+  transition: all 0.2s ease;
+  background-color: var(--bg-card);
+}
+
+/* Selected state styling */
+input[type="radio"]:checked + .card-radio-content::before {
+  border-color: var(--accent-color);
+  background-color: var(--accent-color);
+  box-shadow: inset 0 0 0 4px var(--bg-card); /* Creates the inner circle effect */
+}
+
+input[type="checkbox"]:checked + .card-checkbox-content::before {
+  border-color: var(--accent-color);
+  background-color: var(--accent-color);
+  content: '✔️'; 
+  color: var(--bg-card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  font-weight: bold;
+}
+
+/* Style the whole card on selection */
+.card-radio-label:has(input:checked),
+.card-checkbox-label:has(input:checked) {
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 1px var(--accent-color);
+}
+
+/* Cytoscape Graph Container Styles */
+#history-graph-container {
+  width: 100%;
+  height: 100%;
+  background-color: var(--bg-primary);
+  border-radius: 0.5rem;
+}
+
+/* --- Custom Form Styles --- */
+.form-checkbox {
+  /* Hide the default browser checkbox */
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  
+  /* Dimensions */
+  width: 1.25rem; /* 20px */
+  height: 1.25rem; /* 20px */
+  
+  /* Styling */
+  border: 2px solid var(--border-color);
+  border-radius: 0.375rem; /* 6px */
+  background-color: var(--bg-secondary);
+  
+  /* Positioning & Transition */
+  position: relative;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  flex-shrink: 0; /* Prevent shrinking in flex layouts */
+}
+
+.form-checkbox:hover {
+  border-color: var(--accent-color);
+}
+
+.form-checkbox:checked {
+  background-color: var(--accent-color);
+  border-color: var(--accent-color-hover);
+  /* The checkmark is likely handled by a plugin like @tailwindcss/forms, so we remove the custom one. */
+}
+
+/* Story Content Highlighting */
+.text-highlight-quote {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.text-highlight-special {
+  color: var(--accent-color);
+  font-weight: 600; /* semi-bold */
+}
+
+.text-highlight-thought {
+    color: color-mix(in srgb, var(--text-secondary) 80%, var(--bg-primary) 20%);
+    opacity: 0.9;
+}
+
+.text-highlight-narration {
+  color: color-mix(in srgb, var(--text-secondary) 90%, var(--bg-primary) 10%);
+}
+
+.text-highlight-emphasis {
+  color: var(--accent-color);
+}
+
+/* --- New State Browser Styles --- */
+.state-namespace-card {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 0.75rem;
+  margin-bottom: 1rem;
+  overflow: hidden;
+}
+
+.state-namespace-card > details > summary {
+  padding: 0.75rem 1.25rem;
+  cursor: pointer;
+  list-style: none;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--accent-color);
+  transition: background-color 0.2s ease;
+}
+
+.state-namespace-card > details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.state-namespace-card > details > summary:hover {
+  background-color: color-mix(in srgb, var(--bg-card) 50%, transparent);
+}
+
+.state-namespace-card > details[open] > summary {
+  border-bottom: 1px solid var(--border-color);
+}
+
+.namespace-content {
+  padding: 1rem 1.25rem;
+}
+
+.variable-details {
+  margin-left: 1rem;
+  border-left: 1px dashed color-mix(in srgb, var(--border-color) 50%, transparent);
+}
+
+.variable-details[open] > .variable-summary {
+  margin-bottom: 0.25rem;
+}
+
+.variable-summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.25rem;
+}
+
+.variable-summary::-webkit-details-marker {
+  display: none;
+}
+
+.variable-summary:hover {
+  background-color: color-mix(in srgb, var(--bg-card) 30%, transparent);
+}
+
+.variable-key {
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-right: 0.5rem;
+}
+
+.variable-details > .variable-summary > .variable-key {
+  color: var(--text-primary);
+}
+
+.variable-preview {
+  color: var(--text-secondary);
+  font-style: italic;
+  font-size: 0.8rem;
+}
+
+.variable-details:not([open]) > .variable-summary > .variable-preview {
+  display: inline;
+}
+.variable-details[open] > .variable-summary > .variable-preview {
+  display: none;
+}
+
+.variable-content {
+  padding-left: 1rem;
+}
+
+.variable-entry {
+  padding: 0.2rem 0.5rem;
+}
+
+.variable-value {
+  font-family: monospace;
+}
+
+/* --- Main Menu Styles --- */
+.main-menu-btn {
+  padding: 0.75rem 1.5rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+  border-radius: 0.5rem;
+  transition: all 0.2s ease-in-out;
+  cursor: pointer;
+  transform: perspective(1px) translateZ(0); /* Hardware acceleration */
+}
+
+.main-menu-btn:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.main-menu-btn:active {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+
+/* --- Main Menu Transitions --- */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.5s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+.slide-left-enter-active,
+.slide-left-leave-active,
+.slide-right-enter-active,
+.slide-right-leave-active {
+  transition: all 0.3s ease-out;
+}
+
+.slide-left-enter-from {
+  opacity: 0;
+  transform: translateX(30px);
+}
+.slide-left-leave-to {
+  opacity: 0;
+  transform: translateX(-30px);
+}
+
+.slide-right-enter-from {
+  opacity: 0;
+  transform: translateX(-30px);
+}
+.slide-right-leave-to {
+  opacity: 0;
+  transform: translateX(30px);
+}
+
+.slide-fade-enter-active {
+  transition: all 0.3s ease-out;
+}
+.slide-fade-leave-active {
+  transition: all 0.3s cubic-bezier(1, 0.5, 0.8, 1);
+}
+.slide-fade-enter-from,
+.slide-fade-leave-to {
+  transform: translateY(10px);
+  opacity: 0;
+}
+
+/* --- Generic Modal Styles --- */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.modal-content {
+  background-color: var(--bg-card);
+  border-radius: 1rem;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+  padding: 2rem;
+  width: 90vw;
+  max-width: 600px;
+  max-height: 80vh;
+  overflow-y: auto;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  z-index: 2000;
+}
+
+.modal-close-btn {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 2rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.modal-close-btn:hover {
+  color: var(--text-primary);
+}
+
+.modal-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--accent-color);
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.modal-body {
+  flex-grow: 1;
+  overflow-y: auto;
+  line-height: 1.6;
+}
+
+.modal-body ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.modal-body li {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
+}
+
+.modal-body li:last-child {
+  border-bottom: none;
+}
+
+.modal-body .item-key {
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-right: 0.5rem;
+}
+
+/* --- Settings Modal Specific Styles --- */
+#settings-modal .modal-content {
+  max-width: 700px; /* Give it a bit more space */
+}
+
+/* Custom Range Slider Styles */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 8px;
+  background: var(--bg-secondary);
+  border-radius: 5px;
+  outline: none;
+  opacity: 0.7;
+  transition: opacity .2s;
+}
+
+input[type="range"]:hover {
+  opacity: 1;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  background: var(--accent-color);
+  cursor: pointer;
+  border-radius: 50%;
+  border: 2px solid var(--bg-card);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  background: var(--accent-color);
+  cursor: pointer;
+  border-radius: 50%;
+  border: 2px solid var(--bg-card);
+}
+
+/* Custom Textarea */
+#settings-summary-tab textarea {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  color: var(--text-primary);
+  transition: all 0.2s ease;
+  resize: vertical;
+}
+
+#settings-summary-tab textarea:focus {
+  outline: none;
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-color) 30%, transparent);
+}
+
+/* Code snippet styling */
+#settings-summary-tab code {
+  background-color: color-mix(in srgb, var(--bg-secondary) 70%, transparent);
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  font-size: 0.8em;
+  color: var(--text-secondary);
+}
+
+/* --- Pokedex Manager Modal Specific Styles --- */
+.modal-content-wide {
+  max-width: 90vw;
+  width: 800px;
+}
+
+.modal-title .help-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+  font-size: 0.9rem;
+  margin-left: 1rem;
+}
+
+.modal-title .help-btn:hover {
+  background-color: var(--bg-secondary);
+  color: var(--accent-color);
+}
+
+.modal-title .help-btn.active {
+  background-color: var(--accent-color);
+  color: var(--bg-card);
+}
+
+/* Styling for discovery/pending lists */
+.pokedex-sublist-container {
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0.75rem;
+  background-color: color-mix(in srgb, var(--bg-secondary) 50%, transparent);
+}
+
+.pokedex-sublist-container ul {
+  list-style: none;
+  padding: 0;
+}
+
+.pokedex-sublist-container li {
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  background-color: var(--bg-card);
+  margin-bottom: 0.5rem;
+  transition: background-color 0.2s ease;
+}
+.pokedex-sublist-container li:last-child {
+  margin-bottom: 0;
+}
+
+.pokedex-sublist-container li:hover {
+  background-color: var(--bg-secondary);
+}
+
+/* Achievement list item style */
+.achievement-card {
+  padding: 1rem;
+  border-radius: 0.75rem;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-left: 4px solid #facc15; /* yellow-400 */
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* --- Generic Modal Footer --- */
+.modal-footer {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}

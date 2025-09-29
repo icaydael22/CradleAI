@@ -24,7 +24,7 @@ import {
   getUserGroups, 
   Group 
 } from '@/src/group';
-import { GroupAvatar } from '@/components/GroupAvatar';
+import { GroupAvatar } from '@/components/group/GroupAvatar';
 
 const SIDEBAR_WIDTH = 280;
 
@@ -39,6 +39,7 @@ export interface SidebarProps {
   disbandedGroups?: string[];
   onGroupsUpdated?: (groups: Group[]) => void;
   onGroupDisbanded?: (disbandedGroupId: string) => void; // 新增
+  isStandalone?: boolean;
 }
 
 interface ConversationItem {
@@ -60,6 +61,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   disbandedGroups = [],
   onGroupsUpdated,
   onGroupDisbanded, // 新增
+  isStandalone = false,
 }) => {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
@@ -213,21 +215,25 @@ const Sidebar: React.FC<SidebarProps> = ({
     });
   };
 
+  const SidebarViewComponent = isStandalone ? View : Animated.View;
+
   return (
     <View
       style={[
         styles.sidebarContainer,
+        isStandalone && styles.sidebarContainerStandalone,
         {
-          pointerEvents: isVisible ? 'auto' : 'none',
-        }
+          pointerEvents: isVisible || isStandalone ? 'auto' : 'none',
+        },
       ]}
     >
-      <Animated.View 
+      <SidebarViewComponent
         style={[
           styles.sidebar,
+          isStandalone && styles.sidebarStandalone,
           {
-            transform: [{ translateX: sidebarTranslateX }],
-          }
+            transform: isStandalone ? undefined : [{ translateX: sidebarTranslateX }],
+          },
         ]}
       >
         <View style={styles.header}>
@@ -265,7 +271,9 @@ const Sidebar: React.FC<SidebarProps> = ({
               onPress={() => {
                 console.log(`Selecting conversation: ${item.id}, isGroup: ${item.isGroup}`);
                 onSelectConversation(item.id);
-                onClose();
+                if (!isStandalone) {
+                  onClose();
+                }
               }}
             >
               {item.isGroup ? (
@@ -392,9 +400,9 @@ const Sidebar: React.FC<SidebarProps> = ({
             </View>
           </View>
         </Modal>
-      </Animated.View>
+      </SidebarViewComponent>
       
-      {isVisible && (
+      {isVisible && !isStandalone && (
         <TouchableOpacity
           style={styles.overlayTouchable}
           activeOpacity={1}
@@ -414,12 +422,20 @@ const styles = StyleSheet.create({
     width: SIDEBAR_WIDTH,
     zIndex: 20,
   },
+  sidebarContainerStandalone: {
+    position: 'relative',
+    width: '100%',
+    flex: 1,
+  },
   sidebar: {
     width: SIDEBAR_WIDTH,
     height: '100%',
     backgroundColor: "rgba(40, 40, 40, 0.9)",
     paddingTop: StatusBar.currentHeight || 0,
     ...theme.shadows.medium,
+  },
+  sidebarStandalone: {
+    width: '100%',
   },
   overlayTouchable: {
     position: 'absolute',

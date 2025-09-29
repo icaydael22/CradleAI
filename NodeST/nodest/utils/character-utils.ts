@@ -307,8 +307,8 @@ export class CharacterUtils {
             try {
                 // Provide a minimal valid framework as fallback
                 const safeName = safeRoleCardJson?.name || "Unnamed Character";
-                const safePersonality = safeRoleCardJson?.personality || "Friendly";
-                const safeDescription = safeRoleCardJson?.description || "No description provided.";
+                const safePersonality = safeRoleCardJson?.personality || "";
+                const safeDescription = safeRoleCardJson?.description || "";
                 
                 console.log('[CharacterUtils] Creating minimal framework with:', {
                     safeName,
@@ -368,7 +368,7 @@ export class CharacterUtils {
                 name: "Unnamed Character",
                 first_mes: "Hello!",
                 description: "This character has missing information.",
-                personality: "Friendly",
+                personality: "",
                 scenario: "",
                 mes_example: ""
             };
@@ -378,8 +378,8 @@ export class CharacterUtils {
         const safeRoleCard: RoleCardJson = {
             name: roleCardJson.name || "Unnamed Character",
             first_mes: roleCardJson.first_mes || "Hello!",
-            description: roleCardJson.description || "No description provided.",
-            personality: roleCardJson.personality || "Friendly",
+            description: roleCardJson.description || "",
+            personality: roleCardJson.personality || "",
             scenario: roleCardJson.scenario || "",
             mes_example: roleCardJson.mes_example || "",
             background: roleCardJson.background || undefined,

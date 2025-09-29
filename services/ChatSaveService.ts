@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ChatSave, Message, ChatHistoryEntity } from '@/shared/types';
 import { StorageAdapter } from '../NodeST/nodest/utils/storage-adapter';
+import AsyncStorageLib from '@react-native-async-storage/async-storage';
 
 /**
  * Service for managing chat saves (save points) using StorageAdapter's backup system
@@ -141,18 +142,36 @@ class ChatSaveService {
    */
   async restoreChatFromBackup(conversationId: string, save: ChatSave): Promise<boolean> {
     try {
-      if (!save.backupTimestamp) {
-        console.error('[ChatSaveService] Cannot restore - save has no backup timestamp');
-        return false;
+      let restoreSuccess = false;
+      if (save.backupTimestamp) {
+        console.log(`[ChatSaveService] Restoring chat from backup timestamp: ${save.backupTimestamp}`);
+        restoreSuccess = await StorageAdapter.restoreChatHistoryFromBackup(
+          conversationId,
+          save.backupTimestamp
+        );
       }
 
-      console.log(`[ChatSaveService] Restoring chat from backup timestamp: ${save.backupTimestamp}`);
-
-      // Use StorageAdapter to restore from backup
-      const restoreSuccess = await StorageAdapter.restoreChatHistoryFromBackup(
-        conversationId, 
-        save.backupTimestamp
-      );
+      // 回退：如果备份文件不存在或未提供 backupTimestamp，但导入保存包含嵌入历史
+      if (!restoreSuccess && save.nodestChatHistory && Array.isArray(save.nodestChatHistory.parts)) {
+        console.warn('[ChatSaveService] Backup restore failed or missing; falling back to embedded history');
+        // 同样确保基础历史存在
+        try {
+          const hasBase = await StorageAdapter.hasConversationHistory(conversationId);
+          if (!hasBase) {
+            const base: ChatHistoryEntity = {
+              name: 'Chat History',
+              role: 'system',
+              identifier: 'chatHistory',
+              parts: []
+            };
+            await StorageAdapter.saveJson(
+              StorageAdapter.getStorageKey(conversationId, '_history'),
+              base
+            );
+          }
+        } catch {}
+        restoreSuccess = await StorageAdapter.restoreChatHistory(conversationId, save.nodestChatHistory as any);
+      }
 
       // === 新增：恢复后主动读取聊天历史并打印日志 ===
       if (restoreSuccess) {
@@ -244,6 +263,83 @@ class ChatSaveService {
       return importedSave;
     } catch (error) {
       console.error('[ChatSaveService] Error adding imported save:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Rebind an imported save to the current conversation/character, ignoring original IDs.
+   * Steps:
+   * - If save includes nodestChatHistory, write it into target conversation directly
+   * - Create a fresh backup for the target conversation and attach backupTimestamp
+   * - Rewrite conversationId/characterId/name and persist into saves list
+   */
+  async rebindImportedSaveToConversation(
+    importedSave: ChatSave,
+    targetConversationId: string,
+    targetCharacterId: string,
+    targetCharacterName: string
+  ): Promise<ChatSave> {
+    try {
+      if (!targetConversationId) throw new Error('Missing targetConversationId');
+
+      // 1) Restore chat history into target conversation using embedded payload if available
+      const embeddedHistory: ChatHistoryEntity | undefined = importedSave.nodestChatHistory as any;
+      if (embeddedHistory && Array.isArray(embeddedHistory.parts)) {
+        try {
+          // Ensure base history exists for fresh conversations
+          const hasBase = await StorageAdapter.hasConversationHistory(targetConversationId);
+          if (!hasBase) {
+            const base: ChatHistoryEntity = {
+              name: 'Chat History',
+              role: 'system',
+              identifier: 'chatHistory',
+              parts: []
+            };
+            await StorageAdapter.saveJson(
+              StorageAdapter.getStorageKey(targetConversationId, '_history'),
+              base
+            );
+          }
+        } catch (e) {
+          // ignore
+        }
+
+        const ok = await StorageAdapter.restoreChatHistory(targetConversationId, embeddedHistory);
+        if (!ok) {
+          console.warn('[ChatSaveService] Failed to write embedded history, continuing');
+        }
+      } else {
+        console.warn('[ChatSaveService] Imported save lacks embedded chat history. Target conversation will not be overwritten.');
+      }
+
+      // 2) Create fresh backup on target conversation
+      const newTimestamp = Date.now();
+      const backupOk = await StorageAdapter.backupChatHistory(targetConversationId, newTimestamp);
+      if (!backupOk) {
+        console.warn('[ChatSaveService] Failed to create backup for target conversation');
+      }
+
+      // 3) Build a new save record bound to target
+      const saves = await this.getAllSaves();
+      const rebased: ChatSave = {
+        ...importedSave,
+        id: `imported_${newTimestamp}`,
+        conversationId: targetConversationId,
+        characterId: targetCharacterId,
+        characterName: targetCharacterName,
+        timestamp: newTimestamp,
+        backupTimestamp: newTimestamp,
+        importedAt: Date.now(),
+      };
+
+      // 4) Persist
+      const updated = [rebased, ...saves];
+      await AsyncStorageLib.setItem(this.STORAGE_KEY, JSON.stringify(updated));
+
+      return rebased;
+    } catch (error) {
+      console.error('[ChatSaveService] rebindImportedSaveToConversation error:', error);
       throw error;
     }
   }

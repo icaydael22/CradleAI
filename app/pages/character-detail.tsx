@@ -11,6 +11,7 @@ import {
   Image,
   Modal,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Character, CradleCharacter } from '@/shared/types';
@@ -21,6 +22,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system';
 import * as DocumentPicker from 'expo-document-picker';
 import { NodeSTManager } from '@/utils/NodeSTManager';
+import { StorageAdapter } from '@/NodeST/nodest/utils/storage-adapter';
 import { CharacterImporter } from '@/utils/CharacterImporter';
 import { 
   RoleCardJson, 
@@ -43,6 +45,7 @@ import VoiceSelector from '@/components/VoiceSelector';
 import TextEditorModal from '@/components/common/TextEditorModal';
 import DouBaoTTSSelector from '@/components/DouBaoTTSSelector';
 import MinimaxTTSSelector from '@/components/MinimaxTTSSelector';
+import GeminiTTSSelector from '@/components/GeminiTTSSelector';
 import { TTSProvider, TTSConfig } from '@/shared/types';
 import { 
   WorldBookSection,
@@ -50,6 +53,9 @@ import {
   AuthorNoteSection
 } from '@/components/character/CharacterSections';
 import { KNOWN_TAGS } from '@/app/data/knowntags';
+import { applyRegexToGreetingForCharacter, applyRegexToGreetings } from '@/utils/regex-helper';
+import { DeviceEventEmitter } from 'react-native';
+import { EventRegister } from 'react-native-event-listeners';
 
 export const DEFAULT_PRESET_ENTRIES = {
   EDITABLE: [
@@ -235,8 +241,6 @@ export async function updateAuthorNoteDataForCharacter(
       userMessage: '',
       status: '更新人设',
       conversationId: character.id,
-      apiKey,
-      apiSettings,
       character: updatedCharacter,
     });
     return result;
@@ -254,8 +258,10 @@ const CharacterDetail: React.FC = () => {
   const [ttsProvider, setTtsProvider] = useState<TTSProvider>('cosyvoice');
   const [selectedDouBaoVoice, setSelectedDouBaoVoice] = useState<string | undefined>(undefined);
   const [selectedMinimaxVoice, setSelectedMinimaxVoice] = useState<string | undefined>(undefined);
+  const [selectedGeminiVoice, setSelectedGeminiVoice] = useState<string | undefined>(undefined);
   const [douBaoSelectorVisible, setDouBaoSelectorVisible] = useState(false);
   const [minimaxSelectorVisible, setMinimaxSelectorVisible] = useState(false);
+  const [geminiSelectorVisible, setGeminiSelectorVisible] = useState(false);
   const [character, setCharacter] = useState<Character | null>(null);
   const [roleCard, setRoleCard] = useState<Partial<RoleCardJson>>({
     name: '',
@@ -278,6 +284,7 @@ const CharacterDetail: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<'basic' | 'advanced' | 'appearance' | 'voice'>('basic');
+  const [isAdvancedLoading, setIsAdvancedLoading] = useState(false);
   const [showDialog, setShowDialog] = useState(false);
   const [selectedDialogAction, setSelectedDialogAction] = useState<'save' | 'discard' | 'delete' | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -394,7 +401,7 @@ const CharacterDetail: React.FC = () => {
                 id: String(Date.now()),
                 name: 'Alist',
                 comment: 'Character Attributes List',
-                content: `<attributes>\n  <personality>${data.roleCard?.personality || 'Friendly'}</personality>\n  <appearance>未指定</appearance>\n  <likes>聊天</likes>\n  <dislikes>未指定</dislikes>\n</attributes>`,
+                content: `<attributes>\n  <personality>${data.roleCard?.personality || ''}</personality>\n  <appearance>未指定</appearance>\n  <likes>聊天</likes>\n  <dislikes>未指定</dislikes>\n</attributes>`,
                 disable: false,
                 position: 4,
                 constant: true,
@@ -494,10 +501,13 @@ const CharacterDetail: React.FC = () => {
             greetings = [data.roleCard.first_mes];
           }
           setAlternateGreetings(greetings);
-          setSelectedGreetingIndex(0);
+          // 优先将选中索引设置为当前 first_mes 所在位置
+          const currentFirst = (data?.roleCard?.first_mes || '').trim();
+          const idx = currentFirst ? Math.max(0, greetings.findIndex(g => (g || '').trim() === currentFirst) ) : 0;
+          setSelectedGreetingIndex(idx === -1 ? 0 : idx);
           setRoleCard(prev => ({
             ...prev,
-            first_mes: greetings[0] || ''
+            first_mes: greetings[idx === -1 ? 0 : idx] || ''
           }));
                   if (foundCharacter.ttsConfig) {
           const ttsConfig = foundCharacter.ttsConfig;
@@ -512,6 +522,9 @@ const CharacterDetail: React.FC = () => {
           }
           if (ttsConfig.minimax) {
             setSelectedMinimaxVoice(ttsConfig.minimax.voiceId);
+          }
+          if (ttsConfig.gemini) {
+            setSelectedGeminiVoice(ttsConfig.gemini.voiceName);
           }
         } else if (foundCharacter.voiceType) {
           // Legacy support
@@ -534,7 +547,7 @@ const CharacterDetail: React.FC = () => {
               id: String(Date.now()),
               name: 'Alist',
               comment: 'Character Attributes List',
-              content: `<attributes>\n  <personality>${foundCharacter.personality || 'Friendly'}</personality>\n  <appearance>未指定</appearance>\n  <likes>聊天</likes>\n  <dislikes>未指定</dislikes>\n</attributes>`,
+              content: `<attributes>\n  <personality>${foundCharacter.personality || ''}</personality>\n  <appearance>未指定</appearance>\n  <likes>聊天</likes>\n  <dislikes>未指定</dislikes>\n</attributes>`,
               disable: false,
               position: 4,
               constant: true,
@@ -614,6 +627,11 @@ const CharacterDetail: React.FC = () => {
           const updatedCharacter = { ...character, avatar: avatarDest };
           setCharacter(updatedCharacter);
           setHasUnsavedChanges(true);
+          
+          // 强制刷新当前页面显示
+          setTimeout(() => {
+            setCharacter(prev => prev ? { ...prev, avatar: avatarDest } : null);
+          }, 100);
         }
       }
     } catch (error) {
@@ -642,6 +660,11 @@ const CharacterDetail: React.FC = () => {
           const updatedCharacter = { ...character, backgroundImage: bgDest };
           setCharacter(updatedCharacter);
           setHasUnsavedChanges(true);
+          
+          // 强制刷新当前页面显示
+          setTimeout(() => {
+            setCharacter(prev => prev ? { ...prev, backgroundImage: bgDest } : null);
+          }, 100);
         }
       }
     } catch (error) {
@@ -808,12 +831,16 @@ function cleanUnknownTags(text: string): string {
         injection_depth: authorNote.injection_depth || 0
       };
       
-      // 清理first_mes和alternateGreetings中的未知标签
-      const cleanedFirstMes = cleanUnknownTags(roleCard.first_mes || '');
-      const cleanedAlternateGreetings = alternateGreetings.map(g => cleanUnknownTags(g));
+      // 清理并正则处理开场白
+      const rawFirst = cleanUnknownTags(roleCard.first_mes || '');
+      const rawAlts = alternateGreetings.map(g => cleanUnknownTags(g));
+
+      // 运行全局/角色正则（AI输出）
+      const processedFirst = character?.id ? await applyRegexToGreetingForCharacter(rawFirst, character.id) : rawFirst;
+      const processedAlts = character?.id ? await applyRegexToGreetings(rawAlts, character.id) : rawAlts;
 
       // 优化：如果first_mes为空，自动填充为"Hello!"
-      const safeFirstMes = cleanedFirstMes?.trim() ? cleanedFirstMes : "Hello!";
+      const safeFirstMes = processedFirst?.trim() ? processedFirst : "Hello!";
 
       const jsonData = {
         roleCard: {
@@ -824,8 +851,8 @@ function cleanUnknownTags(text: string): string {
         worldBook: worldBookData,
         preset: presetData,
         authorNote: authorNoteData,
-        // 确保保存多开场白数据，且已清理
-        alternateGreetings: cleanedAlternateGreetings.length > 0 ? cleanedAlternateGreetings : [safeFirstMes]
+        // 确保保存多开场白数据，且已清理并应用正则
+        alternateGreetings: processedAlts.length > 0 ? processedAlts : [safeFirstMes]
       };
             
       // 构建TTS配置
@@ -845,6 +872,11 @@ function cleanUnknownTags(text: string): string {
         ...(ttsProvider === 'minimax' && selectedMinimaxVoice ? {
           minimax: {
             voiceId: selectedMinimaxVoice
+          }
+        } : {}),
+        ...(ttsProvider === 'gemini' && selectedGeminiVoice ? {
+          gemini: {
+            voiceName: selectedGeminiVoice
           }
         } : {})
       };
@@ -876,28 +908,24 @@ function cleanUnknownTags(text: string): string {
         updatedAt: Date.now(),
         jsonData: JSON.stringify(jsonData),
         ...cradleFields,
-        // 保存清理后的alternateGreetings
-        extraGreetings: cleanedAlternateGreetings.length > 0 ? cleanedAlternateGreetings : undefined
+        // 保存正则处理后的alternateGreetings
+        extraGreetings: processedAlts.length > 0 ? processedAlts : undefined
       };
       
       await updateCharacter(updatedCharacter);
       
       const apiKey = user?.settings?.chat?.characterApiKey || '';
       const apiSettings = user?.settings?.chat;
-      
-      if (apiKey) {
-        await NodeSTManager.processChatMessage({
-          userMessage: "",
-          status: "更新人设",
-          conversationId: character.id,
-          apiKey: apiKey,
-          apiSettings: {
-            apiProvider: apiSettings?.apiProvider || 'gemini',
-            openrouter: apiSettings?.openrouter
-          },
-          character: updatedCharacter
-        });
-      }
+      // 无论是否有key，都尝试刷新 NodeST 数据（空key也允许）
+      await NodeSTManager.processChatMessage({
+        userMessage: "",
+        status: "更新人设",
+        conversationId: character.id,
+        character: updatedCharacter
+      });
+
+      // 通知聊天页面刷新（更新first_mes后应立即可见）
+      try { DeviceEventEmitter.emit('chatHistoryChanged', { conversationId: character.id }); } catch {}
       
       setHasUnsavedChanges(false);
       Alert.alert('成功', '角色设定已更新');
@@ -1235,13 +1263,38 @@ function cleanUnknownTags(text: string): string {
   };
 
   // 处理开场白选择
-  const handleSelectGreeting = (idx: number) => {
+  const handleSelectGreeting = async (idx: number) => {
     setSelectedGreetingIndex(idx);
+    const target = alternateGreetings[idx] || '';
+    let processed = target;
+    try {
+      if (character?.id) {
+        processed = await applyRegexToGreetingForCharacter(target, character.id);
+      }
+    } catch {}
     setRoleCard(prev => ({
       ...prev,
-      first_mes: alternateGreetings[idx] || ''
+      first_mes: processed
     }));
     setHasUnsavedChanges(true);
+
+    // 立即刷新到对话窗口：更新存储中的 roleCard.first_mes 并重置历史只保留新开场白
+    try {
+      if (character?.id) {
+        const newRole = {
+          name: (roleCard.name || character.name || '').trim(),
+          first_mes: processed || 'Hello!',
+          description: roleCard.description || character.description || '',
+          personality: roleCard.personality || character.personality || '',
+          scenario: roleCard.scenario || '',
+          mes_example: roleCard.mes_example || ''
+        };
+        await StorageAdapter.saveJson(StorageAdapter.getStorageKey(character.id, '_role'), newRole);
+        await NodeSTManager.resetChatHistory(character.id);
+        // 通知聊天页面刷新
+        try { DeviceEventEmitter.emit('chatHistoryChanged', { conversationId: character.id }); } catch {}
+      }
+    } catch {}
   };
 
   // 新增：添加/删除开场白功能
@@ -1441,6 +1494,21 @@ const renderTagGenerationSection = () => (
             Minimax
           </Text>
         </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={[
+            styles.ttsProviderButton,
+            ttsProvider === 'gemini' && styles.activeTtsProvider
+          ]}
+          onPress={() => setTtsProvider('gemini')}
+        >
+          <Text style={[
+            styles.ttsProviderText,
+            ttsProvider === 'gemini' && styles.activeTtsProviderText
+          ]}>
+            Gemini TTS
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* Provider-specific content */}
@@ -1487,7 +1555,7 @@ const renderTagGenerationSection = () => (
             </View>
           )}
         </View>
-      ) : (
+      ) : ttsProvider === 'minimax' ? (
         <View style={styles.voiceProviderContent}>
           {selectedMinimaxVoice ? (
             <View style={styles.selectedVoiceContainer}>
@@ -1517,7 +1585,37 @@ const renderTagGenerationSection = () => (
             </View>
           )}
         </View>
-      )}
+      ) : ttsProvider === 'gemini' ? (
+        <View style={styles.voiceProviderContent}>
+          {selectedGeminiVoice ? (
+            <View style={styles.selectedVoiceContainer}>
+              <Text style={styles.selectedVoiceLabel}>已选择Gemini音色</Text>
+              <View style={styles.selectedVoiceInfo}>
+                <Text style={styles.selectedVoiceText}>
+                  {selectedGeminiVoice}
+                </Text>
+                <TouchableOpacity
+                  style={styles.changeVoiceButton}
+                  onPress={() => setGeminiSelectorVisible(true)}
+                >
+                  <Text style={styles.changeVoiceText}>更换</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.noVoiceContainer}>
+              <Text style={styles.noVoiceText}>未选择Gemini音色</Text>
+              <TouchableOpacity
+                style={styles.selectVoiceButton}
+                onPress={() => setGeminiSelectorVisible(true)}
+              >
+                <Ionicons name="musical-notes-outline" size={20} color={theme.colors.black} />
+                <Text style={styles.selectVoiceText}>选择音色</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      ) : null}
 
       {/* DouBao Voice Selector Modal */}
       <DouBaoTTSSelector
@@ -1539,6 +1637,17 @@ const renderTagGenerationSection = () => (
           setHasUnsavedChanges(true);
         }}
         onClose={() => setMinimaxSelectorVisible(false)}
+      />
+
+      {/* Gemini Voice Selector Modal */}
+      <GeminiTTSSelector
+        visible={geminiSelectorVisible}
+        selectedVoice={selectedGeminiVoice}
+        onSelectVoice={(voiceName) => {
+          setSelectedGeminiVoice(voiceName);
+          setHasUnsavedChanges(true);
+        }}
+        onClose={() => setGeminiSelectorVisible(false)}
       />
     </View>
   );
@@ -1723,7 +1832,15 @@ const renderAppearanceSection = () => (
         </TouchableOpacity>
         <TouchableOpacity 
           style={[styles.tab, activeTab === 'advanced' && styles.activeTab]} 
-          onPress={() => setActiveTab('advanced')}
+          onPress={async () => {
+            setActiveTab('advanced');
+            // 显示加载动画，等待世界书/预设渲染
+            setIsAdvancedLoading(true);
+            // 让一帧后再结束loading，避免瞬闪；若后续有异步加载，可在完成后关闭
+            requestAnimationFrame(() => {
+              setTimeout(() => setIsAdvancedLoading(false), 350);
+            });
+          }}
         >
           <Text style={[styles.tabText, activeTab === 'advanced' && styles.activeTabText]}>高级</Text>
         </TouchableOpacity>
@@ -1850,6 +1967,14 @@ const renderAppearanceSection = () => (
           ) : activeTab === 'advanced' ? (
             <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }}>
               <View style={styles.tabContent}>
+                {isAdvancedLoading && (
+                  <View style={styles.importLoadingOverlay}>
+                    <View style={styles.importLoadingBox}>
+                      <ActivityIndicator size="large" color={theme.colors.primary} />
+                      <Text style={styles.importLoadingText}>正在加载高级配置…</Text>
+                    </View>
+                  </View>
+                )}
                 {/* 新增：世界书导入按钮 */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
                   <TouchableOpacity
@@ -2570,6 +2695,32 @@ const styles = StyleSheet.create({
       voiceProviderContent: {
     flex: 1,
     marginTop: 8,
+  },
+  // 与导入创建动画一致的覆盖层样式（与 Character.tsx 对齐）
+  importLoadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 999,
+  },
+  importLoadingBox: {
+    backgroundColor: '#222',
+    borderRadius: 12,
+    paddingVertical: 20,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  importLoadingText: {
+    color: theme.colors.primary,
+    marginTop: 16,
+    fontSize: 14,
+    fontWeight: '600',
   },
   });
 export default CharacterDetail;

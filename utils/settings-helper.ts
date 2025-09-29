@@ -6,36 +6,16 @@
 
 import { GlobalSettings } from '@/shared/types';
 
-let cloudServiceEnabled = false;
-const cloudServiceListeners: Array<(enabled: boolean) => void> = [];
-
-/**
- * Update the cloud service status and notify listeners.
- */
-export function updateCloudServiceStatus(enabled: boolean): void {
-  cloudServiceEnabled = enabled;
-  console.log(`[CloudServiceTracker] 云服务状态更新为: ${enabled ? '启用' : '禁用'}`);
-  cloudServiceListeners.forEach(listener => listener(enabled));
+// CloudService 相关方法废弃，占位以兼容旧代码的导入但无副作用
+export function updateCloudServiceStatus(_enabled: boolean): void {
+  console.warn('[SettingsHelper] updateCloudServiceStatus 已废弃');
 }
-
-/**
- * Get the current cloud service status.
- */
 export function getCloudServiceStatus(): boolean {
-  return cloudServiceEnabled;
+  return false;
 }
-
-/**
- * Add a listener for cloud service status changes.
- */
-export function addCloudServiceStatusListener(listener: (enabled: boolean) => void): () => void {
-  cloudServiceListeners.push(listener);
-  return () => {
-    const index = cloudServiceListeners.indexOf(listener);
-    if (index !== -1) {
-      cloudServiceListeners.splice(index, 1);
-    }
-  };
+export function addCloudServiceStatusListener(_listener: (enabled: boolean) => void): () => void {
+  console.warn('[SettingsHelper] addCloudServiceStatusListener 已废弃');
+  return () => {};
 }
 
 /**
@@ -143,10 +123,7 @@ export function storeUserSettingsGlobally(settings: GlobalSettings): void {
     
     console.log('[SettingsHelper] User settings stored globally');
     
-    // Update cloud service status when settings are updated
-    if (settings.chat && settings.chat.useCloudService !== undefined) {
-      updateCloudServiceStatus(settings.chat.useCloudService);
-    }
+    // CloudService 已废弃：不再同步 useCloudService
   } catch (error) {
     console.error('[SettingsHelper] Failed to store settings globally:', error);
   }
@@ -211,6 +188,14 @@ export function getApiSettings(): {
     max_tokens?: number;
     stream?: boolean;
   };
+  cradlecloud?: {
+    enabled: boolean;
+    jwtToken?: string;
+    model?: string;
+    temperature?: number;
+    max_tokens?: number;
+    debug?: boolean;
+  };
   useCloudService: boolean;
   useGeminiKeyRotation?: boolean;
   useGeminiModelLoadBalancing?: boolean;
@@ -241,7 +226,7 @@ export function getApiSettings(): {
   }
 
   // 互斥逻辑：只返回当前 provider 的参数
-  const { apiProvider, characterApiKey, openrouter, OpenAIcompatible, useCloudService = false, additionalGeminiKeys, useGeminiKeyRotation, useGeminiModelLoadBalancing, cloudModel, geminiPrimaryModel, geminiBackupModel, retryDelay, geminiTemperature, geminiMaxTokens, useZhipuEmbedding, zhipuApiKey } = settings.chat;
+  const { apiProvider, characterApiKey, openrouter, OpenAIcompatible, cradlecloud, useCloudService = false, additionalGeminiKeys, useGeminiKeyRotation, useGeminiModelLoadBalancing, cloudModel, geminiPrimaryModel, geminiBackupModel, retryDelay, geminiTemperature, geminiMaxTokens, useZhipuEmbedding, zhipuApiKey } = settings.chat;
 
   // --- 修正：同步OpenAIcompatible的流式参数等 ---
   let openAICompatibleConfig: any = { enabled: false };
@@ -265,6 +250,18 @@ export function getApiSettings(): {
     };
   }
 
+  // CradleCloud配置
+  let cradleCloudConfig: any = { enabled: false };
+  if (apiProvider === 'cradlecloud' && cradlecloud?.enabled) {
+    cradleCloudConfig = {
+      enabled: true,
+      jwtToken: cradlecloud.jwtToken || '',
+      model: cradlecloud.model || 'gemini-2.0-flash-exp',
+      temperature: cradlecloud.temperature || 0.7,
+      max_tokens: cradlecloud.max_tokens || 32000,
+    };
+  }
+
   return {
     apiKey: characterApiKey,
     apiProvider: apiProvider || 'gemini',
@@ -276,6 +273,7 @@ export function getApiSettings(): {
         }
       : { enabled: false },
     OpenAIcompatible: openAICompatibleConfig,
+    cradlecloud: cradleCloudConfig,
     useCloudService,
     additionalGeminiKeys,
     useGeminiKeyRotation,
@@ -296,7 +294,7 @@ export function getApiSettings(): {
  */
 export function getTTSSettings(): {
   enabled: boolean;
-  provider?: 'doubao' | 'minimax' | 'cosyvoice';
+  provider?: 'doubao' | 'minimax' | 'cosyvoice' | 'gemini' | 'cradlecloud';
   appid?: string;
   token?: string;
   voiceType?: string;
@@ -311,12 +309,14 @@ export function getTTSSettings(): {
   // 新增：CosyVoice 使用与 Minimax 共享的 Replicate token
   replicateApiToken?: string;
   cosyvoiceReplicateModel?: string;
+  // CradleCloud TTS 字段
+  cradleCloudVoice?: string;
 } {
   const settings = getUserSettingsGlobally();
   if (!settings || !settings.tts) {
     return { enabled: false };
   }
-  const { enabled, provider, appid, token, voiceType, encoding, speedRatio, transport, minimaxApiToken, minimaxModel, cosyvoiceServerUrl, useRealtimeUpdates } = settings.tts;
+  const { enabled, provider, appid, token, voiceType, encoding, speedRatio, transport, minimaxApiToken, minimaxModel, cosyvoiceServerUrl, useRealtimeUpdates, cradleCloudVoice } = settings.tts;
   return {
     enabled: enabled || false,
     provider: provider || 'doubao',
@@ -330,6 +330,7 @@ export function getTTSSettings(): {
     minimaxModel,
     cosyvoiceServerUrl,
     useRealtimeUpdates,
+    cradleCloudVoice,
     // CosyVoice 使用与 Minimax 共享的 Replicate token
     replicateApiToken: minimaxApiToken,
     cosyvoiceReplicateModel: 'chenxwh/cosyvoice2-0.5b:669b1cd618f2747d2237350e868f5c313f3b548fc803ca4e57adfaba778b042d'
@@ -416,7 +417,7 @@ export async function updateTTSSettings(ttsConfig: {
  */
 export async function getTTSSettingsAsync(): Promise<{
   enabled: boolean;
-  provider?: 'doubao' | 'minimax' | 'cosyvoice';
+  provider?: 'doubao' | 'minimax' | 'cosyvoice' | 'gemini' | 'cradlecloud';
   appid?: string;
   token?: string;
   voiceType?: string;
@@ -431,6 +432,8 @@ export async function getTTSSettingsAsync(): Promise<{
   // 新增：CosyVoice 使用与 Minimax 共享的 Replicate token
   replicateApiToken?: string;
   cosyvoiceReplicateModel?: string;
+  // CradleCloud TTS 字段
+  cradleCloudVoice?: string;
 }> {
   try {
     // 1. 先尝试从全局设置中获取

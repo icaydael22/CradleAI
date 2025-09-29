@@ -45,6 +45,7 @@ export class MobileMemory {
   private config: MemoryConfig;
   private customPrompt: string | undefined;
   public embedder: any; // Make the embedder accessible
+  private fallbackEmbedder: any; // 添加备用嵌入器
   private vectorStore: any;
   public llm: any; // 改为公共属性以便更新配置
   // private db: MobileSQLiteManager;
@@ -64,8 +65,20 @@ export class MobileMemory {
       this.config.embedder.provider,
       this.config.embedder.config,
     );
-    // 强制使用 mobile_file provider
-    this.config.vectorStore.provider = 'mobile_file';
+    
+    // 创建备用嵌入器 (CradleCloud)
+    try {
+      this.fallbackEmbedder = EmbedderFactory.create(
+        'cradle-cloud',
+        { model: 'gemini-embedding-001', dimensions: 3072 }
+      );
+      console.log('[MobileMemory] 备用嵌入器 (CradleCloud) 初始化成功');
+    } catch (error) {
+      console.warn('[MobileMemory] 备用嵌入器初始化失败:', error);
+      this.fallbackEmbedder = null;
+    }
+    
+    // 创建向量存储实例 - 使用传入配置（不要强制覆盖 provider）
     this.vectorStore = VectorStoreFactory.create(
       this.config.vectorStore.provider,
       this.config.vectorStore.config,
@@ -353,19 +366,23 @@ export class MobileMemory {
       };
     }
 
-    // ----------- 新增: 动态检测useZhipuEmbedding配置 -----------
+    // ----------- 新增: 动态检测嵌入开关（Zhipu 或 CradleCloud） -----------
     let useZhipuEmbedding = true;
+    let useCradleCloudEmbedding = false;
     try {
       // 动态引入settings-helper，避免循环依赖
       const { getApiSettings } = require('@/utils/settings-helper');
-      useZhipuEmbedding = !!getApiSettings().useZhipuEmbedding;
+      const apiSettings = getApiSettings();
+      useZhipuEmbedding = !!apiSettings.useZhipuEmbedding;
+      useCradleCloudEmbedding = apiSettings.apiProvider === 'cradlecloud' && !!apiSettings.cradlecloud?.enabled;
     } catch (e) {
       // 如果获取失败，默认true
       useZhipuEmbedding = true;
+      useCradleCloudEmbedding = false;
     }
 
-    // 如果useZhipuEmbedding为false，则直接走表格记忆兜底
-    if (!useZhipuEmbedding && this.isTableMemoryEnabled() && filters.agentId) {
+    // 如果明确关闭Zhipu且未启用CradleCloud，则直接走表格记忆兜底
+    if (!useZhipuEmbedding && !useCradleCloudEmbedding && this.isTableMemoryEnabled() && filters.agentId) {
       try {
         const tableMemoryIntegration = require('./integration/table-memory-integration');
         const characterId = filters.agentId;
@@ -402,7 +419,7 @@ export class MobileMemory {
     }
     // ----------- 新增逻辑结束 -----------
 
-    // ----------- 新增: 智谱API密钥未设置时允许表格记忆兜底 -----------
+    // ----------- 新增: 嵌入器可用性检查（支持 CradleCloud 回退） -----------
     // 检查嵌入器可用性
     let embedderAvailable = true;
     try {
@@ -410,7 +427,7 @@ export class MobileMemory {
       if (!this.embedder || typeof this.embedder.embed !== 'function') {
         embedderAvailable = false;
       } else {
-        // 仅在embedder.embed抛出"智谱嵌入API密钥未设置"时判定为不可用
+        // 仅在embedder.embed抛出"智谱嵌入API密钥未设置"时判定为不可用（Zhipu 专属）
         try {
           await this.embedder.embed('mem0_test_check');
         } catch (err: any) {
@@ -423,8 +440,8 @@ export class MobileMemory {
       embedderAvailable = false;
     }
 
-    // 如果嵌入器不可用，且表格记忆启用且角色有表格，则只处理表格记忆
-    if (!embedderAvailable && this.isTableMemoryEnabled() && filters.agentId) {
+    // 如果嵌入器不可用（主Zhipu失败且未启用CradleCloud），且表格记忆启用且角色有表格，则只处理表格记忆
+    if (!embedderAvailable && !useCradleCloudEmbedding && this.isTableMemoryEnabled() && filters.agentId) {
       try {
         const tableMemoryIntegration = require('./integration/table-memory-integration');
         // 检查角色是否有表格
@@ -493,7 +510,7 @@ export class MobileMemory {
     
     try {
       // 生成嵌入向量
-      const embedding = await this.embedder.embed(content);
+      const embedding = await this.embedWithFallback(content);
       
       // 创建记忆ID
       const memoryId = uuidv4();
@@ -592,7 +609,7 @@ export class MobileMemory {
         
         const searchStartTime = Date.now();
         const searchResults = await this.vectorStore.search(
-          await this.embedder.embed(parsedMessages),
+          await this.embedWithFallback(parsedMessages),
           10, // 增加搜索数量以确保能获取到足够的用户-AI对话对
           filters,
         );
@@ -753,7 +770,7 @@ export class MobileMemory {
 
     // 创建嵌入并搜索类似的记忆
     for (const fact of facts) {
-      const embedding = await this.embedder.embed(fact);
+      const embedding = await this.embedWithFallback(fact);
       newMessageEmbeddings[fact] = embedding;
 
       const existingMemories = await this.vectorStore.search(
@@ -994,7 +1011,7 @@ export class MobileMemory {
     const searchStartTime = Date.now();
     
     // 搜索向量存储
-    const queryEmbedding = await this.embedder.embed(query);
+    const queryEmbedding = await this.embedWithFallback(query);
     const memories = await this.vectorStore.search(
       queryEmbedding,
       limit,
@@ -1004,6 +1021,33 @@ export class MobileMemory {
     const searchEndTime = Date.now();
     console.log(`[MobileMemory] 搜索完成，耗时: ${searchEndTime - searchStartTime}ms`);
     console.log(`[MobileMemory] 搜索结果数量: ${memories?.length || 0}`);
+
+    // 如果没有结果，并且使用了 runId 作为过滤条件，尝试放宽过滤（移除 runId）进行重试。
+    // 某些情况下存储的 runId 可能不包含 conversation- 前缀或被存储成不同的值，导致匹配失败。
+    if ((!memories || memories.length === 0) && filters.runId && filters.agentId) {
+      try {
+        console.log('[MobileMemory] 初始搜索未命中，尝试移除 runId 过滤后重试搜索');
+        const relaxedFilters = { ...filters } as any;
+        delete relaxedFilters.runId;
+        const retryStart = Date.now();
+        const retryMemories = await this.vectorStore.search(
+          queryEmbedding,
+          limit,
+          relaxedFilters,
+        );
+        const retryEnd = Date.now();
+        console.log(`[MobileMemory] 放宽过滤后搜索完成，耗时: ${retryEnd - retryStart}ms`);
+        if (retryMemories && retryMemories.length > 0) {
+          console.log('[MobileMemory] 放宽过滤后搜索命中，结果数量:', retryMemories.length);
+          // use retry results
+          memories.splice(0, memories.length, ...retryMemories);
+        } else {
+          console.log('[MobileMemory] 放宽过滤后仍未命中');
+        }
+      } catch (e) {
+        console.warn('[MobileMemory] 放宽过滤重试搜索时出错:', e);
+      }
+    }
 
     const excludedKeys = new Set([
       "userId",
@@ -1094,7 +1138,7 @@ export class MobileMemory {
    * @returns 成功消息
    */
   async update(memoryId: string, data: string): Promise<{ message: string }> {
-    const embedding = await this.embedder.embed(data);
+    const embedding = await this.embedWithFallback(data);
     await this.updateMemory(memoryId, data, { [data]: embedding });
     return { message: "记忆更新成功!" };
   }
@@ -1153,8 +1197,7 @@ export class MobileMemory {
   async reset(): Promise<void> {
     await this.db.reset();
     await this.vectorStore.deleteCol();
-    // 重置时也强制使用 mobile_file provider
-    this.config.vectorStore.provider = 'mobile_file';
+    // 重新创建向量存储实例，使用当前配置（保持 provider 不变）
     this.vectorStore = VectorStoreFactory.create(
       this.config.vectorStore.provider,
       this.config.vectorStore.config,
@@ -1224,7 +1267,7 @@ export class MobileMemory {
     
     try {
       // 尝试获取或创建嵌入向量
-      embedding = existingEmbeddings[data] || (await this.embedder.embed(data));
+      embedding = existingEmbeddings[data] || (await this.embedWithFallback(data));
       
       if (!embedding || !Array.isArray(embedding) || embedding.length === 0) {
       }
@@ -1281,7 +1324,7 @@ export class MobileMemory {
 
     const prevValue = existingMemory.payload.data;
     const embedding =
-      existingEmbeddings[data] || (await this.embedder.embed(data));
+      existingEmbeddings[data] || (await this.embedWithFallback(data));
 
     const newMetadata = {
       ...metadata,
@@ -1387,7 +1430,7 @@ export class MobileMemory {
             try {
               if (existingMemory.payload && existingMemory.payload.data) {
                 console.log(`[MobileMemory] 原始向量不可用，为记忆ID ${memoryId} 重新生成向量`);
-                originalVector = await this.embedder.embed(existingMemory.payload.data);
+                originalVector = await this.embedWithFallback(existingMemory.payload.data);
               }
             } catch (embedError) {
               console.error(`[MobileMemory] 无法为记忆ID ${memoryId} 重新生成向量:`, embedError);
@@ -1404,6 +1447,89 @@ export class MobileMemory {
         }
       } catch (error) {
         console.error(`[MobileMemory] 更新记忆ID ${memoryId} 的AI响应失败:`, error);
+      }
+    }
+  }
+
+  /**
+   * 带回退机制的嵌入方法
+   * @param text 要嵌入的文本
+   * @returns 向量数组
+   */
+  private async embedWithFallback(text: string): Promise<number[]> {
+    try {
+      // 首先尝试使用主嵌入器
+      console.log('[MobileMemory] 使用主嵌入器进行向量化...');
+      return await this.embedder.embed(text);
+    } catch (error) {
+      console.warn('[MobileMemory] 主嵌入器失败，尝试使用备用嵌入器:', error);
+      
+      if (!this.fallbackEmbedder) {
+        console.error('[MobileMemory] 备用嵌入器不可用');
+        throw new Error('主嵌入器和备用嵌入器都不可用');
+      }
+      
+      try {
+        console.log('[MobileMemory] 使用备用嵌入器 (CradleCloud) 进行向量化...');
+        return await this.fallbackEmbedder.embed(text);
+      } catch (fallbackError) {
+        console.error('[MobileMemory] 备用嵌入器也失败了:', fallbackError);
+        throw new Error(`所有嵌入器都失败了 - 主嵌入器: ${error instanceof Error ? error.message : error}, 备用嵌入器: ${fallbackError instanceof Error ? fallbackError.message : fallbackError}`);
+      }
+    }
+  }
+
+  /**
+   * 带回退机制的批量嵌入方法
+   * @param texts 要嵌入的文本数组
+   * @returns 向量数组的数组
+   */
+  private async embedBatchWithFallback(texts: string[]): Promise<number[][]> {
+    try {
+      // 首先尝试使用主嵌入器
+      console.log('[MobileMemory] 使用主嵌入器进行批量向量化...');
+      return await this.embedder.embedBatch(texts);
+    } catch (error) {
+      console.warn('[MobileMemory] 主嵌入器批量操作失败，尝试使用备用嵌入器:', error);
+      
+      if (!this.fallbackEmbedder) {
+        console.error('[MobileMemory] 备用嵌入器不可用');
+        throw new Error('主嵌入器和备用嵌入器都不可用');
+      }
+      
+      try {
+        console.log('[MobileMemory] 使用备用嵌入器 (CradleCloud) 进行批量向量化...');
+        return await this.fallbackEmbedder.embedBatch(texts);
+      } catch (fallbackError) {
+        console.error('[MobileMemory] 备用嵌入器批量操作也失败了:', fallbackError);
+        throw new Error(`所有嵌入器都失败了 - 主嵌入器: ${error instanceof Error ? error.message : error}, 备用嵌入器: ${fallbackError instanceof Error ? fallbackError.message : fallbackError}`);
+      }
+    }
+  }
+
+  /**
+   * 检查嵌入器是否可用（包括回退机制）
+   * @returns 是否有可用的嵌入器
+   */
+  public async isEmbeddingAvailable(): Promise<boolean> {
+    try {
+      // 测试主嵌入器
+      await this.embedder.embed('test');
+      return true;
+    } catch (error) {
+      console.warn('[MobileMemory] 主嵌入器不可用，检查备用嵌入器:', error);
+      
+      if (!this.fallbackEmbedder) {
+        return false;
+      }
+      
+      try {
+        // 测试备用嵌入器
+        await this.fallbackEmbedder.embed('test');
+        return true;
+      } catch (fallbackError) {
+        console.error('[MobileMemory] 备用嵌入器也不可用:', fallbackError);
+        return false;
       }
     }
   }

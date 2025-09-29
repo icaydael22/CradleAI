@@ -1,5 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import {
+import { useFonts } from 'expo-font';
+import { useFocusEffect } from '@react-navigation/native';
+import { 
   View,
   Text,
   StyleSheet,
@@ -7,7 +9,6 @@ import {
   TouchableOpacity,
   Image,
   Dimensions,
-  SafeAreaView,
   StatusBar,
   Platform,
   TextInput,
@@ -20,19 +21,21 @@ import {
   ImageBackground,
   Modal,
 } from 'react-native';
-import { Ionicons, MaterialIcons, MaterialCommunityIcons, Feather, AntDesign } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons, MaterialIcons, Feather, AntDesign } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { useCharacters } from '@/constants/CharactersContext';
+import { useExploreState } from '@/hooks/useExploreState';
+import PostItem from '@/components/PostItem';
 import { CirclePost, CircleComment, CircleLike, Character,} from '@/shared/types';
 import ForwardSheet from '@/components/ForwardSheet';
 import { useUser } from '@/constants/UserContext';
 import { CircleService } from '@/services/circle-service';
 import { RelationshipAction } from '@/shared/types/relationship-types';
-import { ActionService } from '@/services/action-service';
-import RelationshipTestResults, { RelationshipTestResult } from '@/components/RelationshipTestResults';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ImageViewer from '@/components/ImageViewer';
+import FavoriteList from '@/components/FavoriteList';
 import CharacterInteractionSettings from '@/components/CharacterInteractionSettings';
 import { theme } from '@/constants/theme';
 import { CircleScheduler } from '@/services/circle-scheduler';
@@ -40,7 +43,10 @@ import { NodeSTManager } from '@/utils/NodeSTManager';
 import { GeminiAdapter } from '@/NodeST/nodest/utils/gemini-adapter';
 import { ImageManager } from '@/utils/ImageManager';
 import * as FileSystem from 'expo-file-system';
+import EmojiPicker from 'rn-emoji-keyboard';
 import { getApiSettings } from '@/utils/settings-helper';
+import { EventRegister } from 'react-native-event-listeners';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 
 const { width, height } = Dimensions.get('window');
@@ -51,22 +57,56 @@ const HEADER_HEIGHT = Platform.OS === 'ios' ? 90 : (StatusBar.currentHeight || 0
 const Explore: React.FC = () => {
   const { characters, setCharacters, updateCharacter, toggleFavorite, addMessage } = useCharacters();
   const { user } = useUser();
-  const [posts, setPosts] = useState<CirclePost[]>([]);
-  const [commentText, setCommentText] = useState('');
-  const [activePostId, setActivePostId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [processingCharacters, setProcessingCharacters] = useState<string[]>([]);
+  const router = useRouter();
+  const exploreState = useExploreState();
+  
+  // Extract commonly used state from exploreState
+  const {
+    posts, setPosts, isLoading, setIsLoading, error, setError,
+    commentText, setCommentText, activePostId, setActivePostId,
+    replyTo, setReplyTo, isCommentInputActive, setIsCommentInputActive,
+    processingCharacters, setProcessingCharacters, publishingPost, setPublishingPost,
+    showUserPostModal, setShowUserPostModal, userPostText, setUserPostText,
+    userPostImages, setUserPostImages, isCreatingPost, setIsCreatingPost,
+    isForwardSheetVisible, setIsForwardSheetVisible, selectedPost, setSelectedPost,
+    isImageViewerVisible, setIsImageViewerVisible, currentImageIndex, setCurrentImageIndex,
+    selectedImages, setSelectedImages, expandedThoughts, setExpandedThoughts,
+    expandedComments, setExpandedComments, deletingPostId, setDeletingPostId,
+    showInteractionSettings, setShowInteractionSettings,
+     selectedPublishCharacterId, setSelectedPublishCharacterId,
+     showPublishCharacterSelector, setShowPublishCharacterSelector,
+    fallbackCharacter, setFallbackCharacter, flatListRef, schedulerRef,
+    backgroundImage, setBackgroundImage, isSelectingBackground, setIsSelectingBackground,
+    resetCommentState, resetUserPostModal, resetImageViewer,
+    toggleThoughtExpansion, handleImagePress, handleBackgroundImageSelect, loadBackgroundImage
+  } = exploreState;
+  
+  // Timeout management for memory leak prevention
+  const timeoutsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+  
+  const addTimeout = useCallback((timeoutId: ReturnType<typeof setTimeout>) => {
+    timeoutsRef.current.add(timeoutId);
+    return timeoutId;
+  }, []);
+  
+  // Cleanup all timeouts on unmount
+  useEffect(() => {
+    return () => {
+      timeoutsRef.current.forEach(clearTimeout);
+      timeoutsRef.current.clear();
+    };
+  }, []);
+  
+  // Additional states not in the hook
   const [testModeEnabled, setTestModeEnabled] = useState(false);
   const [testResults, setTestResults] = useState<Array<{characterId: string, name: string, success: boolean, action?: any}>>([]);
   const [showTestResults, setShowTestResults] = useState(false);
-  const flatListRef = useRef<FlatList>(null);
-  const [fallbackCharacter, setFallbackCharacter] = useState<Character | null>(null);
-
-  const [isForwardSheetVisible, setIsForwardSheetVisible] = useState(false);
-  const [selectedPost, setSelectedPost] = useState<CirclePost | null>(null);
-  const [replyTo, setReplyTo] = useState<{userId: string, userName: string} | null>(null);
-  const [publishingPost, setPublishingPost] = useState(false);
+  const [showFavorites, setShowFavorites] = useState(false);
+  const [showCommentsModal, setShowCommentsModal] = useState<CirclePost | null>(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showStickerPicker, setShowStickerPicker] = useState(false);
+  const [stickerOptions, setStickerOptions] = useState<string[]>([]);
+  const [selectedEmoticonUri, setSelectedEmoticonUri] = useState<string | null>(null);
   
   // Tab Navigation state
   const [activeTab, setActiveTab] = useState<'circle' | 'relationships'>('circle');
@@ -74,47 +114,36 @@ const Explore: React.FC = () => {
   const [pendingActions, setPendingActions] = useState<RelationshipAction[]>([]);
   const [isGeneratingActions, setIsGeneratingActions] = useState(false);
 
-  // Add states for user post creation
-  const [showUserPostModal, setShowUserPostModal] = useState(false);
-  const [userPostText, setUserPostText] = useState('');
-  const [userPostImages, setUserPostImages] = useState<string[]>([]);
-  const [isCreatingPost, setIsCreatingPost] = useState(false);
-
-  // Add these new state variables
-  const [deletingPostId, setDeletingPostId] = useState<string | null>(null);
-
-  const [isImageViewerVisible, setIsImageViewerVisible] = useState(false);
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [selectedImages, setSelectedImages] = useState<string[]>([]);
-
-  // Add new state for character interaction settings modal
-  const [showInteractionSettings, setShowInteractionSettings] = useState(false);
-
-  // Add a new state to track expanded thought bubbles
-  const [expandedThoughts, setExpandedThoughts] = useState<{[key: string]: boolean}>({});
-
-  // Add new state to track when comment input is active
-  const [isCommentInputActive, setIsCommentInputActive] = useState(false);
-
-  // Add state for character selection in test post publishing
-  const [selectedPublishCharacterId, setSelectedPublishCharacterId] = useState<string | null>(null);
-  const [showPublishCharacterSelector, setShowPublishCharacterSelector] = useState(false);
-
-  // Add useRef for storing scheduler instance
-  const schedulerRef = useRef<CircleScheduler | null>(null);
+  // Use scheduler from custom hook
+  const insets = useSafeAreaInsets();
 
   // 新增：selectedCharacter 兜底机制
   const selectedCharacter = selectedCharacterId
     ? characters.find((char: Character) => char.id === selectedCharacterId)
     : null;
 
-  // 兜底逻辑：如果 context 里查不到角色，尝试直接从 characters.json 读取
+  // 兜底逻辑：如果 context 里查不到角色，尝试直接从 CharacterStorageService 读取
   useEffect(() => {
     if (
       selectedCharacterId &&
       !selectedCharacter // context 里查不到
     ) {
       (async () => {
+        try {
+          // First try CharacterStorageService
+          const { CharacterStorageService } = require('@/services/CharacterStorageService');
+          const storageService = CharacterStorageService.getInstance();
+          const found = await storageService.getCharacter(selectedCharacterId);
+          if (found) {
+            console.log(`【兜底】从CharacterStorageService找到角色: ${found.name}`);
+            // You could update context here if needed
+            return;
+          }
+        } catch (storageError) {
+          console.error('【兜底】从CharacterStorageService加载角色失败:', storageError);
+        }
+        
+        // Fallback to characters.json
         try {
           const filePath = FileSystem.documentDirectory + 'characters.json';
           const fileInfo = await FileSystem.getInfoAsync(filePath);
@@ -152,10 +181,10 @@ const Explore: React.FC = () => {
   useEffect(() => {
     if (!schedulerRef.current || posts.length === 0) return;
     
-    // Create update callback function
+    // Create update callback function with incremental updates
     const handlePostUpdate = (updatedPost: CirclePost) => {
       setPosts(prevPosts => 
-        prevPosts.map(p => p.id === updatedPost.id ? updatedPost : p)
+        prevPosts.map(p => p.id === updatedPost.id ? mergePostUpdates(p, updatedPost) : p)
       );
     };
     
@@ -172,12 +201,7 @@ const Explore: React.FC = () => {
     };
   }, [posts, schedulerRef.current]);
 
-  // Add the image handling function before renderPost
-  const handleImagePress = useCallback((images: string[], index: number) => {
-    setSelectedImages(images);
-    setCurrentImageIndex(index);
-    setIsImageViewerVisible(true);
-  }, []);
+  // Image handling is now in the custom hook
 
   // Select first character as default when characters are loaded
   useEffect(() => {
@@ -262,9 +286,9 @@ const Explore: React.FC = () => {
       
       setTestResults(formattedResults);
       
-      // Update the post with results
+      // Update the post with results using incremental update
       setPosts(prevPosts => 
-        prevPosts.map(p => p.id === testPost.id ? updatedPost : p)
+        prevPosts.map(p => p.id === testPost.id ? mergePostUpdates(p, updatedPost) : p)
       );
       
       // Show test results after processing is complete
@@ -279,7 +303,13 @@ const Explore: React.FC = () => {
     }
   }, [characters, user?.settings?.chat?.characterApiKey]);
 
-  // Update the loadPosts function to properly fetch from storage
+  // 避免收藏/取消收藏导致 characters 变化触发重复加载
+  const charactersRef = useRef<Character[]>(characters);
+  useEffect(() => {
+    charactersRef.current = characters;
+  }, [characters]);
+
+  // Update the loadPosts function to properly fetch from storage（移除对 characters 的依赖）
   const loadPosts = useCallback(async () => {
     try {
       setIsLoading(true);
@@ -304,7 +334,7 @@ const Explore: React.FC = () => {
       // Process posts without calling refreshPosts
       const postsWithFavoriteStatus = storedPosts.map(post => {
         // Update character avatars and other information
-        const character = characters.find(c => c.id === post.characterId);
+        const character = charactersRef.current.find(c => c.id === post.characterId);
         
         // Check if post is favorited - handle both character and user posts
         let isFavorited = false;
@@ -326,7 +356,7 @@ const Explore: React.FC = () => {
         if (post.likedBy) {
           post.likedBy = post.likedBy.map(like => {
             if (like.isCharacter) {
-              const likeCharacter = characters.find(c => c.id === like.userId);
+              const likeCharacter = charactersRef.current.find(c => c.id === like.userId);
               if (likeCharacter) {
                 return {...like, userAvatar: likeCharacter.avatar || like.userAvatar};
               }
@@ -338,7 +368,7 @@ const Explore: React.FC = () => {
         if (post.comments) {
           post.comments = post.comments.map(comment => {
             if (comment.type === 'character') {
-              const commentCharacter = characters.find(c => c.id === comment.userId);
+              const commentCharacter = charactersRef.current.find(c => c.id === comment.userId);
               if (commentCharacter) {
                 return {...comment, userAvatar: commentCharacter.avatar || comment.userAvatar};
               }
@@ -364,12 +394,19 @@ const Explore: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [characters, testModeEnabled,]);
+  }, [testModeEnabled]);
 
   // Add a specific effect hook to load posts on component mount
   useEffect(() => {
     console.log('【朋友圈】初始化加载帖子');
     loadPosts();
+    // 进入"发现/朋友圈"页后，清零未读朋友圈计数
+    (async () => {
+      try {
+        await AsyncStorage.setItem('unreadCircleCount', '0');
+        EventRegister.emit('unreadCircleUpdated', 0);
+      } catch (e) {}
+    })();
     
     // Check storage integrity on component mount
     CircleService.checkStorageIntegrity()
@@ -380,6 +417,20 @@ const Explore: React.FC = () => {
         console.error('【朋友圈】存储完整性检查失败:', error);
       });
   }, [loadPosts]);
+
+  // 当页面重新获得焦点时刷新帖子列表（从创建页返回时及时更新）
+  useFocusEffect(
+    useCallback(() => {
+      loadPosts();
+      // 回到前台/获得焦点也清零计数
+      (async () => {
+        try {
+          await AsyncStorage.setItem('unreadCircleCount', '0');
+          EventRegister.emit('unreadCircleUpdated', 0);
+        } catch (e) {}
+      })();
+    }, [loadPosts])
+  );
 
   // Like handling
   const handleLike = useCallback(async (post: CirclePost) => {
@@ -420,12 +471,13 @@ const Explore: React.FC = () => {
       }
       
       // Update the posts state without reloading
-      setPosts(prevPosts => prevPosts.map(p => p.id === post.id ? updatedPost : p));
-      
-      // Save to AsyncStorage in the background
-      AsyncStorage.setItem('circle_posts', JSON.stringify(
-        posts.map(p => p.id === post.id ? updatedPost : p)
-      ));
+      setPosts(prevPosts => {
+        const newPosts = prevPosts.map(p => p.id === post.id ? updatedPost : p);
+        // Persist with the latest state snapshot to avoid stale writes and forced refresh
+        AsyncStorage.setItem('circle_posts', JSON.stringify(newPosts))
+          .catch(error => console.error('【朋友圈】保存点赞状态失败:', error));
+        return newPosts;
+      });
       
       // If this is a character's post, update the character data in the background
       if (post.characterId !== 'user-1') {
@@ -516,9 +568,7 @@ const Explore: React.FC = () => {
       await AsyncStorage.setItem('circle_posts', JSON.stringify(updatedPosts));
       
       // Close modal and reset form immediately
-      setShowUserPostModal(false);
-      setUserPostText('');
-      setUserPostImages([]);
+      resetUserPostModal();
       
       
       // Process character responses in the background
@@ -653,9 +703,9 @@ const Explore: React.FC = () => {
       );
       
       if (interactingCharacters.length > 0) {
-        setTimeout(() => {
+        addTimeout(setTimeout(() => {
           handleCirclePostUpdate(post);
-        }, 500);
+        }, 500));
       }
       
     } catch (error) {
@@ -683,7 +733,8 @@ const Explore: React.FC = () => {
         createdAt: new Date().toISOString(),
         type: 'user',
         replyTo: replyTo || undefined,
-        userAvatar: user?.avatar || undefined
+        userAvatar: user?.avatar || undefined,
+        ...(selectedEmoticonUri ? { emoticon: selectedEmoticonUri } : {})
       };
   
       // Update the post with the new comment immediately
@@ -696,10 +747,10 @@ const Explore: React.FC = () => {
       setPosts(prevPosts => prevPosts.map(p => p.id === post.id ? updatedPost : p));
   
       // Reset input state
-      setCommentText('');
-      setActivePostId(null);
-      setReplyTo(null);
-      setIsCommentInputActive(false);
+      resetCommentState();
+      setSelectedEmoticonUri(null);
+      setShowEmojiPicker(false);
+      setShowStickerPicker(false);
   
       // Save to AsyncStorage in the background
       try {
@@ -836,22 +887,17 @@ const Explore: React.FC = () => {
     const postIndex = posts.findIndex(post => post.id === postId);
     if (postIndex !== -1) {
       // 添加延迟以确保键盘完全展开
-      setTimeout(() => {
+      addTimeout(setTimeout(() => {
         flatListRef.current?.scrollToIndex({
           index: postIndex,
           animated: true,
           viewOffset: 150, // 增加偏移量，确保评论框在键盘上方
         });
-      }, 300); // 增加延迟时间
+      }, 300)); // 增加延迟时间
     }
-  }, [posts]);
+  }, [posts, addTimeout]);
 
-  const toggleThoughtExpansion = useCallback((commentId: string) => {
-    setExpandedThoughts(prev => ({
-      ...prev,
-      [commentId]: !prev[commentId]
-    }));
-  }, []);
+  // Thought expansion is now handled by the custom hook
 
   const handleReplyPress = useCallback((comment: CircleComment) => {
     setReplyTo({
@@ -865,30 +911,64 @@ const Explore: React.FC = () => {
     )?.id;
     
     if (postId) {
-      // Set the active post ID to enable comment input on the correct post
-      setActivePostId(postId);
-      setIsCommentInputActive(true);
-      
-      // Focus on comment area and scroll
-      setTimeout(() => {
-        scrollToPost(postId);
-      }, 200);
+      // Open modal directly and pre-select reply target
+      const target = posts.find(p => p.id === postId) || null;
+      if (target) {
+        setShowCommentsModal(target);
+        setActivePostId(postId);
+        setIsCommentInputActive(true);
+        // preload stickers for this post's character
+        (async () => {
+          try {
+            const dir = `${FileSystem.documentDirectory}character_${target.characterId}/emoticons/`;
+            const info = await FileSystem.getInfoAsync(dir);
+            if (info.exists) {
+              const files = await FileSystem.readDirectoryAsync(dir);
+              const uris = files.filter(f => /\.(png|jpg|jpeg|webp|gif)$/i.test(f)).map(f => dir + f);
+              setStickerOptions(uris);
+            } else {
+              setStickerOptions([]);
+            }
+          } catch {
+            setStickerOptions([]);
+          }
+          setShowStickerPicker(false);
+          setSelectedEmoticonUri(null);
+        })();
+      }
     } else {
       // If we can't find the post, at least set the active comment state
       setIsCommentInputActive(true);
     }
-  }, [posts, scrollToPost]);
+  }, [posts, scrollToPost, addTimeout]);
 
   const handleCommentPress = useCallback((postId: string) => {
-    if (activePostId === postId) {
-      setActivePostId(null);
-      setIsCommentInputActive(false);
-      Keyboard.dismiss();
-    } else {
+    const target = posts.find(p => p.id === postId);
+    if (target) {
+      setShowCommentsModal(target);
       setActivePostId(postId);
       setIsCommentInputActive(true);
+      // Preload emoticons for the post author (character's library)
+      (async () => {
+        try {
+          const charId = target.characterId;
+          const dir = `${FileSystem.documentDirectory}character_${charId}/emoticons/`;
+          const info = await FileSystem.getInfoAsync(dir);
+          if (info.exists) {
+            const files = await FileSystem.readDirectoryAsync(dir);
+            const uris = files.filter(f => /\.(png|jpg|jpeg|webp|gif)$/i.test(f)).map(f => dir + f);
+            setStickerOptions(uris);
+          } else {
+            setStickerOptions([]);
+          }
+        } catch {
+          setStickerOptions([]);
+        }
+        setShowStickerPicker(false);
+        setSelectedEmoticonUri(null);
+      })();
     }
-  }, [activePostId]);
+  }, [posts]);
 
   // Add new method to handle test post publishing
   const renderCharacterSelectorModal = () => (
@@ -992,74 +1072,66 @@ const Explore: React.FC = () => {
         <Ionicons name="settings-outline" size={22} color={theme.colors.buttonText} />
       </TouchableOpacity>
 
-      {/* Add User Post button - moved from floating button */}
+      {/* Add User/Character Post button - unified create-post page */}
       <TouchableOpacity 
         style={styles.headerButton}
-        onPress={() => setShowUserPostModal(true)}
+        onPress={() => router.push({
+          pathname: '/pages/create-post',
+          params: {}
+        })}
         disabled={isLoading}
       >
         <Feather name="plus" size={24} color={theme.colors.buttonText} />
       </TouchableOpacity>
 
-      {/* Modified: Show character selector instead of directly publishing */}
+      {/* Favorites entry */}
       <TouchableOpacity 
-        style={[
-          styles.headerButton,
-          (publishingPost || isLoading) && styles.headerButtonDisabled
-        ]} 
-        onPress={() => setShowPublishCharacterSelector(true)}
-        disabled={publishingPost || isLoading}
+        style={styles.headerButton}
+        onPress={() => router.push({ pathname: '/pages/favorites' })}
+        disabled={isLoading}
       >
-        {publishingPost ? (
-          <ActivityIndicator size="small" color={theme.colors.text} />
-        ) : (
-          <MaterialIcons name="auto-awesome" size={22} color={theme.colors.buttonText} />
-        )}
+        <Ionicons name="bookmark-outline" size={22} color={theme.colors.buttonText} />
       </TouchableOpacity>
     </View>
   );
 
-  // 新的顶部栏，完全对齐TopBarWithBackground.tsx
+  // 顶部栏：左侧标题 + 右侧按钮（避免标题消失与按钮溢出）
+  const [fontsLoaded] = useFonts({ 'SpaceMono-Regular': require('@/assets/fonts/SpaceMono-Regular.ttf') });
   const renderHeader = () => (
-    <View style={[styles.topBarContainer, { 
-      height: HEADER_HEIGHT, 
-      paddingTop: Platform.OS === 'ios' ? Math.max(20, StatusBar.currentHeight || 0) : StatusBar.currentHeight || 0 
-    }]}>
-      <View style={styles.topBarOverlay} />
-      <View style={styles.topBarContent}>
-        <View style={styles.topBarTitleContainer}>
-          <Text style={styles.topBarTitle}>朋友圈</Text>
-        </View>
-        <View style={styles.topBarActions}>
-          <TouchableOpacity 
-            style={styles.topBarActionButton}
-            onPress={() => setShowInteractionSettings(true)}
-            disabled={isLoading}
-          >
-            <Ionicons name="settings-outline" size={width > 380 ? 22 : 20} color={theme.colors.buttonText} />
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.topBarActionButton}
-            onPress={() => setShowUserPostModal(true)}
-            disabled={isLoading}
-          >
-            <Feather name="plus" size={width > 380 ? 24 : 22} color={theme.colors.buttonText} />
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[
-              styles.topBarActionButton,
-              (publishingPost || isLoading) && styles.topBarActionButtonDisabled
-            ]} 
-            onPress={() => setShowPublishCharacterSelector(true)}
-            disabled={publishingPost || isLoading}
-          >
-            {publishingPost ? (
-              <ActivityIndicator size="small" color={theme.colors.text} />
-            ) : (
-              <MaterialIcons name="auto-awesome" size={width > 380 ? 22 : 20} color={theme.colors.buttonText} />
-            )}
-          </TouchableOpacity>
-        </View>
+    <View style={[styles.header, { paddingTop: 12 }]}> 
+      {/* 左侧标题（偏左对齐） */}
+      <Text style={[styles.headerTitle, fontsLoaded && { fontFamily: 'SpaceMono-Regular' }]}>朋友圈</Text>
+
+      {/* 右侧按钮区域 */}
+      <View style={styles.headerButtons}>
+        <TouchableOpacity 
+          style={[styles.headerButton, { marginLeft: 12 }]} 
+          onPress={handleBackgroundImageSelect}
+          disabled={isSelectingBackground || isLoading}
+        >
+          <Ionicons name="image-outline" size={20} color={theme.colors.buttonText} />
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.headerButton, { marginLeft: 12 }]}
+          onPress={() => setShowInteractionSettings(true)}
+          disabled={isLoading}
+        >
+          <Ionicons name="settings-outline" size={20} color={theme.colors.buttonText} />
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.headerButton, { marginLeft: 12 }]}
+          onPress={() => router.push({ pathname: '/pages/create-post', params: {} })}
+          disabled={isLoading}
+        >
+          <Feather name="plus" size={22} color={theme.colors.buttonText} />
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.headerButton, { marginLeft: 12 }]}
+          onPress={() => router.push({ pathname: '/pages/favorites' })}
+          disabled={isLoading}
+        >
+          <Ionicons name="bookmark-outline" size={20} color={theme.colors.buttonText} />
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -1107,6 +1179,15 @@ const Explore: React.FC = () => {
             {comment.replyTo && <Text style={styles.replyText}>回复 {comment.replyTo.userName}：</Text>}
             {comment.content}
           </Text>
+
+          {/* Optional emoticon/sticker image */}
+          {comment.emoticon && (
+            <Image
+              source={{ uri: comment.emoticon.includes('://') ? comment.emoticon : `${FileSystem.documentDirectory}character_${comment.userId}/emoticons/${comment.emoticon}` }}
+              style={{ width: 80, height: 80, borderRadius: 8, marginTop: 6, backgroundColor: theme.colors.input }}
+              resizeMode="contain"
+            />
+          )}
           <TouchableOpacity 
             style={styles.replyButton} 
             onPress={() => handleReplyPress(comment)}
@@ -1120,6 +1201,8 @@ const Explore: React.FC = () => {
 
   // Listen to keyboard events to update comment input state
   useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
     const keyboardDidShowListener = Keyboard.addListener(
       'keyboardDidShow',
       () => {
@@ -1131,7 +1214,7 @@ const Explore: React.FC = () => {
       'keyboardDidHide',
       () => {
         // Add delay to prevent flashing of the FAB
-        setTimeout(() => {
+        timeoutId = setTimeout(() => {
           if (!activePostId) {
             setIsCommentInputActive(false);
           }
@@ -1142,6 +1225,9 @@ const Explore: React.FC = () => {
     return () => {
       keyboardDidShowListener.remove();
       keyboardDidHideListener.remove();
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     };
   }, [activePostId]);
   
@@ -1150,6 +1236,28 @@ const Explore: React.FC = () => {
   useEffect(() => {
     return () => {
       setIsCommentInputActive(false);
+    };
+  }, []);
+
+  // Helper function for incremental post updates
+  const mergePostUpdates = useCallback((existingPost: CirclePost, updatedPost: CirclePost): CirclePost => {
+    // Merge likes without duplicates
+    const mergedLikedBy = updatedPost.likedBy && updatedPost.likedBy.length > 0 ? 
+      [...(existingPost.likedBy || []), ...updatedPost.likedBy.filter(newLike => 
+        !(existingPost.likedBy || []).some(existingLike => existingLike.userId === newLike.userId)
+      )] : existingPost.likedBy;
+    
+    // Merge comments without duplicates
+    const mergedComments = updatedPost.comments && updatedPost.comments.length > 0 ? 
+      [...(existingPost.comments || []), ...updatedPost.comments.filter(newComment => 
+        !(existingPost.comments || []).some(existingComment => existingComment.id === newComment.id)
+      )] : existingPost.comments;
+    
+    return {
+      ...updatedPost, // Take all properties from the updated post
+      likedBy: mergedLikedBy,
+      comments: mergedComments,
+      likes: mergedLikedBy ? mergedLikedBy.length : (updatedPost.likes || existingPost.likes || 0)
     };
   }, []);
 
@@ -1167,6 +1275,9 @@ const Explore: React.FC = () => {
             </TouchableOpacity>
           </View>
         )}
+        {selectedEmoticonUri && (
+          <Image source={{ uri: selectedEmoticonUri }} style={{ width: 40, height: 40, borderRadius: 6, marginRight: 8 }} />
+        )}
         <TextInput
           ref={commentInputRef}
           style={styles.commentTextInput}
@@ -1183,6 +1294,18 @@ const Explore: React.FC = () => {
             }
           }}
         />
+        <TouchableOpacity
+          style={styles.sendButton}
+          onPress={() => setShowEmojiPicker((v) => !v)}
+        >
+          <Ionicons name="happy-outline" size={22} color={theme.colors.text} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.sendButton}
+          onPress={() => setShowStickerPicker((v) => !v)}
+        >
+          <Ionicons name="image-outline" size={22} color={theme.colors.text} />
+        </TouchableOpacity>
         <TouchableOpacity
           style={styles.sendButton}
           onPress={() => handleComment(post)}
@@ -1328,8 +1451,6 @@ const Explore: React.FC = () => {
       userMessage: forwardedContent,
       status: '同一角色继续对话',
       conversationId: character.id,
-      apiKey,
-      apiSettings,
       character: character,
     });
 
@@ -1362,8 +1483,6 @@ const Explore: React.FC = () => {
         userMessage: forwardedContent,
         status: '同一角色继续对话',
         conversationId: character.id,
-        apiKey,
-        apiSettings,
         character: character,
       });
 
@@ -1425,186 +1544,73 @@ const Explore: React.FC = () => {
   }
 };
 
-  // Post rendering
+  // Memoized render function for posts
+  const handleToggleFavorite = useCallback(async (post: CirclePost) => {
+    try {
+      if (post.characterId === 'user-1') {
+        // User post: toggle in AsyncStorage list
+        const stored = await AsyncStorage.getItem('user_favorited_posts');
+        let userFavorites: string[] = stored ? JSON.parse(stored) : [];
+        const isFav = userFavorites.includes(post.id);
+        if (isFav) {
+          userFavorites = userFavorites.filter(id => id !== post.id);
+        } else {
+          userFavorites.push(post.id);
+        }
+        await AsyncStorage.setItem('user_favorited_posts', JSON.stringify(userFavorites));
+
+        // Update local posts state and persist circle_posts
+        setPosts(prev => {
+          const updated = prev.map(p => p.id === post.id ? { ...p, isFavorited: !isFav } : p);
+          AsyncStorage.setItem('circle_posts', JSON.stringify(updated)).catch(() => {});
+          return updated;
+        });
+      } else {
+        const character = characters.find(c => c.id === post.characterId);
+        if (!character) return;
+        // Optimistic toggle to avoid stale character data
+        const currentIsFav = post.isFavorited ?? (character.favoritedPosts?.includes(post.id) ?? false);
+        const nextIsFav = !currentIsFav;
+
+        setPosts(prev => {
+          const updated = prev.map(p => p.id === post.id ? { ...p, isFavorited: nextIsFav } : p);
+          AsyncStorage.setItem('circle_posts', JSON.stringify(updated)).catch(() => {});
+          return updated;
+        });
+
+        // Persist in background
+        await toggleFavorite(character.id, post.id);
+      }
+    } catch (e) {
+      console.error('切换收藏失败:', e);
+    }
+  }, [characters, setPosts, toggleFavorite]);
+
   const renderPost: ListRenderItem<CirclePost> = useCallback(({ item }) => (
-    <TouchableOpacity
-      activeOpacity={1}
-      onLongPress={() => showPostMenu(item)}
-      delayLongPress={500}
-      style={[styles.card, { width: CARD_WIDTH }]}
-      key={item.id}
-    >
-      <View style={styles.cardHeader}>
-        <Image
-          source={item.characterAvatar ? { uri: item.characterAvatar } : require('@/assets/images/default-avatar.png')}
-          style={styles.authorAvatar}
-        />
-        <View style={{ flex: 1 }}>
-          <Text style={styles.authorName}>{item.characterName}</Text>
-          <Text style={styles.timestamp}>{new Date(item.createdAt).toLocaleString()}</Text>
-        </View>
-        
-        {/* Show deletion indicator */}
-        {deletingPostId === item.id && (
-          <ActivityIndicator size="small" color={theme.colors.primary} style={{ marginLeft: theme.spacing.sm }} />
-        )}
-        
-        {/* Show test processing indicator */}
-        {testModeEnabled && processingCharacters.length > 0 && (
-          <View style={styles.processingIndicator}>
-            <ActivityIndicator size="small" color={theme.colors.primary} />
-            <Text style={styles.processingText}>处理中 ({processingCharacters.length})</Text>
-          </View>
-        )}
-        
-        {/* Add menu button for all posts - modified to allow for all posts */}
-        <TouchableOpacity 
-          style={styles.postMenuButton}
-          onPress={() => showPostMenu(item)}
-        >
-          <MaterialIcons name="more-vert" size={20} color={theme.colors.white} />
-        </TouchableOpacity>
-      </View>
-
-      <Text style={styles.content}>{item.content}</Text>
-      
-      {/* Show post thoughts if available */}
-      {item.thoughts && (
-        <View style={styles.thoughtsContainer}>
-          <TouchableOpacity 
-            style={styles.thoughtsHeader}
-            onPress={() => toggleThoughtExpansion(`post-${item.id}`)}
-          >
-            <Text style={styles.thoughtsTitle}>
-              {expandedThoughts[`post-${item.id}`] ? '收起发布想法' : '查看发布想法'}
-            </Text>
-            <AntDesign 
-              name={expandedThoughts[`post-${item.id}`] ? 'caretup' : 'caretdown'} 
-              size={12} 
-              color={theme.colors.textSecondary} 
-            />
-          </TouchableOpacity>
-          
-          {expandedThoughts[`post-${item.id}`] && (
-            <View style={styles.thoughtsBubble}>
-              <Text style={styles.thoughtsText}>{item.thoughts}</Text>
-            </View>
-          )}
-        </View>
-      )}
-      
-      {/* Show images if available */}
-        {item.images && item.images.length > 0 && (
-      <View style={[
-        styles.imagesContainer, 
-        { flexDirection: item.images.length === 1 ? 'column' : 'row' }
-      ]}>
-        {item.images.map((image, index) => {
-          const images = item.images || [];
-          const imageSize = images.length === 1 
-            ? { width: CARD_WIDTH - 16, height: 200 }
-            : images.length === 2
-              ? { width: (CARD_WIDTH - 24) / 2, height: 180 }
-              : { width: (CARD_WIDTH - 32) / Math.min(images.length, 3), height: 120 };
-            
-            return (
-              <TouchableOpacity
-                key={index}
-                onPress={() => handleImagePress(item.images!, index)}
-                activeOpacity={0.8}
-                style={{ margin: 4 }}
-              >
-                <Image 
-                  source={{ uri: image }} 
-                  style={[styles.contentImage, imageSize]}
-                />
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      )}
-
-      {/* Action buttons */}
-      <View style={styles.cardActions}>
-        <TouchableOpacity style={styles.actionButton} onPress={() => handleLike(item)}>
-          <Ionicons
-            name={item.hasLiked ? "heart" : "heart-outline"}
-            size={24}
-            color={item.hasLiked ? theme.colors.primary : theme.colors.white}
-          />
-          <Text style={styles.actionText}>{item.likes}</Text>
-        </TouchableOpacity>
-
-
-
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => handleCommentPress(item.id)}
-        >
-          <MaterialIcons name="comment" size={24} color={theme.colors.white} />
-          <Text style={styles.actionText}>{item.comments?.length || 0}</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => {
-            setSelectedPost(item);
-            setIsForwardSheetVisible(true);
-          }}
-        >
-          <MaterialIcons name="share" size={24} color={theme.colors.white} />
-          <Text style={styles.actionText}>转发</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Show likes */}
-      {item.likes > 0 && (
-        <View style={styles.likesContainer}>
-          <Ionicons name="heart" size={16} color={theme.colors.primary} style={styles.likeIcon} />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.likeAvatars}>
-            {item.likedBy?.map((like: CircleLike, index: number) => (
-              <TouchableOpacity 
-                key={`${like.userId}-${index}`}
-                onPress={() => {
-                  // Show like thoughts if available
-                  if (like.thoughts) {
-                    const likeId = `like-${like.userId}-${index}`;
-                    toggleThoughtExpansion(likeId);
-                  }
-                }}
-              >
-                <Image
-                  source={
-                    like.userAvatar
-                      ? { uri: like.userAvatar }
-                      : like.isCharacter
-                        ? require('@/assets/images/default-avatar.png')
-                        : require('@/assets/images/default-user-avatar.png')
-                  }
-                  style={styles.likeAvatar}
-                />
-                
-                {/* Display like thoughts in a tooltip/popup if available */}
-                {like.thoughts && expandedThoughts[`like-${like.userId}-${index}`] && (
-                  <View style={styles.likeThoughtsBubble}>
-                    <Text style={styles.thoughtsText}>{like.thoughts}</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      )}
-
-      {/* Show comments */}
-      {item.comments?.map(comment => renderComment(comment))}
-      
-      {/* Show comment input if active */}
-      {activePostId === item.id && renderCommentInput(item)}
-    </TouchableOpacity>
-  ), [activePostId, renderComment, renderCommentInput, testModeEnabled, processingCharacters, 
-      handleLike, handleCommentPress, deletingPostId, showPostMenu, handleImagePress,
-      expandedThoughts, toggleThoughtExpansion]);
+    <PostItem
+      item={item}
+      onLike={handleLike}
+      onComment={handleCommentPress}
+      onForward={(post) => {
+        setSelectedPost(post);
+        setIsForwardSheetVisible(true);
+      }}
+      onImagePress={handleImagePress}
+      onShowMenu={showPostMenu}
+      onToggleThoughts={toggleThoughtExpansion}
+      onReply={handleReplyPress}
+      onToggleFavorite={handleToggleFavorite}
+      activePostId={activePostId}
+      expandedThoughts={expandedThoughts}
+      expandedComments={expandedComments}
+      deletingPostId={deletingPostId}
+      processingCharacters={processingCharacters}
+      testModeEnabled={testModeEnabled}
+      renderCommentInput={renderCommentInput}
+    />
+  ), [handleLike, handleCommentPress, handleImagePress, showPostMenu, handleToggleFavorite,
+      toggleThoughtExpansion, handleReplyPress, activePostId, expandedThoughts, 
+      expandedComments, deletingPostId, processingCharacters, testModeEnabled, renderCommentInput]);
 
   const renderUserPostModal = () => (
     <Modal
@@ -1691,6 +1697,28 @@ const Explore: React.FC = () => {
     </Modal>
   );
 
+  // Navigate to character post creation
+  const handleCharacterPostNavigation = useCallback((characterId?: string) => {
+    const targetCharacterId = characterId || selectedPublishCharacterId;
+    if (targetCharacterId) {
+      router.push({
+        pathname: '/pages/create-post',
+        params: { publisherId: targetCharacterId, publisherType: 'character' }
+      });
+    } else {
+      // Random character selection
+      const availableCharacters = characters.filter(c => c.id);
+      if (availableCharacters.length > 0) {
+        const randomCharacter = availableCharacters[Math.floor(Math.random() * availableCharacters.length)];
+        router.push({
+          pathname: '/pages/create-post',
+          params: { publisherId: randomCharacter.id, publisherType: 'character' }
+        });
+      }
+    }
+    setShowPublishCharacterSelector(false);
+  }, [selectedPublishCharacterId, characters, router]);
+
   if (error && activeTab === 'circle') {
     return (
       <SafeAreaView style={styles.safeArea}>
@@ -1712,17 +1740,23 @@ const Explore: React.FC = () => {
   }
 
   return (
-    <KeyboardAvoidingView 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.safeArea}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : -200}
-      enabled={true}
-    >
-      <StatusBar barStyle="light-content" backgroundColor={theme.colors.background} />
-      <ImageBackground 
-        source={require('@/assets/images/default-background.jpg')}
-        style={styles.backgroundImage}
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.safeArea}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : -200}
+        enabled={true}
       >
+      <StatusBar barStyle="light-content" translucent={false} backgroundColor={theme.colors.background} />
+      <ImageBackground 
+        source={backgroundImage ? { uri: backgroundImage } : require('@/assets/images/default-background.jpg')}
+        style={styles.backgroundImage}
+        resizeMode="cover"
+        imageStyle={{ resizeMode: 'cover' }}
+        blurRadius={0}
+        fadeDuration={0}
+      >
+
         {renderHeader()}
         {/* Circle Tab Content */}
         {activeTab === 'circle' && (
@@ -1745,6 +1779,7 @@ const Explore: React.FC = () => {
                     <Text style={styles.emptyText}>暂无动态</Text>
                   </View>
                 }
+                onScrollBeginDrag={() => setShowEmojiPicker(false)}
               />
             )}
           </>
@@ -1760,6 +1795,141 @@ const Explore: React.FC = () => {
             characters={characters}
             post={selectedPost}
             onForward={handleForward}
+          />
+        )}
+
+        {/* Comments modal (Instagram-like full comments view) */}
+        <Modal
+          visible={!!showCommentsModal}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowCommentsModal(null)}
+        >
+          <View style={styles.commentsModalOverlay}>
+            <View style={styles.commentsModalSheet}>
+              <View style={styles.commentsHeader}>
+                <Text style={styles.commentsTitle}>全部评论</Text>
+                <TouchableOpacity onPress={() => setShowCommentsModal(null)}>
+                  <Ionicons name="close" size={22} color={theme.colors.white} />
+                </TouchableOpacity>
+              </View>
+              
+              <View style={{ flex: 1 }}>
+                {(() => {
+                  // 兜底：如果 posts 中找不到（可能因状态更新导致引用不同），退回使用 showCommentsModal 自身的数据
+                  const postForModal = showCommentsModal ? (posts.find(p => p.id === showCommentsModal.id) || showCommentsModal) : null;
+                  const data = postForModal?.comments || [];
+                  
+                  // 调试信息：打印评论数据
+                  console.log('[评论弹窗] 显示评论:', data.length, '条');
+                  
+                  return (
+                <FlatList
+                  data={data}
+                  keyExtractor={(c) => c.id}
+                  style={{ flex: 1 }}
+                  contentContainerStyle={{ 
+                    flexGrow: 1,
+                    padding: 16,
+                    paddingBottom: 100 // 为底部输入框留出空间
+                  }}
+                  renderItem={({ item }) => renderComment(item)}
+                  ListEmptyComponent={
+                    <View style={[styles.emptyContainer, { minHeight: 200 }]}>
+                      <Text style={styles.emptyText}>暂无评论</Text>
+                      <Text style={styles.emptySubText}>成为第一个评论的人吧！</Text>
+                    </View>
+                  }
+                  showsVerticalScrollIndicator={true}
+                />
+                  );
+                })()}
+              </View>
+              <View style={[styles.commentInput, { 
+                paddingHorizontal: 16, 
+                paddingBottom: 16,
+                backgroundColor: theme.colors.cardBackground,
+                borderTopWidth: StyleSheet.hairlineWidth,
+                borderTopColor: theme.colors.border
+              }]}> 
+                {replyTo && (
+                  <View style={styles.replyIndicator}>
+                    <Text style={styles.replyIndicatorText}>回复 {replyTo.userName}</Text>
+                    <TouchableOpacity onPress={() => setReplyTo(null)}>
+                      <MaterialIcons name="close" size={20} color={theme.colors.textSecondary} />
+                    </TouchableOpacity>
+                  </View>
+                )}
+                <TextInput
+                  ref={commentInputRef}
+                  style={[styles.commentTextInput, { flex: 1 }]}
+                  value={commentText}
+                  onChangeText={setCommentText}
+                  placeholder={replyTo ? `回复 ${replyTo.userName}...` : "写评论..."}
+                  placeholderTextColor={theme.colors.textSecondary}
+                  multiline={false}
+                />
+                <TouchableOpacity style={styles.sendButton} onPress={() => setShowEmojiPicker((v) => !v)}>
+                  <Ionicons name="happy-outline" size={22} color={theme.colors.text} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.sendButton}
+                  onPress={() => {
+                    const modalPost = showCommentsModal ? (posts.find(p => p.id === showCommentsModal.id) || showCommentsModal) : null;
+                    if (modalPost) handleComment(modalPost);
+                  }}
+                >
+                  <MaterialIcons name="send" size={24} color={theme.colors.primary} />
+                </TouchableOpacity>
+              </View>
+              {showEmojiPicker && (
+                <View style={{ height: 300 }}>
+                  <EmojiPicker
+                    onEmojiSelected={(e: any) => {
+                      setCommentText((prev) => prev + (e?.emoji || ''));
+                    }}
+                    onClose={() => setShowEmojiPicker(false)}
+                    open={showEmojiPicker}
+                  />
+                </View>
+              )}
+              {showStickerPicker && (
+                <View style={{ height: 180, paddingVertical: 8 }}>
+                  <FlatList
+                    data={stickerOptions}
+                    keyExtractor={(u) => u}
+                    horizontal
+                    contentContainerStyle={{ paddingHorizontal: 12 }}
+                    renderItem={({ item }) => (
+                      <TouchableOpacity
+                        onPress={() => {
+                          setSelectedEmoticonUri(item);
+                          setShowStickerPicker(false);
+                        }}
+                        style={{ marginRight: 12 }}
+                      >
+                        <Image source={{ uri: item }} style={{ width: 80, height: 80, borderRadius: 8, backgroundColor: theme.colors.input }} />
+                      </TouchableOpacity>
+                    )}
+                  />
+                </View>
+              )}
+            </View>
+          </View>
+        </Modal>
+
+        {/* Favorites Modal */}
+        {showFavorites && (
+          <FavoriteList
+            posts={posts}
+            onClose={() => setShowFavorites(false)}
+            onUpdatePost={(updated) => {
+              setPosts(prev => {
+                const newPosts = prev.map(p => p.id === updated.id ? updated : p);
+                AsyncStorage.setItem('circle_posts', JSON.stringify(newPosts)).catch(() => {});
+                return newPosts;
+              });
+            }}
           />
         )}
 
@@ -1786,55 +1956,51 @@ const Explore: React.FC = () => {
         {/* Character Selector for Publishing */}
         {renderCharacterSelectorModal()}
       </ImageBackground>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  commentsModalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end'
+  },
+  commentsModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end'
+  },
+  commentsModalSheet: {
+    backgroundColor: theme.colors.cardBackground,
+    height: height * 0.9,
+    borderTopLeftRadius: theme.borderRadius.lg,
+    borderTopRightRadius: theme.borderRadius.lg,
+    overflow: 'hidden',
+    flex: 1,
+    maxHeight: height * 0.9,
+  },
+  commentsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: theme.colors.border
+  },
+  commentsTitle: {
+    color: theme.colors.text,
+    fontSize: theme.fontSizes.lg,
+    fontWeight: 'bold'
+  },
   // Character selector styles
   characterInfo: {
     flex: 1,
     marginRight: 8,
   },
   // Header styles matched with Character page
-  header: {
-    backgroundColor: '#333333',
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 224, 195, 0.2)',
-    zIndex: 10,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: 'rgb(255, 224, 195)',
-    textShadowColor: 'rgba(0, 0, 0, 0.5)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
-  },
-  headerButtons: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  headerButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  headerButtonDisabled: {
-    opacity: 0.5,
-  },
+  // 旧的头部样式已被新的统一顶部栏替换
 
   // Post and card styles
   card: {
@@ -2055,6 +2221,7 @@ const styles = StyleSheet.create({
   backgroundImage: {
     flex: 1,
     width: '100%',
+    backgroundColor: theme.colors.background,
   },
 
   // Modal styles
@@ -2292,53 +2459,38 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  // 新增顶部栏样式，完全对齐TopBarWithBackground
-  topBarContainer: {
-    position: 'relative',
-    width: '100%',
-    zIndex: 100,
-  },
-  topBarOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-  },
-  topBarContent: {
-    flex: 1,
+  // 顶部栏样式对齐 index.tsx
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    height: '100%',
+    paddingHorizontal: 20,
+    paddingBottom: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    position: 'relative',
+    paddingTop: 12,
   },
-  topBarMenuButton: {
-    padding: 8,
-  },
-  topBarTitleContainer: {
-    flex: 1,
+  headerTitle: {
+    fontSize: 18,
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 8,
+    fontWeight: 'bold',
+    color: 'rgb(255, 224, 195)',
+    flex: 1,
+    textAlign: 'left',
   },
-  topBarTitle: {
-    color: '#fff',
-    fontSize: width > 380 ? 18 : 16,
-    fontWeight: '600',
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
+  headerTitleCentered: {
+    // 保留旧样式定义以避免引用错误，但不再使用
   },
-  topBarActions: {
+  headerButtons: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexShrink: 0,
   },
-  topBarActionButton: {
-    padding: width > 380 ? 8 : 6,
-    marginLeft: 4,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 20,
-  },
-  topBarActionButtonDisabled: {
-    opacity: 0.5,
+  headerButton: {
+    marginLeft: 10,
+    padding: 8,
+    backgroundColor: 'transparent',
   },
 });
 

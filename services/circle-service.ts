@@ -15,7 +15,7 @@ export class CircleService {
   // 修改 getNodeST 方法以从全局设置获取API设置
   private static getNodeST(
     apiKey?: string, 
-    apiSettings?: Pick<GlobalSettings['chat'], 'apiProvider' | 'openrouter'>
+    apiSettings?: Pick<GlobalSettings['chat'], 'apiProvider' | 'openrouter' | 'cradlecloud'>
   ): NodeST {
     // Get global settings if not provided
     if (!apiKey || !apiSettings) {
@@ -31,7 +31,8 @@ export class CircleService {
         if (!apiSettings) {
           apiSettings = {
             apiProvider: globalSettings.chat.apiProvider,
-            openrouter: globalSettings.chat.openrouter
+            openrouter: globalSettings.chat.openrouter,
+            cradlecloud: globalSettings.chat.cradlecloud
           };
         }
         
@@ -84,7 +85,7 @@ export class CircleService {
   static async initCharacterCircle(
     character: Character, 
     apiKey?: string,
-    apiSettings?: Pick<GlobalSettings['chat'], 'apiProvider' | 'openrouter'>
+    apiSettings?: Pick<GlobalSettings['chat'], 'apiProvider' | 'openrouter' | 'cradlecloud'>
   ): Promise<boolean> {
     try {
       console.log(`【朋友圈服务】初始化角色 ${character.name} 的朋友圈`);
@@ -95,7 +96,8 @@ export class CircleService {
         apiKey = settings.apiKey || apiKey;
         apiSettings = apiSettings || {
           apiProvider: settings.apiProvider,
-          openrouter: settings.openrouter
+          openrouter: settings.openrouter,
+          cradlecloud: settings.cradlecloud
         };
       }
       
@@ -112,7 +114,9 @@ export class CircleService {
     character: Character,
     content: string,
     apiKey?: string,
-    apiSettings?: Pick<GlobalSettings['chat'], 'apiProvider' | 'openrouter'>
+    apiSettings?: Pick<GlobalSettings['chat'], 'apiProvider' | 'openrouter' | 'cradlecloud'>,
+    images?: string[], // 新增：可选图片数组，用于多模态生成
+    otherCharacters?: Character[] // 新增：其他角色列表，用于生成回复
   ): Promise<CircleResponse> {
     try {
       // Get global settings if not provided
@@ -121,7 +125,8 @@ export class CircleService {
         apiKey = settings.apiKey || apiKey;
         apiSettings = apiSettings || {
           apiProvider: settings.apiProvider,
-          openrouter: settings.openrouter
+          openrouter: settings.openrouter,
+          cradlecloud: settings.cradlecloud
         };
       }
       
@@ -155,14 +160,17 @@ export class CircleService {
       }
       
       // 创建帖子选项，传入角色对象以确保初始化
+      const hasUserHints = (content && content.trim().length > 0) || (images && images.length > 0);
       const postOptions: CirclePostOptions = {
         type: 'newPost',
         content: {
           authorId: character.id,
           authorName: character.name,
-          text: content,
-          context: `这是${character.name}发布的新朋友圈`,
-          conversationHistory: chatHistory // 添加聊天历史记录
+          text: content || '',
+          // 当存在用户提供的文字/图片时，注入标记，CircleManager 依据此标记切换到 createNewPostWithHints 模板
+          context: hasUserHints ? `USER_HINT${images && images.length > 0 ? '_WITH_IMAGES' : ''}: 这是${character.name}参考用户提供内容发布的新朋友圈` : `这是${character.name}发布的新朋友圈`,
+          conversationHistory: chatHistory, // 添加聊天历史记录
+          ...(images && images.length > 0 ? { images } : {})
         },
         responderId: character.id, // responderId和authorId相同
         responderCharacter: character // 添加角色对象
@@ -171,7 +179,7 @@ export class CircleService {
       const response = await this.getNodeST(apiKey, apiSettings).processCircleInteraction(postOptions);
       
       // 新增代码：持久化保存新帖子
-      if (response.success && response.action?.comment) {
+      if (response.success && (response.action?.comment || response.post)) {
         try {
           // 创建新帖子对象
           const newPost: CirclePost = {
@@ -179,7 +187,8 @@ export class CircleService {
             characterId: character.id,
             characterName: character.name,
             characterAvatar: character.avatar as string,
-            content: response.action.comment,
+            content: response.action?.comment || (response.post as any) || content || '',
+            ...(images && images.length > 0 ? { images } : {}),
             createdAt: new Date().toISOString(),
             comments: [],
             likes: 0,
@@ -191,8 +200,38 @@ export class CircleService {
           await this.saveUpdatedPost(newPost);
           console.log(`【朋友圈服务】已保存角色 ${character.name} 创建的新帖子`);
           
-          // 添加帖子到响应中
-          response.post = response.action.comment;
+          // 添加帖子到响应中（兼容不同返回结构）
+          response.post = (response.action?.comment || (response.post as any) || newPost.content) as any;
+          
+          // 新增：如果提供了其他角色，让他们回复这个帖子
+          if (otherCharacters && otherCharacters.length > 0) {
+            console.log(`【朋友圈服务】开始处理其他角色对 ${character.name} 帖子的回复`);
+            
+            // 异步处理其他角色的回复，通过调度器以确保UI更新
+            setTimeout(async () => {
+              try {
+                const scheduler = CircleScheduler.getInstance();
+                
+                // Process each character response through scheduler to ensure UI updates
+                for (const otherCharacter of otherCharacters) {
+                  if (otherCharacter.id !== character.id && otherCharacter.circleInteraction) {
+                    console.log(`【朋友圈服务】调度角色 ${otherCharacter.name} 回复 ${character.name} 的帖子`);
+                    
+                    // Use scheduler to handle the interaction which will trigger UI callbacks
+                    await scheduler.scheduleInteraction(
+                      otherCharacter,
+                      newPost,
+                      apiKey,
+                      apiSettings,
+                      newPost.images
+                    );
+                  }
+                }
+              } catch (error) {
+                console.error(`【朋友圈服务】处理其他角色回复失败:`, error);
+              }
+            }, 1000); // Small delay to ensure the post is fully created
+          }
         } catch (saveError) {
           console.error(`【朋友圈服务】保存新帖子失败:`, saveError);
         }
@@ -215,7 +254,7 @@ export class CircleService {
   static async publishTestPost(
     characters: Character[],
     apiKey?: string,
-    apiSettings?: Pick<GlobalSettings['chat'], 'apiProvider' | 'openrouter'>
+    apiSettings?: Pick<GlobalSettings['chat'], 'apiProvider' | 'openrouter' | 'cradlecloud'>
   ): Promise<{post: CirclePost | null, author: Character | null}> {
     try {
       // Get global settings if not provided
@@ -224,7 +263,8 @@ export class CircleService {
         apiKey = settings.apiKey || apiKey;
         apiSettings = apiSettings || {
           apiProvider: settings.apiProvider,
-          openrouter: settings.openrouter
+          openrouter: settings.openrouter,
+          cradlecloud: settings.cradlecloud
         };
       }
       
@@ -262,8 +302,18 @@ export class CircleService {
       // Randomly select a template as the prompt
       const promptTemplate = postTemplates[Math.floor(Math.random() * postTemplates.length)];
       
+      // 过滤出其他启用朋友圈互动的角色，排除当前发帖者
+      const otherCharacters = enabledCharacters.filter(c => c.id !== author.id);
+      
       // Create a circle post - ensure proper API settings are passed
-      const response = await this.createNewPost(author, promptTemplate, apiKey, apiSettings);
+      const response = await this.createNewPost(
+        author, 
+        promptTemplate, 
+        apiKey, 
+        apiSettings, 
+        undefined, // no images for test posts
+        otherCharacters // pass other characters for responses
+      );
       
       if (!response.success) {
         console.log(`【朋友圈服务】发布测试帖子失败: ${response.error}`);
@@ -313,7 +363,7 @@ export class CircleService {
     character: Character, 
     post: CirclePost,
     apiKey?: string,
-    apiSettings?: Pick<GlobalSettings['chat'], 'apiProvider' | 'openrouter'>,
+    apiSettings?: Pick<GlobalSettings['chat'], 'apiProvider' | 'openrouter' | 'cradlecloud'>,
     postOptions?: CirclePostOptions
   ): Promise<CircleResponse> {
     try {
@@ -323,7 +373,8 @@ export class CircleService {
         apiKey = settings.apiKey || apiKey;
         apiSettings = apiSettings || {
           apiProvider: settings.apiProvider,
-          openrouter: settings.openrouter
+          openrouter: settings.openrouter,
+          cradlecloud: settings.cradlecloud
         };
       }
       
@@ -366,9 +417,13 @@ export class CircleService {
         }
       }
       
-      // Use the provided postOptions if available, otherwise create a new one
+      // Determine correct interaction type.
+      // If responder is the original author of the post, treat as selfPost (use selfPost template)
+      // Otherwise, replying to someone else's post → replyToPost (with/without images decided later)
+      const isOwnPost = character.id === post.characterId;
+
       const options = postOptions || {
-        type: 'replyToPost',
+        type: (isOwnPost ? 'selfPost' : 'replyToPost') as any,
         content: {
           authorId: post.characterId,
           authorName: post.characterName,
@@ -378,8 +433,8 @@ export class CircleService {
             `目前已有${post.comments.length}条评论和${post.likes}个点赞。` : 
             '还没有其他人互动。'
           }`,
-          images: post.images, // Make sure images from the post are included
-          conversationHistory: chatHistory // Add conversation history
+          images: post.images,
+          conversationHistory: chatHistory
         },
         responderId: character.id,
         responderCharacter: character
@@ -424,7 +479,8 @@ export class CircleService {
             await StorageAdapter.storeMessageExchange(
               character.id,
               post.content,
-              response.action.comment
+              response.action.comment,
+              { isCircleInteraction: true }
             );
             console.log(`【朋友圈服务】已保存角色 ${character.name} 对用户帖子的回复到聊天历史`);
           } catch (storeError) {
@@ -451,7 +507,7 @@ export class CircleService {
     comment: string,
     apiKey?: string,
     replyTo?: { userId: string, userName: string },
-    apiSettings?: Pick<GlobalSettings['chat'], 'apiProvider' | 'openrouter'>,
+    apiSettings?: Pick<GlobalSettings['chat'], 'apiProvider' | 'openrouter' | 'cradlecloud'>,
     isForwarded: boolean = false
   ): Promise<CircleResponse> {
     try {
@@ -461,7 +517,8 @@ export class CircleService {
         apiKey = settings.apiKey || apiKey;
         apiSettings = apiSettings || {
           apiProvider: settings.apiProvider,
-          openrouter: settings.openrouter
+          openrouter: settings.openrouter,
+          cradlecloud: settings.cradlecloud
         };
       }
       
@@ -594,38 +651,41 @@ export class CircleService {
         this.updateInteractionStats(character, replyTo.userId, 'comment');
       }
       
-      // Determine the appropriate interaction type based on conversation history
-      let interactionType = conversationHistory ?
-        'continuedConversation' :
-        (replyTo ? 'replyToComment' : (isForwarded ? 'forwardedPost' : 'replyToPost'));
-
-      // 修正：如果是用户对角色自己帖子的评论，强制使用 replyToComment
-      if (isOwnPost && isReplyToUser) {
+      // Determine the appropriate interaction type
+      let interactionType: CirclePostOptions['type'];
+      if (isOwnPost) {
+        // For any interaction under the character's own post, use selfPost template
+        interactionType = 'selfPost';
+      } else if (conversationHistory) {
+        interactionType = 'continuedConversation';
+      } else if (replyTo) {
         interactionType = 'replyToComment';
+      } else if (isForwarded) {
+        interactionType = 'forwardedPost';
+      } else {
+        interactionType = 'replyToPost';
       }
 
       // Create comment options with responderId
       const commentOptions: CirclePostOptions = {
         type: interactionType as any, // Cast to allow our new type
         content: {
-          // 关键修改: 当用户评论角色自己的帖子时，设置authorId为'user-1'
+          // 当用户评论角色自己的帖子时，authorId 代表评论作者（用户）
           authorId: isOwnPost ? 'user-1' : post.characterId,
-          // 使用用户昵称作为authorName
           authorName: isOwnPost ? (character.customUserName || '用户') : post.characterName,
           text: comment,
           context: context,
-          images: post.images, // Include any images from the post
-          conversationHistory: conversationHistory, // Add conversation history
-          characterJsonData: characterJsonData, // Add character JSON data
-          // 新增：全部评论内容，便于 continuedConversation 场景
+          images: isOwnPost ? (post.images || []) : post.images, // selfPost 时保持贴子的图片作为参考
+          conversationHistory: conversationHistory,
+          characterJsonData: characterJsonData,
           ...(interactionType === 'continuedConversation'
             ? {
-                postComments: post.comments && post.comments.length > 0
-                  ? post.comments.map((c, idx) => {
-                      const replyPrefix = c.replyTo ? `回复${c.replyTo.userName}: ` : '';
-                      return `${idx + 1}. ${c.userName}: ${replyPrefix}${c.content}`;
-                    }).join('\n')
-                  : ''
+                postComments: (post.comments || [])
+                  .map((c, idx) => {
+                    const replyPrefix = c.replyTo ? `回复${c.replyTo.userName}: ` : '';
+                    return `${idx + 1}. ${c.userName}: ${replyPrefix}${c.content}`;
+                  })
+                  .join('\n')
               }
             : {})
         },
@@ -664,7 +724,8 @@ export class CircleService {
             await StorageAdapter.storeMessageExchange(
               character.id,
               comment,
-              response.action.comment
+              response.action.comment,
+              { isCircleInteraction: true }
             );
             console.log(`【朋友圈服务】已保存角色 ${character.name} 与用户的对话到聊天历史`);
           } catch (storeError) {
@@ -879,7 +940,8 @@ export class CircleService {
             await StorageAdapter.storeMessageExchange(
               character.id,
               comment.content,
-              response.action.comment
+              response.action.comment,
+              { isCircleInteraction: true }
             );
             console.log(`【朋友圈服务】已保存角色 ${character.name} 与用户的对话到聊天历史`);
           } catch (storeError) {
@@ -958,6 +1020,8 @@ export class CircleService {
         createdAt: new Date().toISOString(),
         type: 'character',
         thoughts: response.thoughts, // Add the thoughts to the comment
+        // If AI provided valid emoticon filename/url, attach to comment
+        ...(response.emoticon ? { emoticon: response.emoticon } : {}),
         // Add replyTo information if this is a reply to a specific comment
         ...(replyTo ? { replyTo: { userId: replyTo.userId, userName: replyTo.userName } } : {})
       };
@@ -1817,7 +1881,8 @@ export class CircleService {
                 await StorageAdapter.storeMessageExchange(
                   character.id,
                   content, // user's post content 
-                  response.action.comment // character's response
+                  response.action.comment, // character's response
+                  { isCircleInteraction: true }
                 );
                 console.log(`【朋友圈服务】已保存角色 ${character.name} 对用户帖子的回复到聊天历史`);
               } catch (storeError) {

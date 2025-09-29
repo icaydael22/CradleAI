@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import * as FileSystem from 'expo-file-system';
 import { User, GlobalSettings } from '@/shared/types';
 import { storeUserSettingsGlobally, updateCloudServiceStatus } from '@/utils/settings-helper';
+import { NodeSTManager } from '@/utils/NodeSTManager';
 
 interface UserContextProps {
   user: User | null;
@@ -82,8 +83,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 useGeminiModelLoadBalancing: false,
                 additionalGeminiKeys: [],
                 temperature: 0.7,
-                maxTokens: 8192,
-                maxtokens: 8192,
+                maxTokens: 32000,
+                maxtokens: 32000,
                 useZhipuEmbedding: false,
                 useCloudService: false,
                 zhipuApiKey: '',
@@ -261,6 +262,17 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (settings.chat && settings.chat.useCloudService !== undefined) {
         updateCloudServiceStatus(settings.chat.useCloudService);
+      }
+
+      // 重要：通知 NodeSTManager 更新 API 设置
+      if (settings.chat) {
+        try {
+          const apiKey = updatedUser.settings.chat.characterApiKey || '';
+          NodeSTManager.updateApiSettings(apiKey, updatedUser.settings.chat);
+          console.log('[UserContext] NodeSTManager API settings updated successfully');
+        } catch (nodeSTError) {
+          console.error('[UserContext] Failed to update NodeSTManager settings:', nodeSTError);
+        }
       }
 
       console.log('[UserContext] Settings updated successfully, apiProvider:',

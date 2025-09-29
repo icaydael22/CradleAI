@@ -25,6 +25,7 @@ interface ConfirmDialogProps {
   icon?: string; // Ionicons name
   iconColor?: string;
   destructive?: boolean;
+  showCancel?: boolean; // NEW: allow single-button alert style
 }
 
 const { width } = Dimensions.get('window');
@@ -42,7 +43,44 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   icon,
   iconColor,
   destructive = false,
+  showCancel = true,
 }) => {
+  // Determine a readable text color for the confirm button given its background color
+  const getTextColorForBackground = (bg: string) => {
+    try {
+      let r = 0, g = 0, b = 0;
+      if (bg.startsWith('rgb')) {
+        const m = bg.match(/rgba?\(([^)]+)\)/);
+        if (m && m[1]) {
+          const parts = m[1].split(',').map(p => parseFloat(p.trim()));
+          [r, g, b] = parts;
+        }
+      } else if (bg.startsWith('#')) {
+        const hex = bg.replace('#','');
+        if (hex.length === 3) {
+          r = parseInt(hex[0] + hex[0], 16);
+          g = parseInt(hex[1] + hex[1], 16);
+          b = parseInt(hex[2] + hex[2], 16);
+        } else if (hex.length === 6) {
+          r = parseInt(hex.substring(0,2), 16);
+          g = parseInt(hex.substring(2,4), 16);
+          b = parseInt(hex.substring(4,6), 16);
+        }
+      }
+
+      // relative luminance formula
+      const srgb = [r, g, b].map((v) => {
+        const s = v / 255;
+        return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+      });
+      const luminance = 0.2126 * srgb[0] + 0.7152 * srgb[1] + 0.0722 * srgb[2];
+
+      // if background is light, use dark text, otherwise use theme buttonText (light)
+      return luminance > 0.6 ? '#282828' : theme.colors.buttonText;
+    } catch (e) {
+      return theme.colors.buttonText;
+    }
+  };
   return (
     <Modal
       visible={visible}
@@ -71,23 +109,26 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
                 <Text style={styles.title}>{title}</Text>
                 <Text style={styles.message}>{message}</Text>
                 
-                <View style={styles.buttonContainer}>
-                  <TouchableOpacity
-                    style={[styles.button, styles.cancelButton]}
-                    onPress={cancelAction}
-                  >
-                    <Text style={styles.cancelButtonText}>{cancelText}</Text>
-                  </TouchableOpacity>
+                <View style={[styles.buttonContainer, !showCancel && { justifyContent: 'center' }]}>
+                  {showCancel && (
+                    <TouchableOpacity
+                      style={[styles.button, styles.cancelButton]}
+                      onPress={cancelAction}
+                    >
+                      <Text style={styles.cancelButtonText}>{cancelText}</Text>
+                    </TouchableOpacity>
+                  )}
                   
                   <TouchableOpacity
                     style={[
                       styles.button, 
                       styles.confirmButton,
+                      !showCancel && { marginHorizontal: 0, width: '100%' },
                       { backgroundColor: destructive ? theme.colors.danger : confirmColor }
                     ]}
                     onPress={confirmAction}
                   >
-                    <Text style={styles.confirmButtonText}>{confirmText}</Text>
+                    <Text style={[styles.confirmButtonText, { color: getTextColorForBackground(destructive ? theme.colors.danger : confirmColor) }]}>{confirmText}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -107,36 +148,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   blurContainer: {
-    maxWidth: 400,
-    width: '90%',
-    borderRadius: 12,
+    maxWidth: 420,
+    width: '92%',
+    borderRadius: theme.borderRadius.lg,
     overflow: 'hidden',
   },
   dialog: {
-    backgroundColor: theme.colors.backgroundSecondary,
-    borderRadius: 12,
-    padding: 24,
+    backgroundColor: theme.colors.cardBackground,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.md,
     alignItems: 'center',
   },
   iconContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: theme.spacing.md,
   },
   title: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: theme.fontSizes.lg,
+    fontWeight: '700',
     color: theme.colors.text,
-    marginBottom: 8,
+    marginBottom: theme.spacing.sm,
     textAlign: 'center',
   },
   message: {
-    fontSize: 14,
+    fontSize: theme.fontSizes.md,
     color: theme.colors.textSecondary,
-    marginBottom: 24,
+    marginBottom: theme.spacing.md,
     textAlign: 'center',
     lineHeight: 20,
   },
@@ -148,26 +189,28 @@ const styles = StyleSheet.create({
   button: {
     flex: 1,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: theme.borderRadius.md,
     justifyContent: 'center',
     alignItems: 'center',
     marginHorizontal: 8,
   },
   cancelButton: {
-    backgroundColor: 'rgba(150, 150, 150, 0.2)',
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
   confirmButton: {
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.colors.primaryDark,
   },
   cancelButtonText: {
     color: theme.colors.text,
     fontWeight: '600',
-    fontSize: 16,
+    fontSize: theme.fontSizes.md,
   },
   confirmButtonText: {
-    color: '#282828',
+    color: theme.colors.buttonText,
     fontWeight: '600',
-    fontSize: 16,
+    fontSize: theme.fontSizes.md,
   },
 });
 

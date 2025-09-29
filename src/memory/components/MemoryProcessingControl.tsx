@@ -7,7 +7,6 @@ import {
   Modal,
   Switch,
   Platform,
-  Alert,
   ScrollView,
   ActivityIndicator,
   TextInput,
@@ -26,6 +25,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useDialog } from '@/components/DialogProvider';
 
 
 const DB_SIZE_WARNING_THRESHOLD = 50; 
@@ -59,6 +59,7 @@ const MemoryProcessingControl: React.FC<MemoryProcessingControlProps> = ({
   conversationId,
   character,
 }) => {
+  const dialog = useDialog();
   const { setMemoryProcessingInterval, getMemoryProcessingInterval } = useMemoryContext();
   const [currentInterval, setCurrentInterval] = useState(10);
   const [memoryEnabled, setMemoryEnabled] = useState(true);
@@ -260,16 +261,16 @@ const MemoryProcessingControl: React.FC<MemoryProcessingControlProps> = ({
         const convId = selectedConversationId || conversationId;
         
         if (!charId) {
-          Alert.alert('错误', '未选择角色，无法处理记忆');
+          dialog.alert({ title: '错误', message: '未选择角色，无法处理记忆', icon: 'alert-circle-outline' });
           return;
         }
         
         mem0Service.processCurrentMemories(charId, convId);
-        Alert.alert('成功', '已手动处理当前记忆缓存');
+        dialog.alert({ title: '成功', message: '已手动处理当前记忆缓存', icon: 'checkmark-circle-outline' });
       }
     } catch (error) {
       console.error('[MemoryProcessingControl] Error processing memories:', error);
-      Alert.alert('错误', '处理记忆失败，请稍后再试');
+      dialog.alert({ title: '错误', message: '处理记忆失败，请稍后再试', icon: 'alert-circle-outline' });
     }
   };
 
@@ -288,19 +289,19 @@ const MemoryProcessingControl: React.FC<MemoryProcessingControlProps> = ({
 
   const handleSaveNewMemory = async () => {
     if (!newMemoryContent.trim()) {
-      Alert.alert('错误', '记忆内容不能为空');
+      await dialog.alert({ title: '错误', message: '记忆内容不能为空', icon: 'alert-circle-outline' });
       return;
     }
 
     const charId = selectedCharacterId || characterId;
     if (!charId) {
-      Alert.alert('错误', '未选择角色');
+      await dialog.alert({ title: '错误', message: '未选择角色', icon: 'alert-circle-outline' });
       return;
     }
 
     try {
       setIsCreatingNew(false); 
-      Alert.alert('处理中', '正在创建记忆...');
+      await dialog.alert({ title: '处理中', message: '正在创建记忆...', icon: 'time-outline' });
       
       const mem0Service = Mem0Service.getInstance();
       if (!mem0Service.isEmbeddingAvailable) {
@@ -314,7 +315,7 @@ const MemoryProcessingControl: React.FC<MemoryProcessingControlProps> = ({
       );
 
       if (result) {
-        Alert.alert('成功', '成功创建新记忆');
+        await dialog.alert({ title: '成功', message: '成功创建新记忆', icon: 'checkmark-circle-outline' });
         setNewMemoryContent('');
         await handleRefresh();
       } else {
@@ -334,15 +335,8 @@ const MemoryProcessingControl: React.FC<MemoryProcessingControlProps> = ({
         alertMessage = `创建记忆失败：${errorMessage}`;
       }
       
-      Alert.alert('错误', alertMessage, [
-        { 
-          text: '重试', 
-          onPress: () => setIsCreatingNew(true) 
-        },
-        { 
-          text: '确定' 
-        }
-      ]);
+      const retry = await dialog.confirm({ title: '错误', message: alertMessage, confirmText: '重试', cancelText: '确定', icon: 'alert-circle-outline' });
+      if (retry) setIsCreatingNew(true);
     }
   };
 
@@ -353,7 +347,7 @@ const MemoryProcessingControl: React.FC<MemoryProcessingControlProps> = ({
 
   const handleSaveEditedMemory = async () => {
     if (!editingMemory || !editingContent.trim()) {
-      Alert.alert('错误', '记忆内容不能为空');
+      await dialog.alert({ title: '错误', message: '记忆内容不能为空', icon: 'alert-circle-outline' });
       return;
     }
 
@@ -365,48 +359,43 @@ const MemoryProcessingControl: React.FC<MemoryProcessingControlProps> = ({
       );
 
       if (result) {
-        Alert.alert('成功', '记忆更新成功');
+        await dialog.alert({ title: '成功', message: '记忆更新成功', icon: 'checkmark-circle-outline' });
         setEditingMemory(null);
         setEditingContent('');
         await handleRefresh();
       } else {
-        Alert.alert('错误', '更新记忆失败');
+        await dialog.alert({ title: '错误', message: '更新记忆失败', icon: 'alert-circle-outline' });
       }
     } catch (error) {
       console.error('[MemoryProcessingControl] Error updating memory:', error);
-      Alert.alert('错误', '更新记忆失败');
+      await dialog.alert({ title: '错误', message: '更新记忆失败', icon: 'alert-circle-outline' });
     }
   };
 
-  const handleDeleteMemory = (memory: MemoryFact) => {
-    Alert.alert(
-      '确认删除',
-      '确定要删除此记忆吗？此操作不可逆。',
-      [
-        { text: '取消', style: 'cancel' },
-        {
-          text: '删除',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const mem0Service = Mem0Service.getInstance();
-              const result = await mem0Service.deleteMemory(memory.id);
-              
-              if (result) {
-                setMemoryFacts(prev => prev.filter(item => item.id !== memory.id));
-                Alert.alert('成功', '记忆已删除');
-                await fetchDbStats();
-              } else {
-                Alert.alert('错误', '删除记忆失败');
-              }
-            } catch (error) {
-              console.error('[MemoryProcessingControl] Error deleting memory:', error);
-              Alert.alert('错误', '删除记忆失败');
-            }
-          }
-        }
-      ]
-    );
+  const handleDeleteMemory = async (memory: MemoryFact) => {
+    const ok = await dialog.confirm({
+      title: '确认删除',
+      message: '确定要删除此记忆吗？此操作不可逆。',
+      destructive: true,
+      icon: 'trash-outline',
+      confirmText: '删除',
+      cancelText: '取消',
+    });
+    if (!ok) return;
+    try {
+      const mem0Service = Mem0Service.getInstance();
+      const result = await mem0Service.deleteMemory(memory.id);
+      if (result) {
+        setMemoryFacts(prev => prev.filter(item => item.id !== memory.id));
+        await dialog.alert({ title: '成功', message: '记忆已删除', icon: 'checkmark-circle-outline' });
+        await fetchDbStats();
+      } else {
+        await dialog.alert({ title: '错误', message: '删除记忆失败', icon: 'alert-circle-outline' });
+      }
+    } catch (error) {
+      console.error('[MemoryProcessingControl] Error deleting memory:', error);
+      await dialog.alert({ title: '错误', message: '删除记忆失败', icon: 'alert-circle-outline' });
+    }
   };
 
   const toggleMemoryExpansion = (id: string) => {
@@ -415,7 +404,7 @@ const MemoryProcessingControl: React.FC<MemoryProcessingControlProps> = ({
 
   const handleExportMemories = async () => {
     if (!selectedCharacterId && !characterId) {
-      Alert.alert('错误', '未选择角色，无法导出记忆');
+      await dialog.alert({ title: '错误', message: '未选择角色，无法导出记忆', icon: 'alert-circle-outline' });
       return;
     }
 
@@ -427,7 +416,7 @@ const MemoryProcessingControl: React.FC<MemoryProcessingControlProps> = ({
       const memories = await mem0Service.getCharacterMemories(charId!, 1000);
       
       if (!memories || memories.length === 0) {
-        Alert.alert('提示', '该角色没有可导出的记忆数据');
+        await dialog.alert({ title: '提示', message: '该角色没有可导出的记忆数据', icon: 'information-circle-outline' });
         setIsExporting(false);
         return;
       }
@@ -465,10 +454,10 @@ const MemoryProcessingControl: React.FC<MemoryProcessingControlProps> = ({
         });
       }
       
-      Alert.alert('成功', `已导出 ${memories.length} 条记忆数据`);
+      await dialog.alert({ title: '成功', message: `已导出 ${memories.length} 条记忆数据`, icon: 'checkmark-circle-outline' });
     } catch (error) {
       console.error('[MemoryProcessingControl] 导出记忆失败:', error);
-      Alert.alert('导出失败', '无法导出记忆数据，请稍后再试');
+      await dialog.alert({ title: '导出失败', message: '无法导出记忆数据，请稍后再试', icon: 'alert-circle-outline' });
     } finally {
       setIsExporting(false);
     }
@@ -476,7 +465,7 @@ const MemoryProcessingControl: React.FC<MemoryProcessingControlProps> = ({
 
   const handleImportMemories = async () => {
     if (!selectedCharacterId && !characterId) {
-      Alert.alert('错误', '未选择角色，无法导入记忆');
+      await dialog.alert({ title: '错误', message: '未选择角色，无法导入记忆', icon: 'alert-circle-outline' });
       return;
     }
 
@@ -508,27 +497,13 @@ const MemoryProcessingControl: React.FC<MemoryProcessingControlProps> = ({
         ? `确定要导入 ${importData.memories.length} 条记忆到当前角色吗？` 
         : `原数据属于角色 ${importData.characterId}，与当前角色 ${charId} 不匹配。是否仍要导入 ${importData.memories.length} 条记忆？`;
       
-      Alert.alert(
-        '确认导入',
-        confirmMsg,
-        [
-          {
-            text: '取消',
-            style: 'cancel',
-            onPress: () => setIsImporting(false)
-          },
-          {
-            text: '导入',
-            onPress: async () => {
-              await processImport(importData.memories, charId!);
-            }
-          }
-        ]
-      );
+      const ok = await dialog.confirm({ title: '确认导入', message: confirmMsg, confirmText: '导入', cancelText: '取消', icon: 'download-outline' });
+      if (!ok) { setIsImporting(false); return; }
+      await processImport(importData.memories, charId!);
       
     } catch (error) {
       console.error('[MemoryProcessingControl] 导入记忆失败:', error);
-      Alert.alert('导入失败', '无法导入记忆数据，文件可能已损坏或格式不正确');
+      await dialog.alert({ title: '导入失败', message: '无法导入记忆数据，文件可能已损坏或格式不正确', icon: 'alert-circle-outline' });
       setIsImporting(false);
     }
   };
@@ -538,8 +513,7 @@ const MemoryProcessingControl: React.FC<MemoryProcessingControlProps> = ({
       const mem0Service = Mem0Service.getInstance();
       let successCount = 0;
       let errorCount = 0;
-      
-      Alert.alert('导入中', '正在导入记忆数据，请稍候...');
+      await dialog.alert({ title: '导入中', message: '正在导入记忆数据，请稍候...', icon: 'time-outline' });
       
       for (const memory of memories) {
         try {
@@ -559,16 +533,11 @@ const MemoryProcessingControl: React.FC<MemoryProcessingControlProps> = ({
       }
       
       await handleRefresh();
-      
-      Alert.alert(
-        '导入完成', 
-        `成功导入 ${successCount} 条记忆` + 
-        (errorCount > 0 ? `，${errorCount} 条记忆导入失败` : '')
-      );
+      await dialog.alert({ title: '导入完成', message: `成功导入 ${successCount} 条记忆` + (errorCount > 0 ? `，${errorCount} 条记忆导入失败` : ''), icon: 'checkmark-circle-outline' });
       
     } catch (error) {
       console.error('[MemoryProcessingControl] 批量导入记忆失败:', error);
-      Alert.alert('导入失败', '处理导入数据时出错');
+      await dialog.alert({ title: '导入失败', message: '处理导入数据时出错', icon: 'alert-circle-outline' });
     } finally {
       setIsImporting(false);
     }

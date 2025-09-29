@@ -1,8 +1,6 @@
 import { ChatMessage } from '@/shared/types';
 import { mcpAdapter } from './mcp-adapter';
-import { CloudServiceProvider } from '@/services/cloud-service-provider';
-import { addCloudServiceStatusListener } from '@/utils/cloud-service-tracker';
-import { getCloudServiceStatus, getApiSettings } from '@/utils/settings-helper';
+import { getApiSettings } from '@/utils/settings-helper';
 import { getCharacterTablesData } from '@/src/memory/plugins/table-memory/api';
 
 // Define interfaces for image handling
@@ -74,44 +72,24 @@ export class GeminiAdapter {
     private readonly headers = {
         "Content-Type": "application/json"
     };
-    private useCloudService: boolean = false;
-    private cloudStatusUnsubscribe: (() => void) | null = null;
 
     private conversationHistory: ChatMessage[] = [];
 
     constructor(apiKey: string, options?: GeminiAdapterOptions) {
-        // Initialize cloud service status first to see if we can accept empty API key
-        this.updateCloudServiceStatus();
-        
         // Initialize with primary key and any additional keys
-        
-        if (apiKey) {
+        if (apiKey && apiKey.trim() !== '' && apiKey !== '123') {
             // Add the primary key
             this.apiKeys = [apiKey];
             
             // Add additional keys if provided and they are non-empty
             if (options?.additionalKeys && Array.isArray(options.additionalKeys)) {
-                this.apiKeys = [...this.apiKeys, ...options.additionalKeys.filter(key => key && key.trim() !== '')];
+                this.apiKeys = [...this.apiKeys, ...options.additionalKeys.filter(key => key && key.trim() !== '' && key !== '123')];
             }
         } else {
-            // Empty API key but cloud service is enabled
+            // No valid API key provided
             this.apiKeys = [];
-            console.log(`[Gemini适配器] 未配置API密钥，将使用云服务`);
+            console.log(`[Gemini适配器] 未配置有效的API密钥`);
         }
-        
-      
-        // console.log(`[Gemini适配器] 初始化完成，配置了 ${this.apiKeys.length} 个API密钥`);
-        // console.log(`[Gemini适配器] API密钥轮换: ${this.useKeyRotation ? '已启用' : '未启用'}`);
-        // console.log(`[Gemini适配器] 模型负载均衡: ${this.useModelLoadBalancing ? '已启用' : '未启用'}`);
-        // console.log(`[Gemini适配器] 主模型: ${this.primaryModel}, 备用模型: ${this.backupModel}`);
-        // console.log(`[Gemini适配器] 备用模型重试延迟: ${this.retryDelay}ms`);
-        // console.log(`[Gemini适配器] 云服务状态: ${this.useCloudService ? '已启用' : '未启用'}`);
-        
-        // Subscribe to tracker updates
-        this.cloudStatusUnsubscribe = addCloudServiceStatusListener((enabled) => {
-            console.log(`[Gemini适配器] 云服务状态更新: ${enabled ? '启用' : '禁用'}`);
-            this.useCloudService = enabled;
-        });
     }
     
     
@@ -122,12 +100,17 @@ export class GeminiAdapter {
     public updateSettings(options: GeminiAdapterOptions): void {
         // Update additional keys if provided
         if (options.additionalKeys && Array.isArray(options.additionalKeys)) {
-            const validAdditionalKeys = options.additionalKeys.filter(key => key && key.trim() !== '');
+            const validAdditionalKeys = options.additionalKeys.filter(key => key && key.trim() !== '' && key !== '123');
             
             if (this.apiKeys.length > 0) {
                 // Always keep the primary key (first in array) and add valid additional keys
                 const primaryKey = this.apiKeys[0];
-                this.apiKeys = [primaryKey, ...validAdditionalKeys];
+                // Only keep primary key if it's valid
+                if (primaryKey && primaryKey.trim() !== '' && primaryKey !== '123') {
+                    this.apiKeys = [primaryKey, ...validAdditionalKeys];
+                } else {
+                    this.apiKeys = [...validAdditionalKeys];
+                }
             } else if (validAdditionalKeys.length > 0) {
                 // No primary key but have valid additional keys
                 this.apiKeys = [...validAdditionalKeys];
@@ -152,6 +135,22 @@ export class GeminiAdapter {
             return null;
         }
         return this.apiKeys[this.currentKeyIndex];
+    }
+
+    /**
+     * Prefer API key stored in global settings. Return null if none.
+     */
+    private get settingsApiKey(): string | null {
+        try {
+            const apiSettings = getApiSettings();
+            // For Gemini, use characterApiKey when provider is 'gemini'
+            if (apiSettings?.apiProvider === 'gemini') {
+                return apiSettings?.apiKey || null;
+            }
+            return null;
+        } catch (e) {
+            return null;
+        }
     }
     
     /**
@@ -182,12 +181,12 @@ export class GeminiAdapter {
      * Modified to handle empty primary key
      */
     public updateApiKeys(primaryKey: string, additionalKeys: string[] = []) {
-        if (primaryKey && primaryKey.trim() !== '') {
+        if (primaryKey && primaryKey.trim() !== '' && primaryKey !== '123') {
             // If primary key is valid, use it plus any valid additional keys
-            this.apiKeys = [primaryKey, ...additionalKeys.filter(key => key && key.trim() !== '')];
-        } else if (additionalKeys && additionalKeys.some(key => key && key.trim() !== '')) {
+            this.apiKeys = [primaryKey, ...additionalKeys.filter(key => key && key.trim() !== '' && key !== '123')];
+        } else if (additionalKeys && additionalKeys.some(key => key && key.trim() !== '' && key !== '123')) {
             // No primary key but we have valid additional keys
-            this.apiKeys = [...additionalKeys.filter(key => key && key.trim() !== '')];
+            this.apiKeys = [...additionalKeys.filter(key => key && key.trim() !== '' && key !== '123')];
         } else {
             // No valid keys at all
             this.apiKeys = [];
@@ -202,7 +201,7 @@ export class GeminiAdapter {
      * Check if any valid API keys are configured
      */
     public isApiKeyConfigured(): boolean {
-        return this.apiKeys.length > 0;
+    return this.apiKeys.length > 0 || !!this.settingsApiKey;
     }
     
     /**
@@ -242,52 +241,42 @@ export class GeminiAdapter {
     }
 
     /**
-     * Check and update cloud service status from the tracker.
-     */
-    private updateCloudServiceStatus(): void {
-        this.useCloudService = getCloudServiceStatus();
-        // console.log(`[Gemini适配器] 初始化云服务状态: ${this.useCloudService ? '启用' : '禁用'}`);
-    }
-    
-    /**
      * Clean up resources when adapter is no longer needed
      */
     public dispose(): void {
-        // Unsubscribe from cloud service status changes
-        if (this.cloudStatusUnsubscribe) {
-            this.cloudStatusUnsubscribe();
-            this.cloudStatusUnsubscribe = null;
-        }
+        // Clean up resources if needed
     }
 
-    async generateContent(contents: ChatMessage[], characterId?: string): Promise<string> {
+    async generateContent(
+        contents: ChatMessage[], 
+        characterId?: string, 
+        abortSignal?: AbortSignal,
+        onStream?: (delta: string) => void
+    ): Promise<string> {
 
-        // Always check cloud service status before making requests
-        this.updateCloudServiceStatus();
-        
-        // Check if we have API keys or need to use cloud service
-        const apiKeyAvailable = this.isApiKeyConfigured();
-        const cloudServiceAvailable = this.useCloudService && CloudServiceProvider.isEnabled();
-        
-        // If no API key and cloud service is not available, throw error
-        if (!apiKeyAvailable && !cloudServiceAvailable) {
-            throw new Error("未配置API密钥，且云服务未启用。请配置API密钥或启用云服务。");
-        }
-        
-        // If no API key but cloud service is available, use cloud service
-        if (!apiKeyAvailable && cloudServiceAvailable) {
-            console.log(`[Gemini适配器] 未配置API密钥，自动切换到云服务`);
-            return await this.executeGenerateContentWithCloudService(contents, characterId || '');
-        }
+
         
         // Select the appropriate model (defaulting to text task)
         const modelToUse = this.getModelForRequest(false);
         console.log(`[Gemini适配器] 使用模型: ${modelToUse} 生成内容`);
+
+        // 详细请求日志：输出当前 adapter 状态与 settings 快照（密钥部分将被屏蔽）
+        const currentApiKey = this.apiKey;
+        const settingsSnapshot = getApiSettings();
+        try {
+            console.log(`[Gemini适配器] 请求摘要 -> model: ${modelToUse}, apiProvider: ${settingsSnapshot?.apiProvider || 'unknown'}, useCloudService: ${settingsSnapshot?.useCloudService}`);
+            console.log(`[Gemini适配器] 适配器密钥数量: ${this.apiKeys.length}, 当前密钥索引: ${this.currentKeyIndex}`);
+            console.log(`[Gemini适配器] 当前密钥预览: ${currentApiKey ? currentApiKey.substring(0, 10) + '...' : 'undefined'}`);
+            console.log(`[Gemini适配器] getApiSettings() 中的 apiKey 预览: ${settingsSnapshot?.apiKey ? settingsSnapshot.apiKey.substring(0, 10) + '...' : 'undefined'}`);
+            console.log(`[Gemini适配器] 将构建请求URL（密钥将被屏蔽）: ${this.BASE_URL}/models/${modelToUse}:generateContent?key=<masked>`);
+        } catch (logErr) {
+            console.warn('[Gemini适配器] 记录详细请求日志时出错:', logErr);
+        }
         
         // Enhanced implementation with retry and key rotation logic
         try {
             // First attempt with primary model and first API key
-            return await this.executeGenerateContentWithKeyRotation(contents, modelToUse, characterId);
+            return await this.executeGenerateContentWithKeyRotation(contents, modelToUse, characterId, abortSignal, onStream);
         } catch (initialError) {
             console.error(`[Gemini适配器] 主模型(${modelToUse})请求失败, 错误:`, initialError);
             
@@ -303,24 +292,16 @@ export class GeminiAdapter {
                     // Reset to the first API key for backup model
                     this.currentKeyIndex = 0;
                     console.log(`[Gemini适配器] 正在使用备用模型重试: ${this.backupModel}`);
-                    return await this.executeGenerateContentWithKeyRotation(contents, this.backupModel, characterId);
+                    return await this.executeGenerateContentWithKeyRotation(contents, this.backupModel, characterId, abortSignal, onStream);
                 } catch (backupError) {
                     console.error(`[Gemini适配器] 备用模型也请求失败:`, backupError);
                     
-                    // If cloud service is available, try as last resort
-                    if (cloudServiceAvailable) {
-                        console.log(`[Gemini适配器] API请求失败，尝试使用云服务作为备选方案`);
-                        return await this.executeGenerateContentWithCloudService(contents, characterId || '');
-                    }
+
                     
                     throw backupError;
                 }
             } else {
                 // If cloud service is available, try it as fallback
-                if (cloudServiceAvailable) {
-                    console.log(`[Gemini适配器] API请求失败，尝试使用云服务作为备选方案`);
-                    return await this.executeGenerateContentWithCloudService(contents,characterId || '');
-                }
                 
                 // Otherwise throw the original error
                 throw initialError;
@@ -328,201 +309,103 @@ export class GeminiAdapter {
         }
     }
     
-    /**
-     * Execute content generation using cloud service
-     */
- /**
- * Execute content generation using cloud service
- */
-private async executeGenerateContentWithCloudService(contents: ChatMessage[], characterId: string): Promise<string> {
-    console.log('[Gemini适配器] 使用云服务生成内容');
-    try {
-        // ==== 新增：获取角色表格记忆 ====
-        let tableMemoryText = '';
-        // 修复：记录实际值，而不是类型
-        console.log('[Gemini适配器][表格记忆/云服务] characterId参数值:', characterId);
-        
-        if (characterId) {
-            try {
-                console.log('[Gemini适配器][表格记忆/云服务] 调用 getCharacterTablesData 前参数:', { characterId });
-                const tableData = await getCharacterTablesData(characterId);
-                console.log('[Gemini适配器][表格记忆/云服务] getCharacterTablesData 返回:', tableData);
-                if (tableData.success && tableData.tables.length > 0) {
-                    tableMemoryText += `[角色长期记忆表格]\n`;
-                    tableData.tables.forEach(table => {
-                        const headerRow = '| ' + table.headers.join(' | ') + ' |';
-                        const sepRow = '| ' + table.headers.map(() => '---').join(' | ') + ' |';
-                        const dataRows = table.rows.map(row => '| ' + row.join(' | ') + ' |').join('\n');
-                        tableMemoryText += `表格：${table.name}\n${headerRow}\n${sepRow}\n${dataRows}\n\n`;
-                    });
-                    
-                    console.log('[Gemini适配器][表格记忆/云服务] 成功获取表格记忆数据');
-                } else {
-                    console.log('[Gemini适配器][表格记忆/云服务] 未获取到有效表格数据，success:', tableData.success, 'tables.length:', tableData.tables.length);
-                }
-            } catch (e) {
-                console.warn('[Gemini适配器][表格记忆/云服务] 获取角色表格记忆失败:', e);
-            }
-        } else {
-            console.log('[Gemini适配器][表格记忆/云服务] 未提供有效的characterId，跳过表格记忆注入');
-        }
-        // ==== 表格记忆获取结束 ====
-    
-            // 检查是否需要将合成内容（如记忆/表格/搜索）单独插入为倒数第二条消息
-            let standardMessages: { role: string; content: string }[] = [];
-            
-            if (contents.length >= 2) {
-                // ...existing code for processing contents...
-            } else {
-                // 消息不足两条，按原有逻辑转换
-                standardMessages = contents.map(msg => {
-                    let contentText = '';
-                    if (msg.parts && Array.isArray(msg.parts)) {
-                        contentText = msg.parts.map(part => (typeof part === 'object' && part.text) ? part.text : '').join(' ').trim();
-                    }
-                    let role = msg.role;
-                    return { role, content: contentText };
-                });
-            }
-    
-            // 如果获取到表格记忆，将其作为系统消息添加到标准消息中
-            if (tableMemoryText) {
-                console.log('[Gemini适配器][表格记忆/云服务] 将表格记忆注入到云服务请求中');
-                
-                // 创建一个新的系统消息，包含表格记忆和提示
-                const tableMemoryPrompt = `${tableMemoryText}\n\n<response_guidelines>
-    - 你会在回复中结合上面的表格记忆内容，表格中记录了角色相关的重要信息和事实。
-    - 你会确保回复与表格中的信息保持一致，不会捏造表格中不存在的信息。
-    - 你的回复会自然融入表格中的信息，不会生硬地提及"根据表格"之类的字眼。
-    - 你会确保回复保持角色人设的一致性。
-    </response_guidelines>`;
-                
-                // 保存最后一条用户消息（如果有的话）
-                let lastUserMessage = null;
-                if (standardMessages.length > 0) {
-                    const lastMsg = standardMessages[standardMessages.length - 1];
-                    if (lastMsg.role === 'user') {
-                        lastUserMessage = lastMsg;
-                        // 从标准消息中移除最后一条用户消息，稍后再添加回去
-                        standardMessages.pop();
-                    }
-                }
-                
-                // 添加表格记忆作为系统/助手消息
-                standardMessages.push({
-                    role: "user", // 或者助手角色，以兼容云服务API
-                    content: tableMemoryPrompt
-                });
-                
-                // 如果有，将最后一条用户消息添加回去
-                if (lastUserMessage) {
-                    standardMessages.push(lastUserMessage);
-                }
-                
-                console.log('[Gemini适配器][表格记忆/云服务] 表格记忆注入完成，共包含表格数据长度:', tableMemoryText.length);
-            }
-    
-            console.log('[Gemini适配器] 转换后的消息格式:', JSON.stringify(standardMessages, null, 2));
-            const startTime = Date.now();
-    
-            const response = await CloudServiceProvider.generateChatCompletion(
-                standardMessages,
-                {
-                    model: CloudServiceProvider.getPreferredModel(),
-                    temperature: 0.7,
-                    max_tokens: 8192
-                }
-            );
 
-            const endTime = Date.now();
-            console.log(`[Gemini适配器] 云服务请求完成，耗时: ${endTime - startTime}ms`);
-            console.log(`[Gemini适配器] 云服务响应状态: ${response.status} ${response.statusText}`);
-            
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Cloud service HTTP error! status: ${response.status}, details: ${errorText}`);
-            }
-            
-            const result = await response.json();
-            
-            // Check for the expected format from cloud service
-            if (result.choices && result.choices.length > 0) {
-                const responseText = result.choices[0].message?.content || "";
-                
-                if (responseText) {
-                    console.log(`[Gemini适配器] 成功接收云服务响应，长度: ${responseText.length}`);
-                    console.log(`[Gemini适配器] 响应前100个字符: ${responseText.substring(0, 100)}...`);
-                    
-                    this.conversationHistory.push({
-                        role: "model",
-                        parts: [{ text: responseText }]
-                    });
-                    return responseText;
-                }
-            }
-            
-            console.error(`[Gemini适配器] 无效的云服务响应格式: ${JSON.stringify(result)}`);
-            throw new Error("云服务返回了无效格式的响应");
-        } catch (error) {
-            console.error(`[Gemini适配器] 云服务请求失败:`, error);
-            throw new Error(`云服务请求失败: ${error instanceof Error ? error.message : String(error)}`);
-        }
-    }
-    
     /**
      * Execute generateContent with key rotation on failure
      * This implements the enhanced key rotation and retry strategy
      * Modified to handle no API keys case by using cloud service
      */
     
-    private async executeGenerateContentWithKeyRotation(contents: ChatMessage[], modelId: string, characterId?: string): Promise<string> {
-        // If no API keys are configured and cloud service is available, use cloud service
-        if (this.apiKeys.length === 0) {
-            if (this.useCloudService && CloudServiceProvider.isEnabled()) {
-                console.log(`[Gemini适配器] 没有配置API密钥，使用云服务`);
-                return await this.executeGenerateContentWithCloudService(contents,characterId || '');
-            } else {
-                throw new Error("未配置API密钥，且云服务未启用");
+    private async executeGenerateContentWithKeyRotation(
+        contents: ChatMessage[], 
+        modelId: string, 
+        characterId?: string, 
+        abortSignal?: AbortSignal,
+        onStream?: (delta: string) => void
+    ): Promise<string> {
+        
+        // Prefer API key from global settings if available
+        const settingsKey = this.settingsApiKey;
+        let lastError: any = null;
+
+        if (settingsKey) {
+            console.log('[Gemini适配器] 优先使用 settings 中的 API Key 进行请求（优先级最高）');
+            // Ensure adapter currentKeyIndex is untouched, but pass settings key via getApiSettings() return later
+            try {
+                // Temporarily build request using settings key inside executeGenerateContent
+                return await this.executeGenerateContent(contents, modelId, characterId, abortSignal, onStream);
+            } catch (error) {
+                console.error('[Gemini适配器] 使用 settings API Key 请求失败:', error);
+                lastError = error;
+                // fall through to try adapter keys
             }
         }
-        
-        let lastError: any = null;
-        // Try with each available API key
+
+        // 如果没有 settingsKey 或 settingsKey 请求失败，则尝试 adapter 中的 keys
+        if (this.apiKeys.length === 0) {
+            console.log('[Gemini适配器] adapter 内没有本地 keys 可用，且 settings key 请求失败或不存在');
+        }
+
+        // Try with each available API key from adapter
         for (let keyIndex = 0; keyIndex < this.apiKeys.length; keyIndex++) {
             // Set the current key index
             this.currentKeyIndex = keyIndex;
-            // console.log(`[Gemini适配器] 尝试使用API密钥 ${keyIndex + 1}/${this.apiKeys.length} 请求模型: ${modelId}`);
+            const currentKey = this.apiKeys[keyIndex];
+            console.log(`[Gemini适配器] 尝试使用 adapter 中的 API 密钥 ${keyIndex + 1}/${this.apiKeys.length} 请求模型: ${modelId}，密钥前缀: ${currentKey ? currentKey.substring(0, 10) + '...' : 'null'}`);
             
             try {
                 // Try the request with this key
-                return await this.executeGenerateContent(contents, modelId, characterId);
+                return await this.executeGenerateContent(contents, modelId, characterId, abortSignal, onStream);
             } catch (error) {
-                console.error(`[Gemini适配器] 使用API密钥 ${keyIndex + 1}/${this.apiKeys.length} 请求失败:`, error);
+                console.error(`[Gemini适配器] 使用 adapter 密钥 ${keyIndex + 1}/${this.apiKeys.length} 请求失败:`, error);
                 lastError = error;
                 // Continue to the next key in the loop
                 continue;
             }
         }
         
-        // If we get here, all keys have failed
-        throw new Error(`所有API密钥请求模型 ${modelId} 均失败: ${lastError?.message || '未知错误'}`);
+        // Enhanced error message with more context
+        const errorMessage = lastError?.message || '未知错误';
+        if (errorMessage.includes('API_KEY_INVALID') || errorMessage.includes('401')) {
+            throw new Error(`所有API密钥无效，请检查Gemini API Key配置。最后错误: ${errorMessage}`);
+        } else if (errorMessage.includes('QUOTA_EXCEEDED') || errorMessage.includes('429')) {
+            throw new Error(`API配额已用完，请检查Gemini API配额或稍后重试。最后错误: ${errorMessage}`);
+        } else {
+            throw new Error(`所有API密钥请求模型 ${modelId} 均失败: ${errorMessage}`);
+        }
     }
     
 
 /**
  * Core implementation of generateContent with specified model
  */
-private async executeGenerateContent(contents: ChatMessage[], modelId: string, characterId?: string): Promise<string> {
-    // Verify we have a valid API key
-    const currentApiKey = this.apiKey;
-    if (!currentApiKey) {
-        if (this.useCloudService && CloudServiceProvider.isEnabled()) {
-            return await this.executeGenerateContentWithCloudService(contents, characterId || '');
-        }
-        throw new Error("未配置API密钥，无法执行直接API调用");
-    }
+private async executeGenerateContent(
+    contents: ChatMessage[], 
+    modelId: string, 
+    characterId?: string, 
+    abortSignal?: AbortSignal,
+    onStream?: (delta: string) => void
+): Promise<string> {
+    // Decide which API key to actually use for the request: prefer settingsApiKey, fall back to adapter key
+    const effectiveKey = this.settingsApiKey || this.apiKey;
     
-    let url = `${this.BASE_URL}/models/${modelId}:generateContent?key=${currentApiKey}`;
+    // Enhanced API key validation
+    if (!effectiveKey || effectiveKey === 'null' || effectiveKey === '123' || (typeof effectiveKey === 'string' && effectiveKey.trim() === '')) {
+        throw new Error('API密钥无效或未配置，请检查Gemini API Key设置');
+    }
+
+    let url = `${this.BASE_URL}/models/${modelId}:generateContent?key=${effectiveKey}`;
+
+    // Logging using masked key
+    const maskedKey = typeof effectiveKey === 'string' ? (effectiveKey.substring(0, 10) + '...') : 'undefined';
+    console.log(`[Gemini适配器] === 详细请求信息 ===`);
+    console.log(`[Gemini适配器] 使用模型: ${modelId}`);
+    console.log(`[Gemini适配器] 请求URL: ${this.BASE_URL}/models/${modelId}:generateContent?key=<masked>`);
+    console.log(`[Gemini适配器] 使用的有效密钥预览: ${maskedKey}`);
+    console.log(`[Gemini适配器] 当前适配器密钥数量: ${this.apiKeys.length}`);
+    console.log(`[Gemini适配器] 当前密钥索引: ${this.currentKeyIndex}`);
+    console.log(`[Gemini适配器] getApiSettings 返回的 apiKey 预览: ${this.settingsApiKey ? this.settingsApiKey.substring(0, 10) + '...' : 'undefined'}`);
+    console.log(`[Gemini适配器] === 详细请求信息结束 ===`);
     
     // ==== 新增：获取角色表格记忆 ====
     let tableMemoryText = '';
@@ -619,14 +502,20 @@ private async executeGenerateContent(contents: ChatMessage[], modelId: string, c
         maxOutputTokens: maxTokens
     };
 
-    return this.executeDirectGenerateContent(enhancedContents, modelId, url, config);
+    return this.executeDirectGenerateContent(enhancedContents, modelId, url, config, abortSignal);
 }
 
             /**
              * 实际执行API调用的方法，从executeGenerateContent中抽取出来
              * 以便于在有无表格记忆的情况下复用
              */
-            private async executeDirectGenerateContent(contents: ChatMessage[], modelId: string, url: string, config?: { temperature: number; maxOutputTokens: number }): Promise<string> {
+            private async executeDirectGenerateContent(
+                contents: ChatMessage[], 
+                modelId: string, 
+                url: string, 
+                config?: { temperature: number; maxOutputTokens: number }, 
+                abortSignal?: AbortSignal
+            ): Promise<string> {
                 // 获取 temperature 和 max tokens
                 const apiSettings = getApiSettings();
                 const temperature = typeof apiSettings.geminiTemperature === 'number' ? apiSettings.geminiTemperature : 0.7;
@@ -638,145 +527,41 @@ private async executeGenerateContent(contents: ChatMessage[], modelId: string, c
                     model: modelId,
                 };
 
-                // console.log(`[Gemini适配器] 发送请求到API: ${modelId}`);
-                // console.log(`[Gemini适配器] 请求包含 ${contents.length} 条消息`);
-                // console.log(`[Gemini适配器] 当前云服务状态: ${this.useCloudService ? '启用' : '禁用'}`);
-                
                 // Enhanced logging for each message in the request
                 contents.forEach((msg, index) => {
                     const previewText = msg.parts?.[0]?.text || "";
                     // console.log(`[Gemini适配器] 消息 #${index + 1} (${msg.role}): ${previewText.substring(0, 100)}...`);
                     
-                    // Special handling for messages that might contain VNDB data, appearance tags, or traits
-                    if (previewText.includes("VNDB") || 
-                        previewText.includes("角色参考") || 
-                        previewText.includes("外观参考") || 
-                        previewText.includes("标签") || 
-                        previewText.includes("特征")) {
-                        
-                        // Log a more complete version of important data
-                        const importantDataPreview = previewText.substring(0, 300);
-                        console.log(`[Gemini适配器] 重要数据预览 #${index + 1}: ${importantDataPreview}...`);
-                        
-                        // Check for specific sections and log them
-                        if (previewText.includes("正向标签")) {
-                            const positiveTagsMatch = previewText.match(/正向标签[：:]\s*([\s\S]*?)(?=负向标签|$)/);
-                            if (positiveTagsMatch && positiveTagsMatch[1]) {
-                                console.log(`[Gemini适配器] 正向标签: ${positiveTagsMatch[1].trim()}`);
-                            }
-                        }
-                        
-                        if (previewText.includes("负向标签")) {
-                            const negativeTagsMatch = previewText.match(/负向标签[：:]\s*([\s\S]*?)(?=\n\n|$)/);
-                            if (negativeTagsMatch && negativeTagsMatch[1]) {
-                                console.log(`[Gemini适配器] 负向标签: ${negativeTagsMatch[1].trim()}`);
-                            }
-                        }
-                        
-                        if (previewText.includes("特征")) {
-                            const traitsMatch = previewText.match(/特征[：:]\s*([\s\S]*?)(?=\n\n|$)/);
-                            if (traitsMatch && traitsMatch[1]) {
-                                console.log(`[Gemini适配器] 角色特征: ${traitsMatch[1].trim()}`);
-                            }
-                        }
-                        
-                        if (previewText.includes("性别")) {
-                            const genderMatch = previewText.match(/[角色|用户]性别[：:]\s*([\\s\S]*?)(?=\n\n|$)/);
-                            if (genderMatch && genderMatch[1]) {
-                                console.log(`[Gemini适配器] 性别信息: ${genderMatch[1].trim()}`);
-                            }
-                        }
-                    }
                 });
 
-                // Check if cloud service should be used
+                // Direct API call
+                const startTime = Date.now();
                 let response;
-                
-                // Double check with CloudServiceProvider directly as well
-                const providerEnabled = CloudServiceProvider.isEnabled();
-                const isCloudEnabled = this.useCloudService && providerEnabled;
-                
-                if (isCloudEnabled) {
-                    console.log('[Gemini适配器] 检测到云服务已启用，使用云服务转发请求');
-                    console.log(`[Gemini适配器] 原始请求URL: ${url.replace(/(\bkey=)([^&]{4})[^&]*/gi, '$1$2****')}`);
-                    
-                    try {
-                        console.log('[Gemini适配器] 调用CloudServiceProvider.generateChatCompletion...');
-                        const startTime = Date.now();
-                        
-                        // Convert Gemini-style messages to standard format 
-                        const standardMessages = contents.map(msg => {
-                            // Get text from message parts
-                            let contentText = '';
-                            if (msg.parts && Array.isArray(msg.parts)) {
-                                contentText = msg.parts.map(part => {
-                                    if (typeof part === 'object' && part.text) {
-                                        return part.text;
-                                    }
-                                    return '';
-                                }).join(' ').trim();
-                            }
-                            
-                            // Map Gemini roles to standard roles
-                            let role = msg.role;
-                            
-                            return {
-                                role: role,
-                                content: contentText
-                            };
-                        });
-                        
-                        console.log('[Gemini适配器] 转换后的消息格式:', JSON.stringify(standardMessages, null, 2));
-                        
-                        // Use the generateChatCompletion method for cloud service
-                        response = await CloudServiceProvider.generateChatCompletion(
-                            standardMessages,
-                            {
-                                model: CloudServiceProvider.getPreferredModel(),
-                                temperature: 0.7,
-                                max_tokens: 8192
-                            }
-                        );
-                        
-                        const endTime = Date.now();
-                        console.log(`[Gemini适配器] 云服务请求完成，耗时: ${endTime - startTime}ms`);
-                        console.log(`[Gemini适配器] 云服务响应状态: ${response.status} ${response.statusText}`);
-                    } catch (cloudError) {
-                        console.error('[Gemini适配器] 云服务请求失败:', cloudError);
-                        console.error('[Gemini适配器] 尝试回退到直接API调用...');
-                        
-                        // Fall back to direct API call
-                        const startTime = Date.now();
-                        response = await fetch(url, {
-                            method: 'POST',
-                            headers: this.headers,
-                            body: JSON.stringify(data)
-                        });
-                        const endTime = Date.now();
-                        
-                        console.log(`[Gemini适配器] 直接API调用完成，耗时: ${endTime - startTime}ms`);
-                        console.log(`[Gemini适配器] API响应状态: ${response.status} ${response.statusText}`);
-                    }
-                } else {
-                    if (this.useCloudService) {
-                        console.log('[Gemini适配器] 云服务状态不一致: tracker显示已启用但CloudServiceProvider未启用');
-                    }
-                    
-                    // console.log('[Gemini适配器] 云服务未启用，使用直接API调用');
-                    // console.log(`[Gemini适配器] 直接调用URL: ${url.replace(/(\bkey=)([^&]{4})[^&]*/gi, '$1$2****')}`);
-                    // console.log(`[Gemini适配器] 开始时间: ${new Date().toISOString()}`);
-                    
-                    const startTime = Date.now();
-                    response = await fetch(url, {
+                try {
+                    const requestOptions: any = {
                         method: 'POST',
                         headers: this.headers,
                         body: JSON.stringify(data)
-                    });
-                    const endTime = Date.now();
+                    };
                     
-                    console.log(`[Gemini适配器] 直接API调用完成，耗时: ${endTime - startTime}ms`);
-                    console.log(`[Gemini适配器] API响应状态: ${response.status} ${response.statusText}`);
+                    // Only add signal if abortSignal is provided and has the addEventListener method
+                    if (abortSignal && typeof abortSignal.addEventListener === 'function') {
+                        requestOptions.signal = abortSignal;
+                    }
+                    
+                    response = await fetch(url, requestOptions);
+                } catch (error: any) {
+                    // 检查是否为中止错误
+                    if (error.name === 'AbortError') {
+                        console.log('[Gemini适配器] 请求被用户中止');
+                        throw new Error('REQUEST_ABORTED');
+                    }
+                    throw error;
                 }
+                const endTime = Date.now();
+                
+                console.log(`[Gemini适配器] 直接API调用完成，耗时: ${endTime - startTime}ms`);
+                console.log(`[Gemini适配器] API响应状态: ${response.status} ${response.statusText}`);
 
                 if (!response.ok) {
                     const errorText = await response.text();
@@ -840,22 +625,9 @@ private async executeGenerateContent(contents: ChatMessage[], modelId: string, c
         temperature?: number;
         images?: ImageInput[]; // Support both base64 encoded images and URLs
     } = {}): Promise<GeneratedContent> {
-        // Always check cloud service status before making requests
-        this.updateCloudServiceStatus();
-        
-        // Check if we have API keys or need to use cloud service
-        const apiKeyAvailable = this.isApiKeyConfigured();
-        const cloudServiceAvailable = this.useCloudService && CloudServiceProvider.isEnabled();
-        
-        // If no API key and cloud service is not available, throw error
-        if (!apiKeyAvailable && !cloudServiceAvailable) {
-            throw new Error("未配置API密钥，且云服务未启用。请配置API密钥或启用云服务。");
-        }
-        
-        // If no API key but cloud service is available, use cloud service
-        if (!apiKeyAvailable && cloudServiceAvailable) {
-            console.log(`[Gemini适配器] 未配置API密钥，自动切换到云服务处理多模态请求`);
-            return await this.executeMultiModalContentWithCloudService(prompt, options);
+        // Check if we have API keys
+        if (!this.isApiKeyConfigured()) {
+            throw new Error("未配置API密钥。请配置API密钥。");
         }
         
         // 始终使用gemini-2.0-flash-exp，因为它是唯一支持图像生成的模型
@@ -866,118 +638,12 @@ private async executeGenerateContent(contents: ChatMessage[], modelId: string, c
             return await this.executeMultiModalContentWithKeyRotation(prompt, modelToUse, options);
         } catch (error) {
             console.error(`[Gemini适配器] 多模态内容生成失败:`, error);
-            
-            // If cloud service is available, try as fallback
-            if (cloudServiceAvailable) {
-                console.log(`[Gemini适配器] API多模态请求失败，尝试使用云服务作为备选方案`);
-                return await this.executeMultiModalContentWithCloudService(prompt, options);
-            }
-            
             throw error;
         }
     }
     
     /**
-     * Execute multimodal content generation using cloud service
-     */
-    private async executeMultiModalContentWithCloudService(
-        prompt: string,
-        options: { 
-            includeImageOutput?: boolean;
-            temperature?: number;
-            images?: ImageInput[];
-        }
-    ): Promise<GeneratedContent> {
-        console.log('[Gemini适配器] 使用云服务生成多模态内容');
-        
-        try {
-            const startTime = Date.now();
-            
-            // Prepare messages for cloud service in the required format
-            let messages = [];
-            
-            // If we have images, we need to handle them specially
-            if (options.images && options.images.length > 0) {
-                // Create a message that includes both text and images
-                let messageContent = [];
-                
-                // Add text content first
-                messageContent.push({
-                    type: "text",
-                    text: prompt
-                });
-                
-                // Process and add each image
-                for (const img of options.images) {
-                    let imageData;
-                    let mimeType;
-                    
-                    if (img.url) {
-                        // Fetch the image from URL
-                        const fetchedImg = await this.fetchImageAsBase64(img.url);
-                        imageData = fetchedImg.data;
-                        mimeType = fetchedImg.mimeType;
-                    } else if (img.data && img.mimeType) {
-                        // Use provided data directly
-                        imageData = img.data;
-                        mimeType = img.mimeType;
-                    } else {
-                        console.error('[Gemini适配器] 无效的图像输入');
-                        continue;
-                    }
-                    
-                    // Add image to content
-                    messageContent.push({
-                        type: "image_url",
-                        image_url: {
-                            url: `data:${mimeType};base64,${imageData}`
-                        }
-                    });
-                }
-                
-                messages.push({
-                    role: "user",
-                    content: messageContent
-                });
-            } else {
-                // Simple text-only message
-                messages.push({
-                    role: "user",
-                    content: prompt
-                });
-            }
-            
-            console.log(`[Gemini适配器] 向云服务发送${options.images ? '图文混合' : '纯文本'}消息`);
-            
-
-            
-            const endTime = Date.now();
-            console.log(`[Gemini适配器] 云服务多模态请求完成，耗时: ${endTime - startTime}ms`);
-            
-
-            
-            // Process the response and extract text/images
-            const generatedContent: GeneratedContent = {};
-            
-            
-            console.log(`[Gemini适配器] 成功收到云服务的多模态响应`);
-            if (generatedContent.text) {
-                console.log(`[Gemini适配器] 响应包含文本，长度: ${generatedContent.text.length}`);
-            }
-            if (generatedContent.images) {
-                console.log(`[Gemini适配器] 响应包含 ${generatedContent.images.length} 个图片`);
-            }
-            
-            return generatedContent;
-        } catch (error) {
-            console.error(`[Gemini适配器] 云服务多模态内容生成失败:`, error);
-            throw new Error(`云服务多模态请求失败: ${error instanceof Error ? error.message : String(error)}`);
-        }
-    }
-    
-    /**
      * Execute multimodal content generation with key rotation
-     * Modified to handle no API keys case
      */
     private async executeMultiModalContentWithKeyRotation(
         prompt: string, 
@@ -988,14 +654,9 @@ private async executeGenerateContent(contents: ChatMessage[], modelId: string, c
             images?: ImageInput[];
         }
     ): Promise<GeneratedContent> {
-        // If no API keys are configured but cloud service is available, use it
+        // If no API keys are configured, throw error
         if (this.apiKeys.length === 0) {
-            if (this.useCloudService && CloudServiceProvider.isEnabled()) {
-                console.log(`[Gemini适配器] 没有配置API密钥，使用云服务处理多模态请求`);
-                return await this.executeMultiModalContentWithCloudService(prompt, options);
-            } else {
-                throw new Error("未配置API密钥，且云服务未启用");
-            }
+            throw new Error("未配置API密钥");
         }
         
         let lastError: any = null;
@@ -1035,9 +696,6 @@ private async executeGenerateContent(contents: ChatMessage[], modelId: string, c
         // Verify we have a valid API key
         const currentApiKey = this.apiKey;
         if (!currentApiKey) {
-            if (this.useCloudService && CloudServiceProvider.isEnabled()) {
-                return await this.executeMultiModalContentWithCloudService(prompt, options);
-            }
             throw new Error("未配置API密钥，无法执行直接API调用");
         }
         
@@ -1114,75 +772,19 @@ private async executeGenerateContent(contents: ChatMessage[], modelId: string, c
 
         console.log(`[Gemini适配器] 发送多模态请求到API: ${modelToUse}`);
         console.log(`[Gemini适配器] 请求是否包含图片输出: ${options.includeImageOutput ? '是' : '否'}`);
-        console.log(`[Gemini适配器] 当前云服务状态: ${this.useCloudService ? '启用' : '禁用'}`);
         
-        // Check if cloud service should be used
-        let response;
+        console.log(`[Gemini适配器] 直接调用URL: ${maskedUrl}`);
         
-        // Double check with CloudServiceProvider directly as well
-        const providerEnabled = CloudServiceProvider.isEnabled();
-        const isCloudEnabled = this.useCloudService && providerEnabled;
+        const startTime = Date.now();
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: this.headers,
+            body: JSON.stringify(data)
+        });
+        const endTime = Date.now();
         
-        if (isCloudEnabled) {
-            console.log('[GeminiAdapter] Using cloud service for multimodal request');
-            // 转换为 CloudServiceProvider 需要的消息格式
-            let messages = [];
-            if (options.images && options.images.length > 0) {
-                let messageContent = [];
-                if (prompt) {
-                    messageContent.push({
-                        type: "text",
-                        text: prompt
-                    });
-                }
-                for (const img of options.images) {
-                    let imageUrl: string;
-                    if (img.url) {
-                        // 直接用URL
-                        imageUrl = img.url;
-                    } else if (img.data && img.mimeType) {
-                        imageUrl = `data:${img.mimeType};base64,${img.data}`;
-                    } else {
-                        continue;
-                    }
-                    messageContent.push({
-                        type: "image_url",
-                        image_url: { url: imageUrl }
-                    });
-                }
-                messages.push({
-                    role: "user",
-                    content: messageContent
-                });
-            } else {
-                messages.push({
-                    role: "user",
-                    content: prompt
-                });
-            }
-            response = await CloudServiceProvider.generateMultiModalContent(
-                messages,
-                {
-                    model: modelToUse,
-                    temperature: options.temperature || 0.7,
-                    max_tokens: 8192,
-                    ...(options.includeImageOutput ? { responseModalities: ['TEXT', 'IMAGE'] } : {})
-                }
-            );
-        } else {
-            console.log(`[Gemini适配器] 直接调用URL: ${maskedUrl}`);
-            
-            const startTime = Date.now();
-            response = await fetch(url, {
-                method: 'POST',
-                headers: this.headers,
-                body: JSON.stringify(data)
-            });
-            const endTime = Date.now();
-            
-            console.log(`[Gemini适配器] 直接API调用完成，耗时: ${endTime - startTime}ms`);
-            console.log(`[Gemini适配器] API响应状态: ${response.status} ${response.statusText}`);
-        }
+        console.log(`[Gemini适配器] 直接API调用完成，耗时: ${endTime - startTime}ms`);
+        console.log(`[Gemini适配器] API响应状态: ${response.status} ${response.statusText}`);
 
         if (!response.ok) {
             const errorText = await response.text();
@@ -1395,20 +997,7 @@ private async executeGenerateContent(contents: ChatMessage[], modelId: string, c
      * @returns 分析结果文本
      */
     async analyzeImage(image: ImageInput, prompt: string): Promise<string> {
-        // 检查是否有API密钥配置或者是否应该使用云服务
-        const apiKeyAvailable = this.isApiKeyConfigured();
-        const cloudServiceAvailable = this.useCloudService && CloudServiceProvider.isEnabled();
         
-        // 如果没有API密钥且云服务不可用，抛出错误
-        if (!apiKeyAvailable && !cloudServiceAvailable) {
-            throw new Error("未配置API密钥，且云服务未启用。请配置API密钥或启用云服务。");
-        }
-        
-        // 如果没有API密钥但云服务可用，使用云服务
-        if (!apiKeyAvailable && cloudServiceAvailable) {
-            console.log(`[Gemini适配器] 未配置API密钥，自动切换到云服务分析图片`);
-            return await this.analyzeImageWithCloudService(image, prompt);
-        }
         
         // 增强图像分析提示词，以获得更全面的描述
         const enhancedPrompt = prompt || `请详细描述这张图片的内容。包括：
@@ -1451,108 +1040,12 @@ private async executeGenerateContent(contents: ChatMessage[], modelId: string, c
         } catch (error) {
             console.error(`[Gemini适配器] 分析图片失败:`, error);
             
-            // If API request fails and cloud service is available, try cloud service
-            if (cloudServiceAvailable) {
-                console.log(`[Gemini适配器] API分析图片失败，尝试使用云服务`);
-                return await this.analyzeImageWithCloudService(image, prompt);
-            }
+
             
             throw new Error(`分析图片失败: ${error instanceof Error ? error.message : '未知错误'}`);
         }
     }
     
-    /**
-     * 使用云服务分析图片
-     */
-    private async analyzeImageWithCloudService(image: ImageInput, prompt: string): Promise<string> {
-        console.log(`[Gemini适配器] 使用云服务分析图片`);
-        
-        // 使用与传递给analyzeImage相同的增强提示词
-        const enhancedPrompt = prompt || `请详细描述这张图片的内容。包括：
-1. 图片中的主要人物/物体
-2. 场景和环境
-3. 颜色和氛围
-4. 任何特殊或显著的细节
-5. 图片可能传递的情感或意图
-
-请提供全面但简洁的描述，控制在150字以内。`;
-        
-        try {
-            // 处理图像输入为云服务所需的格式
-            let imageUrl: string;
-            
-            if (image.url) {
-                // 如果是外部URL，直接使用
-                imageUrl = image.url;
-                console.log(`[Gemini适配器] 使用图片URL: ${imageUrl.substring(0, 50)}...`);
-            } else if (image.data && image.mimeType) {
-                // 如果是Base64数据，需要创建Data URL
-                imageUrl = `data:${image.mimeType};base64,${image.data}`;
-                console.log(`[Gemini适配器] 使用Base64图片数据 (${image.data.length} 字节)`);
-            } else {
-                throw new Error("无效的图像输入格式");
-            }
-            
-            const startTime = Date.now();
-            
-            // 使用CloudServiceProvider分析图片
-            const messages = [
-                {
-                    role: "user",
-                    content: [
-                        {
-                            type: "text",
-                            text: enhancedPrompt
-                        },
-                        {
-                            type: "image_url",
-                            image_url: {
-                                url: imageUrl
-                            }
-                        }
-                    ]
-                }
-            ];
-            
-            const response = await CloudServiceProvider.generateMultiModalContent(
-                messages,
-                {
-                    model: CloudServiceProvider.getMultiModalModel(),
-                    temperature: 0.7,
-                    max_tokens: 2048
-                }
-            );
-            
-            const endTime = Date.now();
-            console.log(`[Gemini适配器] 云服务图片分析请求完成，耗时: ${endTime - startTime}ms`);
-            
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`云服务HTTP错误! 状态: ${response.status}, 详情: ${errorText}`);
-            }
-            
-            const result = await response.json();
-            
-            if (result.choices && result.choices.length > 0) {
-                const content = result.choices[0].message?.content;
-                
-                if (typeof content === 'string') {
-                    return content;
-                } else if (Array.isArray(content)) {
-                    // 提取所有文本部分
-                    return content
-                        .filter(part => part.type === 'text')
-                        .map(part => part.text)
-                        .join('\n');
-                }
-            }
-            
-            throw new Error("云服务返回了无效的响应格式");
-        } catch (error) {
-            console.error(`[Gemini适配器] 云服务分析图片失败:`, error);
-            throw new Error(`云服务分析图片失败: ${error instanceof Error ? error.message : String(error)}`);
-        }
-    }
 
     getChatHistory(): Array<{ role: string; text: string }> {
         return this.conversationHistory.map(msg => ({
@@ -1647,24 +1140,16 @@ private async executeGenerateContent(contents: ChatMessage[], modelId: string, c
      * @param memoryResults 记忆搜索结果 (可选)
      * @returns 生成的内容
      */
-    async generateContentWithTools(contents: ChatMessage[], characterId:string,memoryResults?: any, userMessage?: string): Promise<string> {
+    async generateContentWithTools(
+        contents: ChatMessage[], 
+        characterId: string,
+        memoryResults?: any, 
+        userMessage?: string,
+        abortSignal?: AbortSignal
+    ): Promise<string> {
         // 检查是否有API密钥配置或者是否应该使用云服务
         
-        const apiKeyAvailable = this.isApiKeyConfigured();
-        const cloudServiceAvailable = this.useCloudService && CloudServiceProvider.isEnabled();
-        
-        // 如果没有API密钥且云服务不可用，抛出错误
-        if (!apiKeyAvailable && !cloudServiceAvailable) {
-            throw new Error("未配置API密钥，且云服务未启用。请配置API密钥或启用云服务。");
-        }
-        
-        // 如果没有API密钥但云服务可用，使用云服务
-        if (!apiKeyAvailable && cloudServiceAvailable) {
-            console.log(`[Gemini适配器] 未配置API密钥，自动切换到云服务生成内容`);
-            // 使用标准generateContent方法，它会自动切换到云服务
-            return await this.generateContent(contents);
-        }
-        
+
         // 获取userMessage（优先参数，否则回退到最后一条消息）
         const analyzedUserMessage = typeof userMessage === 'string'
             ? userMessage
@@ -1782,77 +1267,6 @@ private async executeGenerateContent(contents: ChatMessage[], modelId: string, c
             // Step 2: 准备网络搜索部分
             console.log(`[Gemini适配器] 为用户查询准备网络搜索: "${userQuery}"`);
             
-            // 优先尝试通过云服务进行联网搜索
-            if (this.useCloudService && CloudServiceProvider.isEnabled()) {
-                try {
-                    console.log(`[Gemini适配器] 优先通过云服务处理联网搜索请求`);
-                    // 新增：打印请求内容
-                    console.log(`[Gemini适配器][云服务搜索] 请求内容:`, userQuery);
-                    const response = await CloudServiceProvider.generateSearchResult(userQuery, {
-                        model: CloudServiceProvider.getMultiModalModel(),
-                        temperature: 0.7,
-                        max_tokens: 2048
-                    });
-                    if (!response.ok) {
-                        const errorText = await response.text();
-                        throw new Error(`Cloud service search HTTP error! status: ${response.status}, details: ${errorText}`);
-                    }
-                    const result = await response.json();
-
-                    let searchResultText = "";
-                    if (result.choices && result.choices.length > 0) {
-                        searchResultText = result.choices[0].message?.content || "";
-                    } else if (typeof result === 'string') {
-                        searchResultText = result;
-                    }
-                    // 新增：打印云服务返回的搜索结果
-                    console.log(`[Gemini适配器][云服务搜索] 返回结果:`, searchResultText);
-                    if (searchResultText) {
-                        let searchSection = `<websearch>\n搜索引擎返回的联网检索结果：\n${searchResultText}\n</websearch>\n\n`;
-                        
-                        // 构建融合提示词
-                        console.log(`[Gemini适配器] 构建融合提示词，结合记忆和网络搜索结果`);
-                        
-                        // 修改：将表格记忆添加到组合提示中，位置在memorySection之前
-                        let combinedPrompt = '';
-                        // 添加表格记忆（如果有）
-                        if (tableMemoryText) {
-                            combinedPrompt += tableMemoryText + '\n';
-                        }
-                        // 添加记忆部分
-                        combinedPrompt += memorySection;
-                        // 添加搜索部分
-                        combinedPrompt += searchSection;
-                        
-                        combinedPrompt += `<response_guidelines>
-                - 结合上面的记忆内容和联网搜索结果，全面回答{{user}}的问题。
-                - 用<websearch></websearch>标签包裹我对网络搜索结果的解释和引用，例如:
-                  <websearch>根据最新的网络信息，关于这个问题的专业观点是...</websearch>
-                - 确保回复能够同时**有效整合记忆和网络信息**，让内容更加全面和有用。
-                - 回复的语气和风格一定会与角色人设保持一致。
-                </response_guidelines>`;
-                        
-                        // 记录融合提示词的长度
-                        console.log(`[Gemini适配器] 融合提示词构建完成，长度: ${combinedPrompt.length}`);
-                        
-                        // 使用标准的生成内容方法生成最终回复
-                        // 插入顺序：历史消息 + model(记忆/搜索内容) + 用户消息
-                        const finalPrompt: ChatMessage[] = [
-                            ...contents.slice(0, -1),
-                            {
-                                role: "user",
-                                parts: [{ text: combinedPrompt }]
-                            },
-                            contents[contents.length - 1]
-                        ];
-                        
-                        return await this.generateContent(finalPrompt);
-                    }
-                } catch (cloudSearchError) {
-                    console.warn('[Gemini适配器] 云服务联网搜索失败，降级到本地BraveSearch:', cloudSearchError);
-                    // 继续降级到本地bravesearch
-                }
-            }
             
             // 确保MCP适配器已连接
             if (!mcpAdapter.isReady()) {
@@ -2100,64 +1514,7 @@ private async executeGenerateContent(contents: ChatMessage[], modelId: string, c
         : (contents[contents.length - 1]?.parts?.[0]?.text || "");
         
         try {
-            // 优先尝试通过云服务进行联网搜索
-            if (this.useCloudService && CloudServiceProvider.isEnabled()) {
-                try {
-                    console.log(`[Gemini适配器] 优先通过云服务处理联网搜索请求`);
-                    // 新增：打印请求内容
-                    console.log(`[Gemini适配器][云服务搜索] 请求内容:`, searchQuery);
-                    const response = await CloudServiceProvider.generateSearchResult(searchQuery, {
-                        model: CloudServiceProvider.getMultiModalModel(),
-                        temperature: 0.7,
-                        max_tokens: 2048
-                    });
-                    if (!response.ok) {
-                        const errorText = await response.text();
-                        throw new Error(`Cloud service search HTTP error! status: ${response.status}, details: ${errorText}`);
-                    }
-                    const result = await response.json();
 
-                    let searchResultText = "";
-                    if (result.choices && result.choices.length > 0) {
-                        searchResultText = result.choices[0].message?.content || "";
-                    } else if (typeof result === 'string') {
-                        searchResultText = result;
-                    }
-                    // 新增：打印云服务返回的搜索结果
-                    console.log(`[Gemini适配器][云服务搜索] 返回结果:`, searchResultText);
-                    if (searchResultText) {
-                        // 构建带有搜索结果的修改版提示
-                        let combinedPrompt = `我在对用户消息：${searchQuery}\n\n进行联网搜索`;
-                        
-                        // 添加网络搜索结果
-                        combinedPrompt += `<websearch>\n搜索引擎返回的联网检索结果：\n${searchResultText}\n</websearch>\n\n`;
-                        
-                        // 添加响应指南
-                        combinedPrompt += `<response_guidelines>
-- 除了对用户消息的回应之外，我**一定** 会结合联网搜索内容进行回复。
-- **我会根据角色设定和聊天上下文**，输出我对联网检索结果的解释，并用<websearch></websearch>包裹。
-  - 示例: <websearch>根据网络信息，[相关领域的专家]认为... 这可能对您有帮助。</websearch>
-- 我会确保回复保持角色人设的一致性。
-</response_guidelines>`;
-                        
-                        // 使用标准的生成内容方法生成最终回复
-                        // 插入顺序：历史消息 + model(搜索内容) + 用户消息
-                        const finalPrompt: ChatMessage[] = [
-                            ...contents.slice(0, -1),
-                            {
-                                role: "model",
-                                parts: [{ text: combinedPrompt }]
-                            },
-                            contents[contents.length - 1]
-                        ];
-                        
-                        return await this.generateContent(finalPrompt);
-                    }
-                } catch (cloudSearchError) {
-                    console.warn('[Gemini适配器] 云服务联网搜索失败，降级到本地BraveSearch:', cloudSearchError);
-                    // 继续降级到本地bravesearch
-                }
-            }
 
             // 确保MCP适配器已连接
             if (!mcpAdapter.isReady()) {

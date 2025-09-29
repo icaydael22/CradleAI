@@ -117,7 +117,6 @@ const StorageManager = () => {
               await Promise.all(selectedItems.map(key => AsyncStorage.removeItem(key)));
               setSelectedItems([]);
               await loadStorageData(); // Reload data after deletion
-              Alert.alert('成功', `已删除 ${selectedItems.length} 项内容`);
             } catch (error) {
               console.error('Error deleting items:', error);
               Alert.alert('错误', '删除时遇到问题');
@@ -221,7 +220,6 @@ const StorageManager = () => {
                           await AsyncStorage.removeItem(currentItem.key);
                           setIsViewingItem(false);
                           loadStorageData();
-                          Alert.alert('成功', '项目已删除');
                         } catch (error) {
                           console.error('Error deleting item:', error);
                           Alert.alert('错误', '删除时遇到问题');

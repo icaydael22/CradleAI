@@ -1,154 +1,100 @@
-// // import * as Notifications from 'expo-notifications';
-// import * as Device from 'expo-device';
-// import { Platform } from 'react-native';
-// import AsyncStorage from '@react-native-async-storage/async-storage';
-// // import { SchedulableTriggerInputTypes } from 'expo-notifications';
+import * as Notifications from 'expo-notifications';
+import { Platform } from 'react-native';
 
-// // Configure notifications to show alerts while app is in foreground
-// Notifications.setNotificationHandler({
-//   handleNotification: async () => ({
-//     shouldShowAlert: true,
-//     shouldPlaySound: true,
-//     shouldSetBadge: true,
-//   }),
-// });
+let configured = false;
+function ensureConfigured() {
+  if (configured) return;
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+      // newer Expo includes these booleans; provide sensible defaults
+      shouldShowBanner: true,
+      shouldShowList: true,
+    } as any),
+  });
+  if (Platform.OS === 'android') {
+    Notifications.setNotificationChannelAsync('default', {
+      name: '默认',
+      importance: Notifications.AndroidImportance.DEFAULT,
+    }).catch(() => {});
+  }
+  configured = true;
+}
 
-// export async function registerForPushNotificationsAsync(): Promise<string | null> {
-//   let token: string | null = null;
-  
-//   // Only process on physical devices
-//   if (Device.isDevice) {
-//     const { status: existingStatus } = await Notifications.getPermissionsAsync();
-//     let finalStatus = existingStatus;
-    
-//     // If permission isn't determined yet, request permission
-//     if (existingStatus !== 'granted') {
-//       const { status } = await Notifications.requestPermissionsAsync();
-//       finalStatus = status;
-//     }
-    
-//     // If permission still not granted, return null
-//     if (finalStatus !== 'granted') {
-//       console.log('未获得通知权限!');
-//       return null;
-//     }
-    
-//     // Get the Expo push token
-//     try {
-//       const expoPushToken = await Notifications.getExpoPushTokenAsync({
-//         projectId: process.env.EXPO_PUBLIC_PROJECT_ID,
-//       });
-//       token = expoPushToken.data;
-//       console.log('Expo通知令牌:', token);
-//     } catch (error) {
-//       console.error('获取推送令牌失败:', error);
-//       return null;
-//     }
-//   } else {
-//     console.log('必须使用实体设备来获取通知权限');
-//   }
+export async function requestNotificationsPermission(): Promise<boolean> {
+  try {
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+    if (existingStatus !== 'granted') {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+    return finalStatus === 'granted';
+  } catch (error) {
+    console.error('请求通知权限失败:', error);
+    return false;
+  }
+}
 
-//   // Set up special notification channel for Android
-//   if (Platform.OS === 'android') {
-//     Notifications.setNotificationChannelAsync('circle-notifications', {
-//       name: '朋友圈通知',
-//       importance: Notifications.AndroidImportance.HIGH,
-//       vibrationPattern: [0, 250, 250, 250],
-//       lightColor: '#FF8C00',
-//       description: '接收角色发布的朋友圈内容通知',
-//     });
-//   }
+export async function sendLocalNotification(opts: {
+  title: string;
+  body: string;
+  data?: Record<string, any>;
+}): Promise<boolean> {
+  try {
+    ensureConfigured();
+    const granted = await requestNotificationsPermission();
+    if (!granted) return false;
+    await Notifications.scheduleNotificationAsync({
+      content: { title: opts.title, body: opts.body, data: opts.data || {} },
+      trigger: null,
+    });
+    return true;
+  } catch (e) {
+    console.error('发送本地通知失败:', e);
+    return false;
+  }
+}
 
-//   return token;
-// }
+export async function sendCirclePostNotification(
+  characterName: string,
+  characterId: string,
+  postContent: string
+): Promise<boolean> {
+  const preview = postContent.length > 80 ? `${postContent.slice(0, 80)}...` : postContent;
+  return sendLocalNotification({
+    title: `${characterName} 发布了朋友圈`,
+    body: preview,
+    data: { type: 'circle_post', characterId },
+  });
+}
 
-// export async function isNotificationsEnabled(): Promise<boolean> {
-//   try {
-//     const notificationSetting = await AsyncStorage.getItem('circle_notifications_enabled');
-    
-//     // If setting exists and is true
-//     if (notificationSetting === 'true') {
-//       // Also check device permissions
-//       const { status } = await Notifications.getPermissionsAsync();
-//       return status === 'granted';
-//     }
-    
-//     return false;
-//   } catch (error) {
-//     console.error('检查通知设置时出错:', error);
-//     return false;
-//   }
-// }
+export async function sendAutoMessageNotification(
+  characterName: string,
+  characterId: string,
+  messagePreview: string
+): Promise<boolean> {
+  const preview = messagePreview.length > 80 ? `${messagePreview.slice(0, 80)}...` : messagePreview;
+  return sendLocalNotification({
+    title: `${characterName} 发来新消息`,
+    body: preview,
+    data: { type: 'auto_message', characterId },
+  });
+}
 
-// export async function scheduleCirclePostNotification(
-//   characterName: string,
-//   characterId: string,
-//   content: string,
-//   delay: number = 2 // Default delay in seconds
-// ): Promise<string | null> {
-//   try {
-//     // Check if notifications are enabled
-//     if (!(await isNotificationsEnabled())) {
-//       console.log('朋友圈通知已禁用，跳过通知');
-//       return null;
-//     }
-
-//     // Trim content for preview
-//     const contentPreview = content.length > 80 ? content.substring(0, 80) + '...' : content;
-
-//     // Schedule the notification with the correct trigger type from enum
-//     const notificationId = await Notifications.scheduleNotificationAsync({
-//       content: {
-//         title: `${characterName} 发布了朋友圈`,
-//         body: contentPreview,
-//         data: {
-//           type: 'circle_post',
-//           characterId,
-//           postContent: content,
-//         },
-//         sound: 'default',
-//       },
-//       trigger: {
-//         type: SchedulableTriggerInputTypes.TIME_INTERVAL,
-//         seconds: delay
-//       },
-//     });
-
-//     console.log(`为角色 ${characterName} 的朋友圈发布安排了通知，ID: ${notificationId}`);
-//     return notificationId;
-//   } catch (error) {
-//     console.error('安排通知失败:', error);
-//     return null;
-//   }
-// }
-
-// export async function cancelNotification(notificationId: string): Promise<void> {
-//   try {
-//     await Notifications.cancelScheduledNotificationAsync(notificationId);
-//     console.log(`取消了通知 ID: ${notificationId}`);
-//   } catch (error) {
-//     console.error('取消通知失败:', error);
-//   }
-// }
-
-// export function listenForNotificationInteractions(
-//   handleNotification: (notification: Notifications.Notification) => void
-// ): () => void {
-//   // Listen for notification received while app is foregrounded
-//   const foregroundSubscription = Notifications.addNotificationReceivedListener(notification => {
-//     console.log('前台收到通知:', notification);
-//     handleNotification(notification);
-//   });
-
-//   // Listen for user tapping on notification
-//   const responseSubscription = Notifications.addNotificationResponseReceivedListener(response => {
-//     console.log('用户点击了通知:', response);
-//     handleNotification(response.notification);
-//   });
-
-//   // Return function to unsubscribe both listeners
-//   return () => {
-//     Notifications.removeNotificationSubscription(foregroundSubscription);
-//     Notifications.removeNotificationSubscription(responseSubscription);
-//   };
-// }
+export function setupNotificationListener(
+  onNotificationReceived: (notification: Notifications.Notification) => void
+) {
+  ensureConfigured();
+  const received = Notifications.addNotificationReceivedListener(onNotificationReceived);
+  const responded = Notifications.addNotificationResponseReceivedListener((response) => {
+    const data = response.notification.request.content.data;
+    console.log('用户点击了通知:', data);
+  });
+  return () => {
+    received.remove();
+    responded.remove();
+  };
+}

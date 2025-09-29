@@ -23,14 +23,14 @@ import CharacterTagSelector from './CharacterTagSelector';
 import ArtistReferenceSelector from './ArtistReferenceSelector';
 import CharacterPosition, { CharacterPrompt } from './CharacterPosition';
 import { DEFAULT_NEGATIVE_PROMPTS, DEFAULT_POSITIVE_PROMPTS } from '@/constants/defaultPrompts';
-import { licenseService } from '@/services/license-service';
+
 import tagData from '@/app/data/tag.json';
 import NovelAIService, { 
   NOVELAI_MODELS, 
   NOVELAI_SAMPLERS, 
   NOVELAI_NOISE_SCHEDULES,
   CharacterPromptData
-} from './NovelAIService';
+} from '@/services/novelai/NovelAIService';
 import { useUser } from '@/constants/UserContext';
 import { BlurView } from 'expo-blur';
 import { useCharacters } from '@/constants/CharactersContext';
@@ -396,23 +396,7 @@ const ImageRegenerationModal: React.FC<ImageRegenerationModalProps> = ({
     }
   }, [visible, sizePresetId, user?.settings?.chat?.novelai?.token]);
 
-  useEffect(() => {
-    const loadLicense = async () => {
-      try {
-        if (!licenseService.isInitialized()) {
-          await licenseService.initialize();
-        }
-        const info = await licenseService.getLicenseInfo();
-        setLicenseInfo(info);
-        setLicenseLoaded(true);
-        console.log('[图片重生成] 许可证信息加载完成:', info ? '成功' : '未找到许可证');
-      } catch (error) {
-        console.error('[图片重生成] 加载许可证信息失败:', error);
-        setLicenseLoaded(true);
-      }
-    };
-    loadLicense();
-  }, []);
+
 
   useEffect(() => {
     if (visible && !settingsLoaded) {
@@ -769,7 +753,6 @@ const ImageRegenerationModal: React.FC<ImageRegenerationModalProps> = ({
       if (imageProvider === 'novelai') {
         await generateWithNovelAI();
       } else {
-        await generateWithAnimagine4();
       }
     } catch (error) {
       console.error('[图片重生成] 生成失败:', error);
@@ -874,36 +857,6 @@ const ImageRegenerationModal: React.FC<ImageRegenerationModalProps> = ({
         
         setPreviewImageUrl(cleanImageUrl);
         
-        const completedImage: CharacterImage = {
-          id: `gen_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
-          url: cleanImageUrl,
-          characterId: character.id,
-          createdAt: Date.now(),
-          tags: {
-            positive: [...characterTags, ...positiveTags],
-            negative: DEFAULT_NEGATIVE_PROMPTS,
-          },
-          isFavorite: false,
-          generationStatus: 'success',
-          localUri: isLocalNovelAIFile ? cleanImageUrl : undefined,
-          setAsBackground: replaceBackground,
-          isAvatar: replaceAvatar,
-          seed: result.seed, 
-          isNovelAI: true, // 新增
-          generationConfig: {
-            positiveTags: positiveTags,
-            negativeTags: negativeTags,
-            artistPrompt: selectedArtistPrompt,
-            customPrompt: '',
-            useCustomPrompt: false,
-            characterTags: characterTags,
-            seed: result.seed, 
-            novelaiSettings, 
-            animagine4Settings,
-            isNovelAI: true, // 新增
-          }
-        };
-        
         setIsLoading(false);
         setGeneratedImageUrl(cleanImageUrl);
         setProgressMessage(null);
@@ -918,168 +871,7 @@ const ImageRegenerationModal: React.FC<ImageRegenerationModalProps> = ({
     }
   };
 
-  const generateWithAnimagine4 = async () => {
-    try {
-      const { mainPrompt: positivePrompt, negativePrompt } = buildPrompts();
 
-      console.log(`[图片重生成] 正在为角色 "${character.name}" 生成新图像`);
-      console.log(`[图片重生成] 正向提示词: ${positivePrompt}`);
-      console.log(`[图片重生成] 负向提示词: ${negativePrompt}`);
-      
-      const sizePreset = IMAGE_SIZE_PRESETS.find(preset => preset.id === sizePresetId) || IMAGE_SIZE_PRESETS[0];
-      const actualSettings = {
-width: sizePreset.width,
-        height: sizePreset.height,
-        steps: animagine4Settings.steps,
-        batch_size: animagine4Settings.batch_size
-      };
-      
-      console.log(`[图片重生成] 图像生成设置:`, actualSettings);
-
-      setProgressMessage('正在验证...');
-      
-      if (!licenseService.isInitialized()) {
-        console.log(`[图片重生成] 初始化服务...`);
-        await licenseService.initialize();
-      }
-
-      const isLicenseValid = await licenseService.hasValidLicense();
-      if (!isLicenseValid) {
-        console.error(`[图片重生成] 验证失败`);
-      }
-
-      const licenseInfo = await licenseService.getLicenseInfo();
-      const userEmail = licenseInfo?.email || licenseInfo?.customerEmail || '';
-
-      setProgressMessage('正在发送图像生成请求...');
-      
-      const requestData = {
-        prompt: positivePrompt,
-        negative_prompt: negativePrompt,
-        width: actualSettings.width,
-        height: actualSettings.height,
-        steps: actualSettings.steps,
-        batch_size: actualSettings.batch_size,
-        email: userEmail
-      };
-
-      const licenseHeaders = await licenseService.getLicenseHeaders();
-
-      if (!licenseHeaders || !licenseHeaders['X-License-Key'] || !licenseHeaders['X-Device-ID']) {
-        console.error(`[图片重生成] 请求头信息不完整`);
-      }
-
-      if (userEmail) console.log(`[图片重生成] 使用用户邮箱: ${userEmail}`);
-
-      const response = await fetch(`${IMAGE_SERVICE_BASE_URL}/api/generate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          ...licenseHeaders
-        },
-        body: JSON.stringify(requestData),
-      });
-
-      console.log(`[图片重生成] 服务器响应状态: ${response.status}`);
-
-      const responseText = await response.text();
-      console.log(`[图片重生成] 原始响应内容: ${responseText}`);
-
-      let data;
-      try {
-        data = JSON.parse(responseText);
-        console.log(`[图片重生成] 解析的响应数据:`, data);
-      } catch (parseError) {
-        console.error(`[图片重生成] 响应不是有效的JSON: ${parseError}`);
-        throw new Error(`服务器返回的不是有效的JSON: ${responseText.substring(0, 100)}...`);
-      }
-
-      if (!response.ok) {
-        console.error(`[图片重生成] 服务器响应错误: HTTP ${response.status}`);
-        let errorDetail = '';
-        try {
-          const errorObj = JSON.parse(responseText);
-          if (errorObj.error) {
-            errorDetail = errorObj.error;
-          }
-        } catch (e) {
-          errorDetail = responseText;
-        }
-        throw new Error(`服务器响应错误: ${response.status} - ${errorDetail || '未知错误'}`);
-      }
-
-      let taskId = '';
-      let isSuccess = false;
-
-      if (data.success === true) {
-        isSuccess = true;
-        taskId = data.data?.taskId || '';
-        console.log(`[图片重生成] 任务提交成功，ID: ${taskId}`);
-        setProgressMessage(`任务已提交，任务ID: ${taskId.substring(0, 8)}...`);
-      } else if (data.error) {
-        console.error(`[图片重生成] 请求失败: ${data.error}`);
-        throw new Error(data.error);
-      } else if (data.urls && Array.isArray(data.urls) && data.urls.length > 0) {
-        console.log(`[图片重生成] 服务器直接返回了图片URL: ${data.urls[0]}`);
-        
-        setPreviewImageUrl(data.urls[0]);
-        setProgressMessage('图像生成完成');
-        
-        const completedImage: CharacterImage = {
-          id: `gen_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
-          url: data.urls[0],
-          characterId: character.id,
-          createdAt: Date.now(),
-          tags: {
-            positive: [...characterTags, ...positiveTags],
-            negative: DEFAULT_NEGATIVE_PROMPTS,
-          },
-          isFavorite: false,
-          generationStatus: 'success',
-          setAsBackground: replaceBackground,
-          isAvatar: replaceAvatar,
-          generationConfig: {
-            positiveTags: positiveTags,
-            negativeTags: negativeTags,
-            artistPrompt: selectedArtistPrompt,
-            customPrompt: '',
-            useCustomPrompt: false,
-            characterTags: characterTags,
-            seed: generatedSeed, 
-            novelaiSettings, 
-            animagine4Settings 
-          }
-        };
-        
-        setIsLoading(false);
-        setGeneratedImageUrl(data.urls[0]);
-        setProgressMessage(null);
-        
-        return;
-      }
-
-      if (isSuccess && taskId) {
-        const generationConfig = {
-          positiveTags: positiveTags,
-          negativeTags: negativeTags,
-          artistPrompt: selectedArtistPrompt,
-          customPrompt: '',
-          useCustomPrompt: false,
-          characterTags: characterTags
-        };
-
-        checkImageGenerationStatus(character.id, taskId);
-        
-        return;
-      } else {
-        throw new Error('未能获取有效的任务ID，服务器返回的数据格式不正确');
-      }
-    } catch (error) {
-      console.error('[图片重生成] Animagine4生成失败:', error);
-      throw error;
-    }
-  };
 
   // 在轮询和异步流程中增加中断判断
   const checkImageGenerationStatus = async (characterId: string, taskId: string) => {
@@ -1103,11 +895,9 @@ width: sizePreset.width,
         console.log(`[图片重生成] 检查 #${retries}, 任务: ${taskId}`);
         setProgressMessage(`正在检查任务状态... (${retries}/${MAX_RETRIES})`);
 
-        const licenseHeaders = await licenseService.getLicenseHeaders();
 
         const headers = {
           'Accept': 'application/json',
-          ...(licenseHeaders || {})
         };
 
         let response;

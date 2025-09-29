@@ -9,7 +9,8 @@ import {
   ActivityIndicator,
   SafeAreaView,
   Platform,
-  StatusBar
+  StatusBar,
+  DeviceEventEmitter
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
@@ -40,6 +41,13 @@ export interface ChatUISettings {
   vnDialogColor: string;
   vnDialogAlpha: number;
   vnTextColor: string;
+  
+  // Narration mode (旁白模式)
+  narrationBubbleColor: string;
+  narrationBubbleAlpha: number;
+  narrationTextColor: string;
+  narrationBubbleRoundness: number;
+  narrationBubblePaddingMultiplier: number;
   
   // Global sizes
   bubblePaddingMultiplier: number;
@@ -80,6 +88,13 @@ const DEFAULT_SETTINGS: ChatUISettings = {
   vnDialogAlpha: 0.7,
   vnTextColor: '#ffffff',
   
+  // Narration mode (旁白模式)
+  narrationBubbleColor: 'rgb(255, 215, 0)',
+  narrationBubbleAlpha: 0.8,
+  narrationTextColor: 'rgb(51, 51, 51)',
+  narrationBubbleRoundness: 1.0,
+  narrationBubblePaddingMultiplier: 1.2,
+  
   // Global sizes
   bubblePaddingMultiplier: 1.0,
   textSizeMultiplier: 1.0,
@@ -101,7 +116,7 @@ const SETTINGS_FILE = `${FileSystem.documentDirectory}chat_ui_settings.json`;
 
 const ChatUISettingsScreen: React.FC = () => {
   const [settings, setSettings] = useState<ChatUISettings>(DEFAULT_SETTINGS);
-  const [activeTab, setActiveTab] = useState<'regular' | 'bg-focus' | 'visual-novel' | 'global' | 'markdown'>('regular');
+  const [activeTab, setActiveTab] = useState<'regular' | 'visual-novel' | 'narration' | 'global' | 'markdown'>('regular');
   const [isLoading, setIsLoading] = useState(true);
   const [hasChanges, setHasChanges] = useState(false);
   const router = useRouter();
@@ -138,6 +153,10 @@ const ChatUISettingsScreen: React.FC = () => {
       setIsLoading(true);
       await FileSystem.writeAsStringAsync(SETTINGS_FILE, JSON.stringify(settings));
       setHasChanges(false);
+      
+      // Broadcast settings change to update UI immediately
+      DeviceEventEmitter.emit('chatUISettingsChanged', settings);
+      
       Alert.alert('成功', 'UI设置保存成功');
     } catch (error) {
       console.error('Error saving UI settings:', error);
@@ -173,6 +192,40 @@ const ChatUISettingsScreen: React.FC = () => {
     );
   };
 
+  // Localized slider that updates UI immediately but only commits value on sliding complete
+  const SliderSetting: React.FC<{
+    value: number;
+    onCommit: (v: number) => void;
+    min?: number;
+    max?: number;
+    step?: number;
+    style?: any;
+  }> = ({ value, onCommit, min = 0.7, max = 1.5, step = 0.05, style }) => {
+    const [localValue, setLocalValue] = useState<number>(value);
+    useEffect(() => {
+      setLocalValue(value);
+    }, [value]);
+
+    return (
+      <View style={styles.sliderContainer}>
+        <Text style={styles.sliderValue}>{Math.round(localValue * 100)}%</Text>
+        <Slider
+          style={[styles.slider, { width: '80%' }, style]
+          }
+          minimumValue={min}
+          maximumValue={max}
+          step={step}
+          value={localValue}
+          onValueChange={(v) => setLocalValue(v)}
+          onSlidingComplete={(v) => onCommit(v)}
+          minimumTrackTintColor={theme.colors.primary}
+          maximumTrackTintColor="#777"
+          thumbTintColor={theme.colors.primary}
+        />
+      </View>
+    );
+  };
+
   const renderColorWithAlpha = (label: string, color: string, alpha: number, onColorChange: (color: string) => void, onAlphaChange: (alpha: number) => void) => (
     <View style={styles.settingItem}>
       <Text style={styles.settingLabel}>{label}</Text>
@@ -183,17 +236,13 @@ const ChatUISettingsScreen: React.FC = () => {
           style={styles.colorPicker}
         />
         <View style={styles.alphaSliderContainer}>
-          <Text style={styles.alphaLabel}>透明度: {Math.round(alpha * 100)}%</Text>
-          <Slider
-            style={styles.slider}
-            minimumValue={0}
-            maximumValue={1}
-            step={0.01}
+          {/* Use localized slider to avoid updating global settings on every small move */}
+          <SliderSetting
             value={alpha}
-            onValueChange={onAlphaChange}
-            minimumTrackTintColor={theme.colors.primary}
-            maximumTrackTintColor="#777"
-            thumbTintColor={theme.colors.primary}
+            onCommit={(v) => onAlphaChange(v)}
+            min={0}
+            max={1}
+            step={0.01}
           />
         </View>
       </View>
@@ -220,20 +269,13 @@ const ChatUISettingsScreen: React.FC = () => {
   const renderSizeSlider = (label: string, value: number, onValueChange: (value: number) => void, min: number = 0.7, max: number = 1.5) => (
     <View style={styles.settingItem}>
       <Text style={styles.settingLabel}>{label}</Text>
-      <View style={styles.sliderContainer}>
-        <Text style={styles.sliderValue}>{Math.round(value * 100)}%</Text>
-        <Slider
-          style={[styles.slider, { width: '80%' }]}
-          minimumValue={min}
-          maximumValue={max}
-          step={0.05}
-          value={value}
-          onValueChange={onValueChange}
-          minimumTrackTintColor={theme.colors.primary}
-          maximumTrackTintColor="#777"
-          thumbTintColor={theme.colors.primary}
-        />
-      </View>
+      <SliderSetting
+        value={value}
+        onCommit={(v) => onValueChange(v)}
+        min={min}
+        max={max}
+        step={0.05}
+      />
     </View>
   );
 
@@ -282,10 +324,10 @@ const ChatUISettingsScreen: React.FC = () => {
         </TouchableOpacity>
         
         <TouchableOpacity 
-          style={[styles.tab, activeTab === 'bg-focus' && styles.activeTab]} 
-          onPress={() => setActiveTab('bg-focus')}
+          style={[styles.tab, activeTab === 'narration' && styles.activeTab]} 
+          onPress={() => setActiveTab('narration')}
         >
-          <Text style={[styles.tabText, activeTab === 'bg-focus' && styles.activeTabText]}>背景强调</Text>
+          <Text style={[styles.tabText, activeTab === 'narration' && styles.activeTabText]}>旁白</Text>
         </TouchableOpacity>
         
         <TouchableOpacity 
@@ -350,40 +392,43 @@ const ChatUISettingsScreen: React.FC = () => {
           </View>
         )}
         
-        {activeTab === 'bg-focus' && (
+        
+        {activeTab === 'narration' && (
           <View style={styles.settingsSection}>
-            <Text style={styles.sectionTitle}>背景强调模式设置</Text>
+            <Text style={styles.sectionTitle}>旁白模式设置</Text>
             
-            {/* User Bubble Color */}
+            {/* Narration Bubble Color */}
             {renderColorWithAlpha(
-              '用户气泡颜色',
-              settings.bgUserBubbleColor,
-              settings.bgUserBubbleAlpha,
-              (color) => handleUpdateSetting('bgUserBubbleColor', color),
-              (alpha) => handleUpdateSetting('bgUserBubbleAlpha', alpha)
+              '旁白气泡颜色',
+              settings.narrationBubbleColor,
+              settings.narrationBubbleAlpha,
+              (color) => handleUpdateSetting('narrationBubbleColor', color),
+              (alpha) => handleUpdateSetting('narrationBubbleAlpha', alpha)
             )}
             
-            {/* Bot Bubble Color */}
-            {renderColorWithAlpha(
-              'AI气泡颜色',
-              settings.bgBotBubbleColor,
-              settings.bgBotBubbleAlpha,
-              (color) => handleUpdateSetting('bgBotBubbleColor', color),
-              (alpha) => handleUpdateSetting('bgBotBubbleAlpha', alpha)
-            )}
-            
-            {/* User Text Color */}
+            {/* Narration Text Color */}
             {renderTextColorSetting(
-              '用户文本颜色',
-              settings.bgUserTextColor,
-              (color) => handleUpdateSetting('bgUserTextColor', color)
+              '旁白文本颜色',
+              settings.narrationTextColor,
+              (color) => handleUpdateSetting('narrationTextColor', color)
             )}
             
-            {/* Bot Text Color */}
-            {renderTextColorSetting(
-              'AI文本颜色',
-              settings.bgBotTextColor,
-              (color) => handleUpdateSetting('bgBotTextColor', color)
+            {/* Narration Bubble Roundness */}
+            {renderSizeSlider(
+              '气泡圆角程度',
+              settings.narrationBubbleRoundness,
+              (value) => handleUpdateSetting('narrationBubbleRoundness', value),
+              0.5,
+              2.0
+            )}
+            
+            {/* Narration Bubble Padding */}
+            {renderSizeSlider(
+              '气泡内边距倍数',
+              settings.narrationBubblePaddingMultiplier,
+              (value) => handleUpdateSetting('narrationBubblePaddingMultiplier', value),
+              0.8,
+              2.0
             )}
           </View>
         )}

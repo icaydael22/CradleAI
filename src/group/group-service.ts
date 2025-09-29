@@ -6,6 +6,7 @@ import { getUserSettingsGlobally, getApiSettings, getCloudServiceStatus } from '
 import { GroupMessage, Group, GroupSettings } from './group-types';
 import { GroupScheduler } from './group-scheduler';
 import { OpenAIAdapter } from '../../NodeST/nodest/utils/openai-adapter'; // 新增导入
+import { CharacterStorageService } from '@/services/CharacterStorageService';
 
 // 创建具有apiKey的单例实例
 let nodeST: NodeST | null = null;
@@ -17,7 +18,7 @@ export class GroupService {
   // 获取NodeST方法，从全局设置获取API设置
   private static getNodeST(
     apiKey?: string, 
-    apiSettings?: Pick<GlobalSettings['chat'], 'apiProvider' | 'openrouter' | 'OpenAIcompatible'> // 修改类型
+    apiSettings?: Pick<GlobalSettings['chat'], 'apiProvider' | 'openrouter' | 'OpenAIcompatible' | 'cradlecloud'> // 添加 cradlecloud 支持
   ): NodeST {
     // Get global settings if not provided
     if (!apiKey || !apiSettings) {
@@ -34,7 +35,8 @@ export class GroupService {
           apiSettings = {
             apiProvider: globalSettings.chat.apiProvider,
             openrouter: globalSettings.chat.openrouter,
-            OpenAIcompatible: globalSettings.chat.OpenAIcompatible // 新增
+            OpenAIcompatible: globalSettings.chat.OpenAIcompatible, // 新增
+            cradlecloud: globalSettings.chat.cradlecloud // 新增
           };
         }
         
@@ -67,7 +69,7 @@ export class GroupService {
     if (!nodeST) {
       nodeST = new NodeST(apiKey);
       // If initialized with apiKey and we have OpenRouter config, update it immediately
-      if (apiKey && (openRouterConfig || apiSettings?.OpenAIcompatible)) {
+      if (apiKey && (openRouterConfig || apiSettings?.OpenAIcompatible || apiSettings?.cradlecloud)) {
         nodeST.updateApiSettings(apiKey, apiSettings);
       }
     } else if (apiKey) {
@@ -85,7 +87,7 @@ export class GroupService {
 
   /**
    * 创建一个新群聊
-* @param groupName 群聊名称
+   * @param groupName 群聊名称
    * @param groupTopic 群聊主题
    * @param owner 群主（用户）
    * @param characters 初始角色列表
@@ -98,7 +100,7 @@ export class GroupService {
     owner: User,
     characters: Character[] = [],
     apiKey?: string,
-    apiSettings?: Pick<GlobalSettings['chat'], 'apiProvider' | 'openrouter' | 'OpenAIcompatible'> // 修改类型
+    apiSettings?: Pick<GlobalSettings['chat'], 'apiProvider' | 'openrouter' | 'OpenAIcompatible' | 'cradlecloud'> // 添加 cradlecloud 支持
   ): Promise<Group | null> {
     try {
       console.log(`【群聊服务】创建群聊: ${groupName}, 主题: ${groupTopic}`);
@@ -110,7 +112,8 @@ export class GroupService {
         apiSettings = apiSettings || {
           apiProvider: settings.apiProvider,
           openrouter: settings.openrouter,
-          OpenAIcompatible: settings.OpenAIcompatible // 新增
+          OpenAIcompatible: settings.OpenAIcompatible, // 新增
+          cradlecloud: settings.cradlecloud // 新增
         };
       }
       
@@ -269,7 +272,7 @@ export class GroupService {
     characterId: string,
     groupId: string,
     apiKey?: string,
-    apiSettings?: Pick<GlobalSettings['chat'], 'apiProvider' | 'openrouter' | 'OpenAIcompatible'> // 修改类型
+    apiSettings?: Pick<GlobalSettings['chat'], 'apiProvider' | 'openrouter' | 'OpenAIcompatible' | 'cradlecloud'> // 添加 cradlecloud 支持
   ): Promise<boolean> {
     try {
       console.log(`【群聊服务】初始化角色 ${characterId} 的群聊框架，群组ID: ${groupId}`);
@@ -331,7 +334,7 @@ export class GroupService {
     user: User,
     content: string,
     apiKey?: string,
-    apiSettings?: Pick<GlobalSettings['chat'], 'apiProvider' | 'openrouter' | 'OpenAIcompatible'> // 修改类型
+    apiSettings?: Pick<GlobalSettings['chat'], 'apiProvider' | 'openrouter' | 'OpenAIcompatible' | 'cradlecloud'> // 添加 cradlecloud 支持
   ): Promise<GroupMessage | null> {
     try {
       console.log(`【群聊服务】用户发送群聊消息，群组ID: ${groupId}`);
@@ -343,7 +346,8 @@ export class GroupService {
         apiSettings = apiSettings || {
           apiProvider: settings.apiProvider,
           openrouter: settings.openrouter,
-          OpenAIcompatible: settings.OpenAIcompatible // 新增
+          OpenAIcompatible: settings.OpenAIcompatible, // 新增
+          cradlecloud: settings.cradlecloud // 新增
         };
       }
       
@@ -386,7 +390,7 @@ export class GroupService {
     group: Group,
     userMessage: GroupMessage,
     apiKey?: string,
-    apiSettings?: Pick<GlobalSettings['chat'], 'apiProvider' | 'openrouter' | 'OpenAIcompatible'> // 修改类型
+    apiSettings?: Pick<GlobalSettings['chat'], 'apiProvider' | 'openrouter' | 'OpenAIcompatible' | 'cradlecloud'> // 添加 cradlecloud 支持
   ): Promise<void> {
     try {
       console.log(`【群聊服务】触发角色回复，群组ID: ${group.groupId}`);
@@ -420,7 +424,7 @@ export class GroupService {
     originalMessage: GroupMessage,
     groupMessages: GroupMessage[],
     apiKey?: string,
-    apiSettings?: Pick<GlobalSettings['chat'], 'apiProvider' | 'openrouter' | 'OpenAIcompatible'>, // 增加OpenAIcompatible类型
+    apiSettings?: Pick<GlobalSettings['chat'], 'apiProvider' | 'openrouter' | 'OpenAIcompatible' | 'cradlecloud'>, // 添加 cradlecloud 支持
     extraPrompt?: string // 新增：额外提示词参数
   ): Promise<GroupMessage | null> {
     try {
@@ -433,7 +437,8 @@ export class GroupService {
         apiSettings = apiSettings || {
           apiProvider: settings.apiProvider,
           openrouter: settings.openrouter,
-          OpenAIcompatible: settings.OpenAIcompatible // 新增
+          OpenAIcompatible: settings.OpenAIcompatible, // 新增
+          cradlecloud: settings.cradlecloud // 新增
         };
       }
       
@@ -453,8 +458,10 @@ export class GroupService {
       // 构建提示词
       const prompt = await this.buildGroupReplyPrompt(group, character, originalMessage, groupMessages, extraPrompt);
 
-      // ==== 新增 openai-compatible 支持 ====
+      // ==== 支持多种适配器 ====
       const openaiCompatibleEnabled = apiSettings?.apiProvider === 'openai-compatible' && apiSettings?.OpenAIcompatible?.enabled;
+      const cradleCloudEnabled = apiSettings?.apiProvider === 'cradlecloud' && apiSettings?.cradlecloud?.enabled;
+      
       let response: string;
       if (openaiCompatibleEnabled) {
         // 构造OpenAIAdapter实例
@@ -474,8 +481,25 @@ export class GroupService {
           console.error(`【群聊服务】获取角色回复失败: 空响应`);
           return null;
         }
+      } else if (cradleCloudEnabled) {
+        // 使用 CradleCloudAdapter
+        const { CradleCloudAdapter } = await import('@/NodeST/nodest/utils/cradlecloud-adapter');
+        const ccAdapter = new CradleCloudAdapter();
+        const messages = [
+          { role: "user", parts: [{ text: prompt }] }
+        ];
+        try {
+          response = await ccAdapter.generateContent(messages as any, character.id);
+          if (!response || response.trim().length === 0) {
+            console.error(`【群聊服务】获取角色回复失败: 空响应`);
+            return null;
+          }
+        } catch (error) {
+          console.error(`【群聊服务】CradleCloud生成内容失败:`, error);
+          return null;
+        }
       } else {
-        // 原有逻辑
+        // 原有逻辑 (Gemini/OpenRouter)
         const instance = this.getNodeST(apiKey, apiSettings);
         try {
           // 传递 character.id 以便表格记忆等功能生效
@@ -489,7 +513,7 @@ export class GroupService {
           return null;
         }
       }
-      // ==== end 新增 openai-compatible 支持 ====
+      // ==== end 多适配器支持 ====
 
       // 处理@提及
       const processedResponse = this.processAtMentions(response, group);
@@ -519,7 +543,7 @@ export class GroupService {
       await this.saveGroupMessage(groupId, replyMessage);
       
       // 检查是否有@提及其他角色，如果有则触发他们的回复
-      const mentionedCharacterIds = this.extractMentionedCharacterIds(processedResponse, group);
+      const mentionedCharacterIds = await this.extractMentionedCharacterIds(processedResponse, group);
       if (mentionedCharacterIds.length > 0) {
         console.log(`【群聊服务】角色回复中提及了其他角色: ${mentionedCharacterIds.join(', ')}`);
         this.handleMentionedCharacters(group, replyMessage, mentionedCharacterIds, apiKey, apiSettings);
@@ -540,7 +564,7 @@ export class GroupService {
     originalMessage: GroupMessage,
     mentionedCharacterIds: string[],
     apiKey?: string,
-    apiSettings?: Pick<GlobalSettings['chat'], 'apiProvider' | 'openrouter' | 'OpenAIcompatible'> // 修改类型
+    apiSettings?: Pick<GlobalSettings['chat'], 'apiProvider' | 'openrouter' | 'OpenAIcompatible' | 'cradlecloud'> // 添加 cradlecloud 支持
   ): Promise<void> {
     try {
       // 获取所有群组消息，作为上下文
@@ -560,7 +584,7 @@ export class GroupService {
   /**
    * 提取消息中@提及的角色ID
    */
-  private static extractMentionedCharacterIds(message: string, group: Group): string[] {
+  private static async extractMentionedCharacterIds(message: string, group: Group): Promise<string[]> {
     try {
       const mentionedIds: string[] = [];
       
@@ -573,7 +597,7 @@ export class GroupService {
         
         // 根据名称查找角色ID
         // 这里需要实际获取角色信息
-        const characterId = this.findCharacterIdByName(mentionedName, group);
+        const characterId = await this.findCharacterIdByName(mentionedName, group);
         if (characterId && !mentionedIds.includes(characterId)) {
           mentionedIds.push(characterId);
         }
@@ -1013,7 +1037,19 @@ ${formattedMessages}
       console.log(`【群聊服务】尝试获取角色信息，ID数量: ${characterIds.length}`);
       const characters: Character[] = [];
       
-      // 首先尝试从FileSystem加载，这是CharactersContext存储角色的主要位置
+      // 首先尝试从新的CharacterStorageService加载
+      try {
+        const storageService = CharacterStorageService.getInstance();
+        const characters = await storageService.getCharacters(characterIds);
+        if (characters.length > 0) {
+          console.log(`【群聊服务】从CharacterStorageService找到了${characters.length}个角色`);
+          return characters;
+        }
+      } catch (storageError) {
+        console.error('【群聊服务】从CharacterStorageService加载角色失败:', storageError);
+      }
+
+      // 备选方案：从FileSystem加载，这是CharactersContext存储角色的主要位置
       try {
         const FileSystem = require('expo-file-system');
         const charactersStr = await FileSystem.readAsStringAsync(

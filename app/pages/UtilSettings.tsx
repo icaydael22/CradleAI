@@ -46,13 +46,111 @@ interface MemorySummaryPromptConfig {
 interface MemoryServiceConfig {
   summaryThreshold: number;
   summaryLength: number;
-  summaryRange: { start: number; end: number } | null;
+  summaryRangePercent: { start: number; end: number } | null;
 }
 
 const AUTO_MESSAGE_STORAGE_KEY = 'auto_message_prompt_config';
 const MEMORY_SUMMARY_STORAGE_KEY = 'memory_summary_prompt_config';
+const SCRIPT_SUMMARY_STORAGE_KEY = 'script_summary_prompt_config';
 const MEMORY_SERVICE_STORAGE_KEY = 'memory_service_config';
 const IMAGEGEN_STORAGE_KEY = 'imagegen_prompt_config';
+const INIT_FLAG_STORAGE_KEY = 'util_settings_initialized';
+
+// 可导出的初始化方法，用于应用启动时调用
+export const initializeUtilSettings = async () => {
+  try {
+    console.log('开始初始化默认提示词配置...');
+    
+    // 检查是否已经初始化过
+    const initFlag = await AsyncStorage.getItem(INIT_FLAG_STORAGE_KEY);
+    if (initFlag === 'true') {
+      console.log('配置已初始化过，跳过初始化');
+      return;
+    }
+
+    // 检查各项配置是否存在，如果不存在则保存默认配置
+    const autoConfig = await AsyncStorage.getItem(AUTO_MESSAGE_STORAGE_KEY);
+    if (!autoConfig) {
+      const defaultAutoConfig: AutoMessagePromptConfig = {
+        inputText: '[AUTO_MESSAGE] 用户已经一段时间没有回复了。请基于上下文和你的角色设定，主动发起一条合适的消息。这条消息应该自然，不要直接提及用户长时间未回复的事实。',
+        presetJson: '',
+        worldBookJson: '',
+        adapterType: 'gemini',
+        messageArray: [],
+        autoMessageInterval: 5
+      };
+      await AsyncStorage.setItem(AUTO_MESSAGE_STORAGE_KEY, JSON.stringify(defaultAutoConfig));
+      console.log('已保存默认自动消息配置');
+    }
+
+    const memoryConfig = await AsyncStorage.getItem(MEMORY_SUMMARY_STORAGE_KEY);
+    if (!memoryConfig) {
+      const defaultMemoryConfig: MemorySummaryPromptConfig = {
+        inputText: '请对以下对话内容进行总结。你的总结应该：1. 提取关键信息、事件、讨论的话题和重要细节 2. 保持叙述的连续性，不使用模糊的引用 3. 保留角色意图、情感和提到的重要承诺或计划 4. 专注于事实和内容，而不是对话的元描述 5. 使总结对继续对话有帮助',
+        presetJson: '',
+        worldBookJson: '',
+        adapterType: 'gemini',
+        messageArray: []
+      };
+      await AsyncStorage.setItem(MEMORY_SUMMARY_STORAGE_KEY, JSON.stringify(defaultMemoryConfig));
+      console.log('已保存默认记忆总结配置');
+    }
+
+    const scriptConfig = await AsyncStorage.getItem(SCRIPT_SUMMARY_STORAGE_KEY);
+    if (!scriptConfig) {
+      const defaultScriptConfig: MemorySummaryPromptConfig = {
+        inputText: '请对以下剧本内容进行总结。你的总结应该：1. 提取关键剧情发展、人物行为和事件 2. 保持剧情的连贯性和逻辑关系 3. 保留重要的角色互动和情感变化 4. 专注于剧情内容，便于后续剧情发展使用 5. 简洁明了，长度控制在1000字符以内',
+        presetJson: '',
+        worldBookJson: '',
+        adapterType: 'gemini',
+        messageArray: []
+      };
+      await AsyncStorage.setItem(SCRIPT_SUMMARY_STORAGE_KEY, JSON.stringify(defaultScriptConfig));
+      console.log('已保存默认剧本总结配置');
+    }
+
+    const imagegenConfig = await AsyncStorage.getItem(IMAGEGEN_STORAGE_KEY);
+    if (!imagegenConfig) {
+      const defaultImagegenConfig: AutoMessagePromptConfig = {
+        inputText: '[IMAGEGEN] 请根据recentMessages变量（最近10条对话）生成一句不超过15个英文单词的连贯语句，描述角色当前的表情、动作、场景（时间、地点、画面），不要描述外观、服饰。输出英文短句。',
+        presetJson: '',
+        worldBookJson: '',
+        adapterType: 'gemini',
+        messageArray: []
+      };
+      await AsyncStorage.setItem(IMAGEGEN_STORAGE_KEY, JSON.stringify(defaultImagegenConfig));
+      console.log('已保存默认图像生成配置');
+    }
+
+    const memoryServiceConfig = await AsyncStorage.getItem(MEMORY_SERVICE_STORAGE_KEY);
+    if (!memoryServiceConfig) {
+      const defaultMemoryServiceConfig: MemoryServiceConfig = {
+        summaryThreshold: 6000,
+        summaryLength: 1000,
+        summaryRangePercent: null
+      };
+      await AsyncStorage.setItem(MEMORY_SERVICE_STORAGE_KEY, JSON.stringify(defaultMemoryServiceConfig));
+      console.log('已保存默认记忆服务配置');
+    }
+
+    // 设置初始化完成标志
+    await AsyncStorage.setItem(INIT_FLAG_STORAGE_KEY, 'true');
+    console.log('默认提示词配置初始化完成');
+
+  } catch (e) {
+    console.error('初始化默认配置失败:', e);
+  }
+};
+
+// 重置初始化状态的方法（仅在需要重新初始化时使用）
+export const resetUtilSettingsInitialization = async () => {
+  try {
+    await AsyncStorage.removeItem(INIT_FLAG_STORAGE_KEY);
+    console.log('已重置初始化状态，下次启动将重新初始化配置');
+  } catch (e) {
+    console.error('重置初始化状态失败:', e);
+  }
+};
 
 export default function UtilSettings() {
   const [activeTab, setActiveTab] = useState('autoMessage');
@@ -79,12 +177,19 @@ export default function UtilSettings() {
   const [imagegenAdapterType, setImagegenAdapterType] = useState<'gemini' | 'openrouter' | 'openai-compatible'>('gemini');
   const [imagegenMessageArray, setImagegenMessageArray] = useState<any[]>([]);
 
+  // Script Summary states
+  const [scriptInputText, setScriptInputText] = useState('请对以下剧本内容进行总结。你的总结应该：1. 提取关键剧情发展、人物行为和事件 2. 保持剧情的连贯性和逻辑关系 3. 保留重要的角色互动和情感变化 4. 专注于剧情内容，便于后续剧情发展使用 5. 简洁明了，长度控制在1000字符以内');
+  const [scriptPresetJson, setScriptPresetJson] = useState('');
+  const [scriptWorldBookJson, setScriptWorldBookJson] = useState('');
+  const [scriptAdapterType, setScriptAdapterType] = useState<'gemini' | 'openrouter' | 'openai-compatible'>('gemini');
+  const [scriptMessageArray, setScriptMessageArray] = useState<any[]>([]);
+
   // Memory Service settings states
   const [memorySummaryThreshold, setMemorySummaryThreshold] = useState<number>(6000);
   const [memorySummaryLength, setMemorySummaryLength] = useState<number>(1000);
   const [memorySummaryRangeEnabled, setMemorySummaryRangeEnabled] = useState<boolean>(false);
-  const [memorySummaryRangeStart, setMemorySummaryRangeStart] = useState<number>(3);
-  const [memorySummaryRangeEnd, setMemorySummaryRangeEnd] = useState<number>(10);
+  const [memorySummaryRangeStartPercent, setMemorySummaryRangeStartPercent] = useState<number>(30);
+  const [memorySummaryRangeEndPercent, setMemorySummaryRangeEndPercent] = useState<number>(70);
   
   const [error, setError] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
@@ -98,6 +203,7 @@ export default function UtilSettings() {
 
   // 加载保存的配置
   useEffect(() => {
+    initializeUtilSettings();
     loadSavedConfig();
     loadAdapterFromSettings();
   }, []);
@@ -127,6 +233,17 @@ export default function UtilSettings() {
         setMemoryMessageArray(config.messageArray || []);
       }
       
+      // Load script summary config
+      const savedScript = await AsyncStorage.getItem(SCRIPT_SUMMARY_STORAGE_KEY);
+      if (savedScript) {
+        const config: MemorySummaryPromptConfig = JSON.parse(savedScript);
+        setScriptInputText(config.inputText || scriptInputText);
+        setScriptPresetJson(config.presetJson || '');
+        setScriptWorldBookJson(config.worldBookJson || '');
+        setScriptAdapterType(config.adapterType || 'gemini');
+        setScriptMessageArray(config.messageArray || []);
+      }
+      
       // Load imagegen config
       const savedImagegen = await AsyncStorage.getItem(IMAGEGEN_STORAGE_KEY);
       if (savedImagegen) {
@@ -144,10 +261,10 @@ export default function UtilSettings() {
         const config: MemoryServiceConfig = JSON.parse(savedMemoryService);
         setMemorySummaryThreshold(config.summaryThreshold || 6000);
         setMemorySummaryLength(config.summaryLength || 1000);
-        if (config.summaryRange) {
+        if (config.summaryRangePercent) {
           setMemorySummaryRangeEnabled(true);
-          setMemorySummaryRangeStart(config.summaryRange.start);
-          setMemorySummaryRangeEnd(config.summaryRange.end);
+          setMemorySummaryRangeStartPercent(config.summaryRangePercent.start);
+          setMemorySummaryRangeEndPercent(config.summaryRangePercent.end);
         } else {
           setMemorySummaryRangeEnabled(false);
         }
@@ -172,12 +289,15 @@ export default function UtilSettings() {
         }
         setAdapterType(newAdapterType);
         setMemoryAdapterType(newAdapterType);
+        setScriptAdapterType(newAdapterType);
         setImagegenAdapterType(newAdapterType);
       }
     } catch (e) {
       console.error('读取适配器设置失败:', e);
     }
   };
+
+
 
   const saveConfig = async () => {
     setError('');
@@ -211,14 +331,24 @@ export default function UtilSettings() {
         const memoryServiceConfig: MemoryServiceConfig = {
           summaryThreshold: memorySummaryThreshold,
           summaryLength: memorySummaryLength,
-          summaryRange: memorySummaryRangeEnabled ? {
-            start: memorySummaryRangeStart,
-            end: memorySummaryRangeEnd
+          summaryRangePercent: memorySummaryRangeEnabled ? {
+            start: memorySummaryRangeStartPercent,
+            end: memorySummaryRangeEndPercent
           } : null
         };
         await AsyncStorage.setItem(MEMORY_SERVICE_STORAGE_KEY, JSON.stringify(memoryServiceConfig));
         
         Alert.alert('保存成功', '记忆总结提示词配置已保存');
+      } else if (activeTab === 'scriptSummary') {
+        const config: MemorySummaryPromptConfig = {
+          inputText: scriptInputText,
+          presetJson: scriptPresetJson,
+          worldBookJson: scriptWorldBookJson,
+          adapterType: scriptAdapterType,
+          messageArray: scriptMessageArray
+        };
+        await AsyncStorage.setItem(SCRIPT_SUMMARY_STORAGE_KEY, JSON.stringify(config));
+        Alert.alert('保存成功', '剧本总结提示词配置已保存');
       } else if (activeTab === 'imagegen') {
         const config: AutoMessagePromptConfig = {
           inputText: imagegenInputText,
@@ -251,6 +381,11 @@ export default function UtilSettings() {
       currentInput = memoryInputText;
       currentAdapter = memoryAdapterType;
       currentWorldBook = memoryWorldBookJson;
+    } else if (activeTab === 'scriptSummary') {
+      currentPreset = scriptPresetJson;
+      currentInput = scriptInputText;
+      currentAdapter = scriptAdapterType;
+      currentWorldBook = scriptWorldBookJson;
     } else if (activeTab === 'imagegen') {
       currentPreset = imagegenPresetJson;
       currentInput = imagegenInputText;
@@ -271,6 +406,8 @@ export default function UtilSettings() {
         setMessageArray(simpleArray);
       } else if (activeTab === 'memorySummary') {
         setMemoryMessageArray(simpleArray);
+      } else if (activeTab === 'scriptSummary') {
+        setScriptMessageArray(simpleArray);
       } else if (activeTab === 'imagegen') {
         setImagegenMessageArray(simpleArray);
       }
@@ -289,6 +426,8 @@ export default function UtilSettings() {
       setMessageArray(arr);
     } else if (activeTab === 'memorySummary') {
       setMemoryMessageArray(arr);
+    } else if (activeTab === 'scriptSummary') {
+      setScriptMessageArray(arr);
     } else if (activeTab === 'imagegen') {
       setImagegenMessageArray(arr);
     }
@@ -305,6 +444,8 @@ export default function UtilSettings() {
         setPresetJson(presetStr);
       } else if (activeTab === 'memorySummary') {
         setMemoryPresetJson(presetStr);
+      } else if (activeTab === 'scriptSummary') {
+        setScriptPresetJson(presetStr);
       } else if (activeTab === 'imagegen') {
         setImagegenPresetJson(presetStr);
       }
@@ -324,6 +465,8 @@ export default function UtilSettings() {
         setWorldBookJson(worldBookStr);
       } else if (activeTab === 'memorySummary') {
         setMemoryWorldBookJson(worldBookStr);
+      } else if (activeTab === 'scriptSummary') {
+        setScriptWorldBookJson(worldBookStr);
       } else if (activeTab === 'imagegen') {
         setImagegenWorldBookJson(worldBookStr);
       }
@@ -338,6 +481,8 @@ export default function UtilSettings() {
       setPresetJson('');
     } else if (activeTab === 'memorySummary') {
       setMemoryPresetJson('');
+    } else if (activeTab === 'scriptSummary') {
+      setScriptPresetJson('');
     } else if (activeTab === 'imagegen') {
       setImagegenPresetJson('');
     }
@@ -350,6 +495,8 @@ export default function UtilSettings() {
       setWorldBookJson('');
     } else if (activeTab === 'memorySummary') {
       setMemoryWorldBookJson('');
+    } else if (activeTab === 'scriptSummary') {
+      setScriptWorldBookJson('');
     } else if (activeTab === 'imagegen') {
       setImagegenWorldBookJson('');
     }
@@ -371,6 +518,11 @@ export default function UtilSettings() {
         currentInput = memoryInputText;
         currentAdapter = memoryAdapterType;
         currentWorldBook = memoryWorldBookJson;
+      } else if (activeTab === 'scriptSummary') {
+        currentPreset = scriptPresetJson;
+        currentInput = scriptInputText;
+        currentAdapter = scriptAdapterType;
+        currentWorldBook = scriptWorldBookJson;
       } else if (activeTab === 'imagegen') {
         currentPreset = imagegenPresetJson;
         currentInput = imagegenInputText;
@@ -391,6 +543,8 @@ export default function UtilSettings() {
           setMessageArray(simpleArray);
         } else if (activeTab === 'memorySummary') {
           setMemoryMessageArray(simpleArray);
+        } else if (activeTab === 'scriptSummary') {
+          setScriptMessageArray(simpleArray);
         } else if (activeTab === 'imagegen') {
           setImagegenMessageArray(simpleArray);
         }
@@ -410,6 +564,8 @@ export default function UtilSettings() {
         setMessageArray(arr);
       } else if (activeTab === 'memorySummary') {
         setMemoryMessageArray(arr);
+      } else if (activeTab === 'scriptSummary') {
+        setScriptMessageArray(arr);
       } else if (activeTab === 'imagegen') {
         setImagegenMessageArray(arr);
       }
@@ -430,6 +586,8 @@ export default function UtilSettings() {
         currentMessageArray = messageArray;
       } else if (activeTab === 'memorySummary') {
         currentMessageArray = memoryMessageArray;
+      } else if (activeTab === 'scriptSummary') {
+        currentMessageArray = scriptMessageArray;
       } else if (activeTab === 'imagegen') {
         currentMessageArray = imagegenMessageArray;
       }
@@ -612,6 +770,108 @@ export default function UtilSettings() {
     );
   };
 
+  const renderScriptSummaryTab = () => {
+    const hasMessageArray = scriptMessageArray && scriptMessageArray.length > 0;
+    const hasPreset = !!scriptPresetJson;
+    const hasWorldBook = !!scriptWorldBookJson;
+    
+    return (
+      <ScrollView style={styles.tabContent} contentContainerStyle={styles.scrollContent}>
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>剧本总结提示词</Text>
+            <View style={styles.sectionButtonBar}>
+              <TouchableOpacity 
+                style={styles.sectionButton} 
+                onPress={handleImportPreset}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="document-outline" size={18} color={theme.colors.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.sectionButton} 
+                onPress={handleImportWorldBook}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="book-outline" size={18} color={theme.colors.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.sectionButton, !scriptPresetJson && styles.disabledButton]} 
+                onPress={handleClearPreset}
+                disabled={!scriptPresetJson}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="trash-outline" size={18} color={!scriptPresetJson ? '#666' : '#e74c3c'} />
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.sectionButton, !scriptWorldBookJson && styles.disabledButton]} 
+                onPress={handleClearWorldBook}
+                disabled={!scriptWorldBookJson}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="close-circle-outline" size={18} color={!scriptWorldBookJson ? '#666' : '#e74c3c'} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.sectionButton, (apiLoading || !hasMessageArray) && styles.disabledButton]}
+                onPress={handleApiTest}
+                disabled={apiLoading || !hasMessageArray}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="flash-outline" size={18} color={(apiLoading || !hasMessageArray) ? '#666' : '#e67e22'} />
+              </TouchableOpacity>
+            </View>
+          </View>
+          <View style={styles.contentSection}>
+            <Text style={styles.inputLabel}>指令</Text>
+            <TextInput
+              style={styles.input}
+              value={scriptInputText}
+              onChangeText={setScriptInputText}
+              placeholder="请输入剧本总结生成指令"
+              placeholderTextColor="#999"
+              multiline
+            />
+
+            <Text style={styles.helperText}>
+              你可以只输入指令文本生成简单消息数组，或导入preset和worldbook生成完整消息数组。保存时将自动生成消息数组。此配置专门用于剧本内容的总结。
+            </Text>
+
+            <TouchableOpacity 
+              style={[styles.saveButton, isLoading && styles.disabledButton]} 
+              onPress={saveConfig}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator size="small" color="black" style={styles.buttonIcon} />
+              ) : (
+                <Ionicons name="save-outline" size={18} color="black" style={styles.buttonIcon} />
+              )}
+              <Text style={styles.saveButtonText}>
+                {isLoading ? '正在保存...' : '保存配置'}
+              </Text>
+            </TouchableOpacity>
+
+            {error ? (
+              <View style={styles.errorContainer}>
+                <Ionicons name="alert-circle-outline" size={18} color="#f44336" style={styles.buttonIcon} />
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            ) : null}
+
+            {apiResponse ? (
+              <View style={styles.apiResponseContainer}>
+                <Text style={styles.apiResponseTitle}>API响应</Text>
+                <ScrollView style={styles.apiResponseContent}>
+                  <Text selectable style={styles.apiResponseText}>{apiResponse}</Text>
+                </ScrollView>
+              </View>
+            ) : null}
+          </View>
+        </View>
+      </ScrollView>
+    );
+  };
+
   const renderMemorySummaryTab = () => {
     const hasMessageArray = memoryMessageArray && memoryMessageArray.length > 0;
     const hasPreset = !!memoryPresetJson;
@@ -726,34 +986,34 @@ export default function UtilSettings() {
 
             {memorySummaryRangeEnabled && (
               <View>
-                <Text style={styles.inputLabel}>总结区间起始索引</Text>
+                <Text style={styles.inputLabel}>总结区间起始百分比(%)</Text>
                 <TextInput
                   style={[styles.input, { minHeight: 50 }]}
-                  value={memorySummaryRangeStart.toString()}
+                  value={memorySummaryRangeStartPercent.toString()}
                   onChangeText={(text) => {
                     const num = parseInt(text) || 0;
-                    setMemorySummaryRangeStart(num);
+                    setMemorySummaryRangeStartPercent(num);
                   }}
-                  placeholder="3"
+                  placeholder="30"
                   placeholderTextColor="#999"
                   keyboardType="numeric"
                 />
 
-                <Text style={styles.inputLabel}>总结区间结束索引</Text>
+                <Text style={styles.inputLabel}>总结区间结束百分比(%)</Text>
                 <TextInput
                   style={[styles.input, { minHeight: 50 }]}
-                  value={memorySummaryRangeEnd.toString()}
+                  value={memorySummaryRangeEndPercent.toString()}
                   onChangeText={(text) => {
                     const num = parseInt(text) || 0;
-                    setMemorySummaryRangeEnd(num);
+                    setMemorySummaryRangeEndPercent(num);
                   }}
-                  placeholder="10"
+                  placeholder="70"
                   placeholderTextColor="#999"
                   keyboardType="numeric"
                 />
                 
                 <Text style={styles.helperText}>
-                  区间为 [{memorySummaryRangeStart}, {memorySummaryRangeEnd}]，将总结第{memorySummaryRangeStart + 1}到第{memorySummaryRangeEnd + 1}条消息
+                  将总结聊天记录的 {memorySummaryRangeStartPercent}% 到 {memorySummaryRangeEndPercent}% 区间
                 </Text>
               </View>
             )}
@@ -1002,6 +1262,14 @@ export default function UtilSettings() {
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
+          style={[styles.tab, activeTab === 'scriptSummary' && styles.activeTab]}
+          onPress={() => setActiveTab('scriptSummary')}
+        >
+          <Text style={[styles.tabText, activeTab === 'scriptSummary' && styles.activeTabText]}>
+            剧本总结
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
           style={[styles.tab, activeTab === 'imagegen' && styles.activeTab]}
           onPress={() => setActiveTab('imagegen')}
         >
@@ -1015,6 +1283,7 @@ export default function UtilSettings() {
       <View style={styles.container}>
         {activeTab === 'autoMessage' && renderAutoMessageTab()}
         {activeTab === 'memorySummary' && renderMemorySummaryTab()}
+        {activeTab === 'scriptSummary' && renderScriptSummaryTab()}
         {activeTab === 'imagegen' && renderImagegenTab()}
       </View>
       

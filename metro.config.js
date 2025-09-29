@@ -8,13 +8,6 @@ const config = getDefaultConfig(__dirname);
 
 // 添加 Node.js 模块的 polyfills - 仅包含必需的模块以减少bundle大小
 config.resolver.extraNodeModules = {
-  // 只保留实际使用的polyfills
-  crypto: require.resolve('crypto-browserify'),
-  buffer: require.resolve('buffer/'),
-  events: require.resolve('events/'),
-  util: require.resolve('util/'),
-  url: require.resolve('url/'),
-  
   // 必需的React Native特定映射
   'react-native-get-random-values': require.resolve('react-native-get-random-values'),
   'react-native-url-polyfill': require.resolve('react-native-url-polyfill'),
@@ -22,7 +15,7 @@ config.resolver.extraNodeModules = {
 
 // 确保能够处理 mjs 文件和其他扩展
 config.resolver.sourceExts.push('mjs', 'cjs');
-config.resolver.assetExts.push('wasm', 'bin');
+config.resolver.assetExts.push('wasm', 'bin', 'zip');
 
 // ARM64兼容性设置
 config.resolver.platforms = ['native', 'android', 'ios', 'web'];
@@ -63,17 +56,6 @@ if (process.env.NODE_ENV === 'production') {
   config.serializer.customSerializer = config.serializer.customSerializer || (() => {});
 }
 
-// 添加缓存配置
-config.cacheStores = [
-  {
-    get: (key) => {
-      // 自定义缓存获取逻辑
-      return null;
-    },
-    set: (key, result) => {
-      // 自定义缓存设置逻辑
-    }
-  }
-];
+
 
 module.exports = config;

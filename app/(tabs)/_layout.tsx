@@ -9,10 +9,12 @@ import { RegexProvider } from '@/constants/RegexContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { EventRegister } from 'react-native-event-listeners';
 import { DialogModeProvider } from '@/constants/DialogModeContext';
+import { initBackgroundTasks } from '@/services/background-tasks';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme() || 'light';
   const [unreadCount, setUnreadCount] = useState<number>(0);
+  const [unreadCircleCount, setUnreadCircleCount] = useState<number>(0);
   
   // Define fallback theme to prevent undefined tint error
   const colorTheme = {
@@ -32,12 +34,18 @@ export default function TabLayout() {
         if (storedCount) {
           setUnreadCount(parseInt(storedCount, 10));
         }
+        const storedCircle = await AsyncStorage.getItem('unreadCircleCount');
+        if (storedCircle) {
+          setUnreadCircleCount(parseInt(storedCircle, 10));
+        }
       } catch (error) {
         console.error('Failed to load unread messages count:', error);
       }
     };
 
     loadUnreadCount();
+    // Ensure background tasks are registered on startup
+    initBackgroundTasks().catch(() => {});
   }, []);
 
   // Listen for unread messages updates using React Native EventRegister
@@ -51,9 +59,18 @@ export default function TabLayout() {
       }
     );
 
+    const circleListener = EventRegister.addEventListener(
+      'unreadCircleUpdated',
+      (data) => {
+        const count = typeof data === 'number' ? data : 0;
+        setUnreadCircleCount(count);
+      }
+    );
+
     return () => {
       // Clean up event listener
       EventRegister.removeEventListener(eventListener as string);
+      EventRegister.removeEventListener(circleListener as string);
     };
   }, []);
 
@@ -65,6 +82,12 @@ export default function TabLayout() {
       // Save to AsyncStorage
       AsyncStorage.setItem('unreadMessagesCount', '0').catch(err => 
         console.error('Failed to reset unread messages count:', err)
+      );
+    }
+    if (tabName === 'explore' && unreadCircleCount > 0) {
+      setUnreadCircleCount(0);
+      AsyncStorage.setItem('unreadCircleCount', '0').catch(err => 
+        console.error('Failed to reset unread circle count:', err)
       );
     }
   };
@@ -90,7 +113,38 @@ export default function TabLayout() {
               fontWeight: 'bold',
             },
             headerTintColor: 'rgb(255, 224, 195)',
+            // Performance: render lazily and freeze inactive tabs
+            lazy: true,
+            freezeOnBlur: true,
           }}>
+          <Tabs.Screen
+            name="map"
+            options={{
+              title: '地图',
+              headerShown: false,
+              tabBarIcon: ({ color, focused }) => (
+                <Ionicons
+                  name={focused ? 'map' : 'map-outline'}
+                  size={26}
+                  color={color}
+                />
+              ),
+            }}
+          />
+          <Tabs.Screen
+            name="fmg-test"
+            options={{
+              title: 'FMG测试',
+              headerShown: false,
+              tabBarIcon: ({ color, focused }) => (
+                <Ionicons
+                  name={focused ? 'flask' : 'flask-outline'}
+                  size={26}
+                  color={color}
+                />
+              ),
+            }}
+          />
           <Tabs.Screen
             name="index"
             listeners={{
@@ -99,6 +153,8 @@ export default function TabLayout() {
             options={{
               title: '聊天',
               headerShown: false,
+              // Keep state but freeze when not focused
+              freezeOnBlur: true,
               tabBarIcon: ({ color, focused }) => (
                 <View style={styles.iconContainer}>
                   <Ionicons
@@ -123,11 +179,20 @@ export default function TabLayout() {
               title: '发现',
               headerShown: false,
               tabBarIcon: ({ color, focused }) => (
-                <Ionicons
-                  name={focused ? 'compass' : 'compass-outline'}
-                  size={26}
-                  color={color}
-                />
+                <View style={styles.iconContainer}>
+                  <Ionicons
+                    name={focused ? 'compass' : 'compass-outline'}
+                    size={26}
+                    color={color}
+                  />
+                  {unreadCircleCount > 0 && (
+                    <View style={styles.badgeContainer}>
+                      <Text style={styles.badgeText}>
+                        {unreadCircleCount > 99 ? '99+' : unreadCircleCount}
+                      </Text>
+                    </View>
+                  )}
+                </View>
               ),
             }}
           />
@@ -136,6 +201,7 @@ export default function TabLayout() {
             options={{
               title: '角色',
               headerShown: false,
+              // Heavy screen
               tabBarIcon: ({ color, focused }) => (
                 <Ionicons
                   name={focused ? 'document-text' : 'document-text-outline'}
@@ -145,20 +211,6 @@ export default function TabLayout() {
               ),
             }}
           />
-          {/* <Tabs.Screen
-            name="server"
-            options={{
-              title: '摇篮',
-              headerShown: false,
-              tabBarIcon: ({ color, focused }) => (
-                <Ionicons
-                  name={focused ? 'leaf' : 'leaf-outline'}
-                  size={26}
-                  color={color}
-                />
-              ),
-            }}
-          /> */}
           <Tabs.Screen
             name="profile"
             options={{
@@ -174,6 +226,7 @@ export default function TabLayout() {
             }}
           />
         </Tabs>
+        
       </RegexProvider>
     </DialogModeProvider>
   );

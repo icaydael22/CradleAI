@@ -44,9 +44,11 @@ import ArtistReferenceSelector from '@/components/ArtistReferenceSelector';
 import VoiceSelector from '@/components/VoiceSelector';
 import DouBaoTTSSelector from '@/components/DouBaoTTSSelector';
 import MinimaxTTSSelector from '@/components/MinimaxTTSSelector';
+import GeminiTTSSelector from '@/components/GeminiTTSSelector';
 import { theme } from '@/constants/theme';
 import { TTSProvider, TTSConfig } from '@/shared/types';
 import { KNOWN_TAGS } from '@/app/data/knowntags';
+import { applyRegexToGreetingForCharacter, applyRegexToGreetings } from '@/utils/regex-helper';
 // Default preset entries
 export const DEFAULT_PRESET_ENTRIES = {
   // 可编辑条目
@@ -696,6 +698,7 @@ const CreateChar: React.FC<CreateCharProps> = ({
   const [artistSelectorVisible, setArtistSelectorVisible] = useState(false);
   const [douBaoSelectorVisible, setDouBaoSelectorVisible] = useState(false);
   const [minimaxSelectorVisible, setMinimaxSelectorVisible] = useState(false);
+  const [geminiSelectorVisible, setGeminiSelectorVisible] = useState(false);
 
   // Update voice related state
   const [ttsProvider, setTtsProvider] = useState<TTSProvider>('cosyvoice');
@@ -703,6 +706,7 @@ const CreateChar: React.FC<CreateCharProps> = ({
   const [voiceTemplateId, setVoiceTemplateId] = useState<string | undefined>(undefined);
   const [selectedDouBaoVoice, setSelectedDouBaoVoice] = useState<string | undefined>(undefined);
   const [selectedMinimaxVoice, setSelectedMinimaxVoice] = useState<string | undefined>(undefined);
+  const [selectedGeminiVoice, setSelectedGeminiVoice] = useState<string | undefined>(undefined);
 
   // --- 新增：保存角色时，写入extraGreetings
   const saveCharacter = async () => {
@@ -718,9 +722,11 @@ const CreateChar: React.FC<CreateCharProps> = ({
       // Log that we're saving the character
       console.log('[CreateChar] Saving character:', characterId, 'Mode:', creationMode);
       
-      // 清理first_mes和alternateGreetings中的未知标签
-      const cleanedFirstMes = cleanUnknownTags(roleCard.first_mes || '');
-      const cleanedAlternateGreetings = alternateGreetings.map(g => cleanUnknownTags(g));
+      // 清理开场白并应用全局/角色正则（AI输出）
+      const rawFirst = cleanUnknownTags(roleCard.first_mes || '');
+      const rawAlts = alternateGreetings.map(g => cleanUnknownTags(g));
+      const cleanedFirstMes = await applyRegexToGreetingForCharacter(rawFirst, characterId);
+      const cleanedAlternateGreetings = await applyRegexToGreetings(rawAlts, characterId);
 
       // 构建角色数据
       const jsonData = {
@@ -806,6 +812,11 @@ const CreateChar: React.FC<CreateCharProps> = ({
         ...(ttsProvider === 'minimax' && selectedMinimaxVoice ? {
           minimax: {
             voiceId: selectedMinimaxVoice
+          }
+        } : {}),
+        ...(ttsProvider === 'gemini' && selectedGeminiVoice ? {
+          gemini: {
+            voiceName: selectedGeminiVoice
           }
         } : {})
       };
@@ -917,7 +928,6 @@ const CreateChar: React.FC<CreateCharProps> = ({
         userMessage: "你好！",
         conversationId: characterId,
         status: "新建角色",
-        apiKey: user?.settings?.chat.characterApiKey || '',
         character: newCharacter
       }).catch(error => {
         console.warn('[CreateChar] NodeST initialization warning:', error);
@@ -1506,6 +1516,21 @@ const CreateChar: React.FC<CreateCharProps> = ({
             Minimax
           </Text>
         </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={[
+            styles.ttsProviderButton,
+            ttsProvider === 'gemini' && styles.activeTtsProvider
+          ]}
+          onPress={() => setTtsProvider('gemini')}
+        >
+          <Text style={[
+            styles.ttsProviderText,
+            ttsProvider === 'gemini' && styles.activeTtsProviderText
+          ]}>
+            Gemini TTS
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* Provider-specific content */}
@@ -1552,7 +1577,7 @@ const CreateChar: React.FC<CreateCharProps> = ({
             </View>
           )}
         </View>
-      ) : (
+      ) : ttsProvider === 'minimax' ? (
         <View style={styles.voiceProviderContent}>
           {selectedMinimaxVoice ? (
             <View style={styles.selectedVoiceContainer}>
@@ -1582,7 +1607,37 @@ const CreateChar: React.FC<CreateCharProps> = ({
             </View>
           )}
         </View>
-      )}
+      ) : ttsProvider === 'gemini' ? (
+        <View style={styles.voiceProviderContent}>
+          {selectedGeminiVoice ? (
+            <View style={styles.selectedVoiceContainer}>
+              <Text style={styles.selectedVoiceLabel}>已选择Gemini音色</Text>
+              <View style={styles.selectedVoiceInfo}>
+                <Text style={styles.selectedVoiceText}>
+                  {selectedGeminiVoice}
+                </Text>
+                <TouchableOpacity
+                  style={styles.changeVoiceButton}
+                  onPress={() => setGeminiSelectorVisible(true)}
+                >
+                  <Text style={styles.changeVoiceText}>更换</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.noVoiceContainer}>
+              <Text style={styles.noVoiceText}>未选择Gemini音色</Text>
+              <TouchableOpacity
+                style={styles.selectVoiceButton}
+                onPress={() => setGeminiSelectorVisible(true)}
+              >
+                <Ionicons name="musical-notes-outline" size={20} color={theme.colors.black} />
+                <Text style={styles.selectVoiceText}>选择音色</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      ) : null}
 
       {/* DouBao Voice Selector Modal */}
       <DouBaoTTSSelector
@@ -1604,6 +1659,17 @@ const CreateChar: React.FC<CreateCharProps> = ({
           setHasUnsavedChanges(true);
         }}
         onClose={() => setMinimaxSelectorVisible(false)}
+      />
+
+      {/* Gemini Voice Selector Modal */}
+      <GeminiTTSSelector
+        visible={geminiSelectorVisible}
+        selectedVoice={selectedGeminiVoice}
+        onSelectVoice={(voiceName) => {
+          setSelectedGeminiVoice(voiceName);
+          setHasUnsavedChanges(true);
+        }}
+        onClose={() => setGeminiSelectorVisible(false)}
       />
     </View>
   );
