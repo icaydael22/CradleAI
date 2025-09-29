@@ -17,7 +17,8 @@ class MessageService {
     conversationId: string,
     messages: Message[],
     character: Character | undefined | null,
-    user: any
+    user: any,
+    rewriteOpinion?: string
   ): Promise<{ success: boolean; messages?: Message[] }> {
     try {
       if (!conversationId || !character) {
@@ -32,9 +33,6 @@ class MessageService {
         useCloudService: apiSettings.useCloudService
       });
       
-      if (!apiSettings.apiKey) {
-        throw new Error("API key not found in settings");
-      }
 
       // Find the message by ID in the complete history to get the correct role index
       const roleIndex = await this.findMessageRoleIndex(conversationId, messageId, 'model', messages);
@@ -47,11 +45,12 @@ class MessageService {
       const regeneratedText = await StorageAdapter.regenerateAiMessageByIndex(
         conversationId,
         roleIndex,
-        apiSettings.apiKey,
+        apiSettings.apiKey || '', // Use empty string for CradleCloud
         character.id,
         user?.settings?.self?.nickname || 'User',
         apiSettings, // Pass the complete apiSettings
-        undefined // onStream callback
+        undefined, // onStream callback
+        rewriteOpinion // Pass rewrite opinion
       );
       
       if (!regeneratedText) {
@@ -83,13 +82,7 @@ class MessageService {
         throw new Error("Missing required information for editing");
       }
       
-      // Get API settings instead of just API key
-      const apiSettings = getApiSettings();
-      if (!apiSettings.apiKey) {
-        throw new Error("API key not found in settings");
-      }
-
-      // Find the message by ID in the complete history to get the correct role index
+  // Find the message by ID in the complete history to get the correct role index
       const roleIndex = await this.findMessageRoleIndex(conversationId, messageId, 'model', messages);
       
       if (roleIndex === -1) {
@@ -101,8 +94,6 @@ class MessageService {
         conversationId,
         roleIndex,
         newContent,
-        apiSettings.apiKey,
-        apiSettings
       );
       
       if (!success) {
@@ -133,11 +124,7 @@ class MessageService {
         throw new Error("Missing required information for deletion");
       }
       
-      // Get API settings instead of just API key
-      const apiSettings = getApiSettings();
-      if (!apiSettings.apiKey) {
-        throw new Error("API key not found in settings");
-      }
+
 
       // Find the message by ID in the complete history to get the correct role index
       const roleIndex = await this.findMessageRoleIndex(conversationId, messageId, 'model', messages);
@@ -150,8 +137,6 @@ class MessageService {
       const success = await StorageAdapter.deleteAiMessageByIndex(
         conversationId,
         roleIndex,
-        apiSettings.apiKey,
-        apiSettings
       );
       
       if (!success) {
@@ -183,11 +168,7 @@ class MessageService {
         throw new Error("Missing required information for editing");
       }
       
-      // Get API settings instead of just API key
-      const apiSettings = getApiSettings();
-      if (!apiSettings.apiKey) {
-        throw new Error("API key not found in settings");
-      }
+
 
       // Find the message by ID in the complete history to get the correct role index
       const roleIndex = await this.findMessageRoleIndex(conversationId, messageId, 'user', messages);
@@ -201,8 +182,7 @@ class MessageService {
         conversationId,
         roleIndex,
         newContent,
-        apiSettings.apiKey,
-        apiSettings
+
       );
       
       if (!success) {
@@ -235,7 +215,8 @@ class MessageService {
       
       // Get API settings instead of just API key
       const apiSettings = getApiSettings();
-      if (!apiSettings.apiKey) {
+      // 特殊处理：CradleCloud适配器使用JWT Token，不需要API Key
+      if (apiSettings.apiProvider !== 'cradlecloud' && !apiSettings.apiKey) {
         throw new Error("API key not found in settings");
       }
 
@@ -250,7 +231,7 @@ class MessageService {
       const success = await StorageAdapter.deleteUserMessageByIndex(
         conversationId,
         roleIndex,
-        apiSettings.apiKey,
+        apiSettings.apiKey || '', // Use empty string for CradleCloud
         apiSettings
       );
       

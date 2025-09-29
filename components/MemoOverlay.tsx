@@ -27,10 +27,9 @@ import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Slider from '@react-native-community/slider';
-import TextEditorModal from './common/TextEditorModal';
+import TextEditorModal from '../../components/common/TextEditorModal';
 import { memoryService } from '@/services/memory-service';
 import { StorageAdapter } from '@/NodeST/nodest/utils/storage-adapter';
-import { getApiSettings } from '@/utils/settings-helper'; // Add this import
 
 interface MemoOverlayProps {
   isVisible: boolean;
@@ -101,9 +100,20 @@ const MemoOverlay: React.FC<MemoOverlayProps> = ({ isVisible, onClose, character
   const [characterTablesData, setCharacterTablesData] = useState<Awaited<ReturnType<typeof TableMemory.getCharacterTablesData>> | null>(null);
 
   // Memory state and settings from MemoryProcessingControl
-  const { setMemoryProcessingInterval, getMemoryProcessingInterval } = useMemoryContext();
+  const {
+    memory,
+    addMemory,
+    searchMemory,
+    getMemory,
+    updateMemory,
+    deleteMemory,
+    resetMemory,
+    getAllMemory,
+    setMemoryProcessingInterval,
+    getMemoryProcessingInterval
+  } = useMemoryContext();
   const [currentInterval, setCurrentInterval] = useState(10);
-  const [memoryEnabled, setMemoryEnabled] = useState(true);
+  const [memoryEnabled, setMemoryEnabled] = useState(false);
   const [memoryFacts, setMemoryFacts] = useState<MemoryFact[]>([]);
   const [isLoadingFacts, setIsLoadingFacts] = useState(false);
   const [factSearchQuery, setFactSearchQuery] = useState('');
@@ -134,25 +144,29 @@ const MemoOverlay: React.FC<MemoOverlayProps> = ({ isVisible, onClose, character
 
   // Reference to track if component is mounted
   const isMountedRef = useRef<boolean>(false);
-    // 新增：读取表格记忆插件开关状态
-    useEffect(() => {
-      if (isVisible) {
-        (async () => {
-          try {
-            const enabledStr = await AsyncStorage.getItem(TABLE_MEMORY_ENABLED_KEY);
-            if (enabledStr !== null) {
-              setPluginEnabled(enabledStr === 'true');
-              setTableMemoryEnabled(enabledStr === 'true');
-            } else {
-              // fallback: 读取当前插件状态
-              setPluginEnabled(isTableMemoryEnabled());
-            }
-          } catch (e) {
-            setPluginEnabled(isTableMemoryEnabled());
+    // 读取表格记忆插件开关状态
+  useEffect(() => {
+    if (isVisible) {
+      (async () => {
+        try {
+          const enabledStr = await AsyncStorage.getItem(TABLE_MEMORY_ENABLED_KEY);
+          if (enabledStr !== null) {
+              const enabled = enabledStr === 'true';
+              setPluginEnabled(enabled);
+              setTableMemoryEnabled(enabled);
+          } else {
+              // No stored preference: default to disabled unless user explicitly enables
+              setPluginEnabled(false);
+              setTableMemoryEnabled(false);
           }
-        })();
-      }
-    }, [isVisible]);
+        } catch (e) {
+            // On error, fall back to disabled to avoid surprising data collection
+            setPluginEnabled(false);
+            setTableMemoryEnabled(false);
+        }
+      })();
+    }
+  }, [isVisible]);
   
   // Initialize the plugin when the component mounts
   useEffect(() => {
@@ -177,9 +191,8 @@ const MemoOverlay: React.FC<MemoOverlayProps> = ({ isVisible, onClose, character
     if (isVisible) {
       const interval = getMemoryProcessingInterval();
       setCurrentInterval(interval);
-      const mem0Service = Mem0Service.getInstance();
-      const enabled = mem0Service.isMemoryEnabled?.() ?? true;
-      setMemoryEnabled(enabled);
+      // Default to disabled unless user explicitly enables it
+      setMemoryEnabled(false);
     }
   }, [isVisible, getMemoryProcessingInterval]);
 
@@ -212,6 +225,71 @@ const MemoOverlay: React.FC<MemoOverlayProps> = ({ isVisible, onClose, character
     }
   }, [isVisible]);
 
+  // Ensure Mem0Service is initialized before using facts. If not, try to initialize
+  const ensureMem0Initialized = useCallback(async () => {
+    try {
+      const mem0 = Mem0Service.getInstance();
+
+      // If already initialized, done
+      if (mem0.isInitialized && mem0.isInitialized()) {
+        return true;
+      }
+
+      // Wait briefly for memory provider to become ready (polling)
+      const waitForMemory = async (timeoutMs = 3000) => {
+        const start = Date.now();
+        while (!memory && Date.now() - start < timeoutMs) {
+          // eslint-disable-next-line no-await-in-loop
+          await new Promise(res => setTimeout(res, 150));
+        }
+        return !!memory;
+      };
+
+      const hasMemory = memory || (await waitForMemory(3000));
+      if (!hasMemory) {
+        console.warn('[MemoOverlay] 无可用的 memory 实例（超时），无法初始化 Mem0Service');
+        return false;
+      }
+
+      console.log('[MemoOverlay] Mem0 未初始化，尝试使用 MemoryProvider 的接口进行初始化');
+      mem0.initialize({
+        add: addMemory,
+        search: searchMemory,
+        get: getMemory,
+        update: updateMemory,
+        delete: deleteMemory,
+        reset: resetMemory
+      }, memory);
+      // Give a small moment for initialization side-effects to settle
+      await new Promise(res => setTimeout(res, 150));
+
+      const initializedNow = mem0.isInitialized && mem0.isInitialized();
+      if (initializedNow) {
+        console.log('[MemoOverlay] 已成功初始化 Mem0Service (兜底)');
+        return true;
+      }
+
+      console.warn('[MemoOverlay] 调用 initialize 后 Mem0 仍未报告已初始化');
+      return false;
+    } catch (error) {
+      console.error('[MemoOverlay] 自动初始化 Mem0Service 失败:', error);
+      return false;
+    }
+  }, [memory, addMemory, searchMemory, getMemory, updateMemory, deleteMemory, resetMemory]);
+
+  // Handler for selecting the Facts tab: ensure mem0 initialized first
+  const handleSelectFactsTab = useCallback(async () => {
+    setLoading(true);
+    try {
+      await ensureMem0Initialized();
+    } catch (e) {
+      console.error('[MemoOverlay] ensureMem0Initialized error:', e);
+    } finally {
+      setLoading(false);
+      setActiveTab(TabType.FACTS);
+    }
+  }, [ensureMem0Initialized]);
+
   // Save memory settings to AsyncStorage
   useEffect(() => {
     if (initialized && isVisible) {
@@ -238,9 +316,10 @@ const MemoOverlay: React.FC<MemoOverlayProps> = ({ isVisible, onClose, character
       setLoading(true);
       // Initialize table memory plugin and set default templates
       // 更新: 显式禁用队列系统，使用直接操作模式
+      // Respect the user's current pluginEnabled state (defaults to false)
       const success = await initializeTableMemory({
         defaultTemplates: true,
-        enabled: true,
+        enabled: pluginEnabled,
       });
 
       setPluginEnabled(isTableMemoryEnabled());
@@ -633,6 +712,8 @@ const MemoOverlay: React.FC<MemoOverlayProps> = ({ isVisible, onClose, character
     try {
       setPluginEnabled(enabled);
       setTableMemoryEnabled(enabled);
+      // 持久化保存到 AsyncStorage
+      await AsyncStorage.setItem(TABLE_MEMORY_ENABLED_KEY, enabled ? 'true' : 'false');
       console.log(`[MemoOverlay] Table memory plugin ${enabled ? 'enabled' : 'disabled'}`);
     } catch (error) {
       console.error('[MemoOverlay] Failed to toggle plugin:', error);
@@ -710,11 +791,17 @@ const MemoOverlay: React.FC<MemoOverlayProps> = ({ isVisible, onClose, character
   // Memory facts related functions - moved from MemoryProcessingControl
   const fetchDbStats = useCallback(async () => {
     const mem0Service = Mem0Service.getInstance();
-    
+
     try {
+      const ok = await ensureMem0Initialized();
+      if (!ok) {
+        console.warn('[MemoOverlay] fetchDbStats: Mem0 未初始化，跳过统计获取');
+        return;
+      }
+
       const stats = await mem0Service.getVectorDbStats();
       setDbStats(stats);
-      
+
       if (characterId) {
         try {
           const memories = await mem0Service.getCharacterMemories(characterId);
@@ -748,6 +835,13 @@ const MemoOverlay: React.FC<MemoOverlayProps> = ({ isVisible, onClose, character
 
     try {
       setIsLoadingFacts(true);
+      const ok = await ensureMem0Initialized();
+      if (!ok) {
+        console.warn('[MemoOverlay] fetchMemoryFacts: Mem0 未初始化，跳过事实加载');
+        setIsLoadingFacts(false);
+        return;
+      }
+
       const mem0Service = Mem0Service.getInstance();
 
       let memories: MemoryFact[] = [];
@@ -857,7 +951,7 @@ const MemoOverlay: React.FC<MemoOverlayProps> = ({ isVisible, onClose, character
       );
 
       if (result) {
-        Alert.alert('成功', '成功创建新记忆');
+
         setNewMemoryContent('');
         await handleRefresh();
       } else {
@@ -908,7 +1002,7 @@ const MemoOverlay: React.FC<MemoOverlayProps> = ({ isVisible, onClose, character
       );
 
       if (result) {
-        Alert.alert('成功', '记忆更新成功');
+
         setEditingMemory(null);
         setEditingContent('');
         await handleRefresh();
@@ -1843,7 +1937,6 @@ const MemoOverlay: React.FC<MemoOverlayProps> = ({ isVisible, onClose, character
             conversationId
           );
           if (result) {
-            Alert.alert('成功', '成功创建新记忆');
             setNewMemoryContent('');
             await handleRefresh();
           } else {
@@ -1960,38 +2053,19 @@ const MemoOverlay: React.FC<MemoOverlayProps> = ({ isVisible, onClose, character
                       Alert.alert('提示', '正在生成对话总结，请稍候...');
                       const safeConversationId = getSafeConversationId(conversationId);
                       
-                      // 获取API设置
-                      const settings = getApiSettings();
-                      // 适配API设置格式
-                      const apiConfig = {
-                        apiProvider: settings.apiProvider as 'gemini' | 'openrouter'| 'openai-compatible',
-                        openrouter: settings.openrouter
-                      };
-                      // === 修正API Key选择逻辑 ===
-                      let apiKeyToUse = '';
-                      if (settings.apiProvider === 'openai-compatible') {
-                        apiKeyToUse = settings.OpenAIcompatible?.apiKey || '';
-                      } else if (settings.apiProvider === 'openrouter') {
-                        apiKeyToUse = settings.openrouter?.apiKey || '';
-                      } else {
-                        apiKeyToUse = settings.apiKey || '';
-                      }
+
                       // === 新增日志 ===
                       console.log('[MemoOverlay] summarizeMemoryNow 请求参数:', {
                         conversationId: safeConversationId,
                         characterId,
-                        apiKey: apiKeyToUse,
-                        apiConfig
                       });
                       const result = await memoryService.summarizeMemoryNow(
                         safeConversationId, 
                         characterId,
-                        apiKeyToUse,
-                        apiConfig
                       );
                       
                       if (result) {
-                        Alert.alert('成功', '对话总结已生成');
+  
                         await fetchSummaries();
                       } else {
                         try {
@@ -2054,39 +2128,12 @@ const MemoOverlay: React.FC<MemoOverlayProps> = ({ isVisible, onClose, character
                       Alert.alert('提示', '正在生成新的对话总结，请稍候...');
                       const safeConversationId = getSafeConversationId(conversationId);
                       
-                      // 获取API设置
-                      const settings = getApiSettings();
-                      // 适配API设置格式
-                      const apiConfig = {
-                        apiProvider: settings.apiProvider as 'gemini' | 'openrouter' | 'openai-compatible',
-                        openrouter: settings.openrouter
-                      };
-                      // === 修正API Key选择逻辑 ===
-                      let apiKeyToUse = '';
-                      if (settings.apiProvider === 'openai-compatible') {
-                        apiKeyToUse = settings.OpenAIcompatible?.apiKey || '';
-                      } else if (settings.apiProvider === 'openrouter') {
-                        apiKeyToUse = settings.openrouter?.apiKey || '';
-                      } else {
-                        apiKeyToUse = settings.apiKey || '';
-                      }
-                      // === 新增日志 ===
-                      console.log('[MemoOverlay] summarizeMemoryNow 请求参数:', {
-                        conversationId: safeConversationId,
-                        characterId,
-                        apiKey: apiKeyToUse,
-                        apiConfig
-                      });
-                      console.log('[MemoOverlay] Generating new summary with config:', apiConfig);
                       const result = await memoryService.summarizeMemoryNow(
                         safeConversationId, 
                         characterId,
-                        apiKeyToUse,
-                        apiConfig
                       );
                       
                       if (result) {
-                        Alert.alert('成功', '新的对话总结已生成');
                         await fetchSummaries();
                       } else {
                         Alert.alert('错误', '生成对话总结失败');
@@ -2110,7 +2157,7 @@ const MemoOverlay: React.FC<MemoOverlayProps> = ({ isVisible, onClose, character
       transparent
       visible={isVisible}
       onRequestClose={onClose}
-      animationType="slide"
+      animationType="fade"
       statusBarTranslucent
     >
       <View style={styles.fullScreenContainer}>
@@ -2159,7 +2206,7 @@ const MemoOverlay: React.FC<MemoOverlayProps> = ({ isVisible, onClose, character
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.tab, activeTab === TabType.FACTS && styles.activeTab]}
-              onPress={() => setActiveTab(TabType.FACTS)}
+              onPress={() => handleSelectFactsTab()}
             >
               <MaterialCommunityIcons
                 name="brain"
@@ -2234,7 +2281,7 @@ MemoOverlayComponent.getSettings = async () => {
   }
 
   // 向量记忆系统开关
-  let vectorMemoryEnabled = true;
+  let vectorMemoryEnabled = false; // Default to disabled
   try {
     const saved = await AsyncStorage.getItem(SETTINGS_STORAGE_KEY);
     if (saved) {
@@ -2244,7 +2291,7 @@ MemoOverlayComponent.getSettings = async () => {
       }
     }
   } catch {
-    // 保持默认
+    // 保持默认 false
   }
 
   return {
