@@ -1,0 +1,1261 @@
+[
+    {
+      "id": "i436",
+      "name": "Sports",
+      "children": [
+        {
+            "id": "i385",
+            "name": "Martial Arts",
+            "children": [
+              {
+                "id": "i2889",
+                "name": "Aikido",
+                "children": []
+              },
+              {
+                "id": "i4045",
+                "name": "Chinese Martial Arts",
+                "children": []
+              },
+              {
+                "id": "i2675",
+                "name": "Judo",
+                "children": []
+              },
+              {
+                "id": "i4046",
+                "name": "Jujutsu",
+                "children": []
+              },
+              {
+                "id": "i2888",
+                "name": "Karate",
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "i82",
+            "name": "Swordsmanship",
+            "children": [
+              {
+                "id": "i2881",
+                "name": "Fencing",
+                "children": []
+              },
+              {
+                "id": "i579",
+                "name": "Kendo",
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "i437",
+            "name": "Archery",
+            "children": [
+              {
+                "id": "i2972",
+                "name": "Kyujutsu",
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "i788",
+            "name": "Motorsports",
+            "children": [
+              {
+                "id": "i1474",
+                "name": "Street Racing",
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "i2231",
+            "name": "Acrobatic Gymnastics",
+            "children": []
+          },
+          {
+            "id": "i2232",
+            "name": "Air Hockey",
+            "children": []
+          },
+          {
+            "id": "i3846",
+            "name": "Airsoft",
+            "children": []
+          },
+          {
+            "id": "i2092",
+            "name": "American Football",
+            "children": []
+          },
+          {
+            "id": "i715",
+            "name": "Athletics",
+            "children": []
+          },
+          {
+            "id": "i1383",
+            "name": "Badminton",
+            "children": []
+          },
+          {
+            "id": "i939",
+            "name": "Ballet",
+            "children": []
+          },
+          {
+            "id": "i438",
+            "name": "Baseball",
+            "children": []
+          },
+          {
+            "id": "i625",
+            "name": "Basketball",
+            "children": []
+          },
+          {
+            "id": "i2701",
+            "name": "Boating",
+            "children": []
+          },
+          {
+            "id": "i3279",
+            "name": "Bowling",
+            "children": []
+          },
+          {
+            "id": "i533",
+            "name": "Boxing",
+            "children": []
+          },
+          {
+            "id": "i2938",
+            "name": "Chess",
+            "children": []
+          },
+          {
+            "id": "i768",
+            "name": "Cycling",
+            "children": []
+          },
+          {
+            "id": "i665",
+            "name": "Figure Skating",
+            "children": []
+          },
+          {
+            "id": "i621",
+            "name": "Fishing",
+            "children": []
+          },
+          {
+            "id": "i2700",
+            "name": "Golf",
+            "children": []
+          },
+          {
+            "id": "i3848",
+            "name": "Hockey",
+            "children": []
+          },
+          {
+            "id": "i2436",
+            "name": "Karuta",
+            "children": []
+          },
+          {
+            "id": "i537",
+            "name": "Lacrosse",
+            "children": []
+          },
+          {
+            "id": "i1890",
+            "name": "Mahjong",
+            "children": []
+          },
+          {
+            "id": "i1538",
+            "name": "Netball",
+            "children": []
+          },
+          {
+            "id": "i544",
+            "name": "Paintball",
+            "children": []
+          },
+          {
+            "id": "i1506",
+            "name": "Pool",
+            "children": []
+          },
+          {
+            "id": "i882",
+            "name": "Rhythmic Gymnastics",
+            "children": []
+          },
+          {
+            "id": "i2056",
+            "name": "Shogi",
+            "children": []
+          },
+          {
+            "id": "i3713",
+            "name": "Skateboarding",
+            "children": []
+          },
+          {
+            "id": "i555",
+            "name": "Skiing",
+            "children": []
+          },
+          {
+            "id": "i81",
+            "name": "Soccer",
+            "children": []
+          },
+          {
+            "id": "i1180",
+            "name": "Surfing",
+            "children": []
+          },
+          {
+            "id": "i767",
+            "name": "Swimming",
+            "children": []
+          },
+          {
+            "id": "i2300",
+            "name": "Table tennis",
+            "children": []
+          },
+          {
+            "id": "i616",
+            "name": "Tennis",
+            "children": []
+          },
+          {
+            "id": "i545",
+            "name": "Volleyball",
+            "children": []
+          },
+          {
+            "id": "i2198",
+            "name": "Working Out",
+            "children": []
+          },
+          {
+            "id": "i758",
+            "name": "Wrestling",
+            "children": []
+          }
+      ]
+    },
+    {
+      "id": "i2554",
+      "name": "Crime",
+      "children": [
+        {
+            "id": "i416",
+            "name": "Homicide",
+            "children": [
+              {
+                "id": "i1468",
+                "name": "Attempted Murder",
+                "children": []
+              },
+              {
+                "id": "i3506",
+                "name": "Deicide",
+                "children": []
+              },
+              {
+                "id": "i1297",
+                "name": "Fratricide",
+                "children": []
+              },
+              {
+                "id": "i419",
+                "name": "Justifiable Homicide",
+                "children": []
+              },
+              {
+                "id": "i417",
+                "name": "Manslaughter",
+                "children": []
+              },
+              {
+                "id": "i416",
+                "name": "7 more traits",
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "i632",
+            "name": "Assault",
+            "children": [
+              {
+                "id": "i3644",
+                "name": "Battery",
+                "children": []
+              },
+              {
+                "id": "i257",
+                "name": "Domestic Violence",
+                "children": []
+              },
+              {
+                "id": "i259",
+                "name": "Molesting",
+                "children": []
+              },
+              {
+                "id": "i260",
+                "name": "Rape",
+                "children": []
+              },
+              {
+                "id": "i838",
+                "name": "Sexual Harassment",
+                "children": []
+              },
+              {
+                "id": "i427",
+                "name": "Torture",
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "i2839",
+            "name": "Animal Abuse",
+            "children": []
+          },
+          {
+            "id": "i1454",
+            "name": "Arson",
+            "children": []
+          },
+          {
+            "id": "i414",
+            "name": "Blackmail",
+            "children": []
+          },
+          {
+            "id": "i2696",
+            "name": "Bribery",
+            "children": []
+          },
+          {
+            "id": "i1476",
+            "name": "Drugging",
+            "children": []
+          },
+          {
+            "id": "i2005",
+            "name": "Drug Trafficking",
+            "children": []
+          },
+          {
+            "id": "i3647",
+            "name": "Evidence Tampering",
+            "children": []
+          },
+          {
+            "id": "i2790",
+            "name": "Frameup",
+            "children": []
+          },
+          {
+            "id": "i637",
+            "name": "Kidnapping",
+            "children": []
+          },
+          {
+            "id": "i3898",
+            "name": "Organised Corruption",
+            "children": []
+          },
+          {
+            "id": "i1960",
+            "name": "Smuggling",
+            "children": []
+          },
+          {
+            "id": "i1153",
+            "name": "Theft",
+            "children": []
+          },
+          {
+            "id": "i3284",
+            "name": "Vandalism",
+            "children": []
+          }
+      ]
+    },
+    {
+      "id": "i3451",
+      "name": "Sociosexual Events",
+      "children": [
+        {
+            "id": "i2468",
+            "name": "Open Relationship",
+            "children": [
+              {
+                "id": "i2669",
+                "name": "Netorase (their SO is shared)",
+                "children": []
+              },
+              {
+                "id": "i2177",
+                "name": "Polyamory",
+                "children": []
+              },
+              {
+                "id": "i862",
+                "name": "Polygamy",
+                "children": []
+              },
+              {
+                "id": "i1605",
+                "name": "Swinging",
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "i772",
+            "name": "Infidelity",
+            "children": [
+              {
+                "id": "i2607",
+                "name": "Avoidable Infidelity",
+                "children": []
+              },
+              {
+                "id": "i3288",
+                "name": "Unbeknown Infidelity",
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "i1362",
+            "name": "Wedding",
+            "children": [
+              {
+                "id": "i3447",
+                "name": "Pretend Wedding",
+                "children": []
+              },
+              {
+                "id": "i2409",
+                "name": "Remarriage",
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "i755",
+            "name": "Flirting",
+            "children": [
+              {
+                "id": "i984",
+                "name": "Seduction",
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "i2455",
+            "name": "Breakup",
+            "children": []
+          },
+          {
+            "id": "i3894",
+            "name": "Fake Relationship",
+            "children": []
+          },
+          {
+            "id": "i2730",
+            "name": "Long Distance Relationship",
+            "children": []
+          },
+          {
+            "id": "i1607",
+            "name": "Marriage Proposal",
+            "children": []
+          },
+          {
+            "id": "i1325",
+            "name": "Netori (steals the SO)",
+            "children": []
+          },
+          {
+            "id": "i2743",
+            "name": "Romantic Reconciliation",
+            "children": []
+          }
+      ]
+    },
+    {
+      "id": "i733",
+      "name": "Visual Arts",
+      "children": [
+        {
+          "id": "i1447",
+          "name": "Calligraphy",
+          "children": []
+        },
+        {
+          "id": "i1135",
+          "name": "Drawing",
+          "children": []
+        },
+        {
+          "id": "i897",
+          "name": "Fashion Design",
+          "children": []
+        },
+        {
+          "id": "i2886",
+          "name": "Origami",
+          "children": []
+        },
+        {
+          "id": "i734",
+          "name": "Painting",
+          "children": []
+        },
+        {
+          "id": "i733",
+          "name": "2 more traits",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "i513",
+      "name": "Disguise",
+      "children": [
+        {
+          "id": "i48",
+          "name": "Cross-dressing",
+          "children": []
+        },
+        {
+          "id": "i3396",
+          "name": "Impersonation",
+          "children": []
+        },
+        {
+          "id": "i903",
+          "name": "Kigurumi",
+          "children": []
+        },
+        {
+          "id": "i1208",
+          "name": "Twin Switch",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "i491",
+      "name": "Transformation",
+      "children": [
+        {
+          "id": "i3556",
+          "name": "Evil Form",
+          "children": []
+        },
+        {
+          "id": "i494",
+          "name": "Henshin",
+          "children": []
+        },
+        {
+          "id": "i492",
+          "name": "Metamorphosis",
+          "children": []
+        },
+        {
+          "id": "i493",
+          "name": "Shapeshifting",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "i3883",
+      "name": "Performing Arts",
+      "children": [
+        {
+          "id": "i1581",
+          "name": "Dancing",
+          "children": []
+        },
+        {
+          "id": "i1039",
+          "name": "Music",
+          "children": []
+        },
+        {
+          "id": "i2960",
+          "name": "Pole Dancing",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "i557",
+      "name": "Cosplay",
+      "children": [
+        {
+          "id": "i2457",
+          "name": "Animal Cosplay",
+          "children": []
+        },
+        {
+          "id": "i2460",
+          "name": "Sexual Cosplay",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "i87",
+      "name": "Fighting",
+      "children": [
+        {
+          "id": "i3622",
+          "name": "Magic/ESP Combat",
+          "children": []
+        },
+        {
+          "id": "i619",
+          "name": "Unarmed Fighting",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "i743",
+      "name": "Filming",
+      "children": [
+        {
+          "id": "i3502",
+          "name": "Consensual Porn Production",
+          "children": []
+        },
+        {
+          "id": "i2464",
+          "name": "Non-consensual Porn Production",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "i488",
+      "name": "Mind Control",
+      "children": [
+        {
+          "id": "i4053",
+          "name": "Erotic Mind Control",
+          "children": []
+        },
+        {
+          "id": "i266",
+          "name": "Hypnotism",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "i1288",
+      "name": "Possession",
+      "children": [
+        {
+          "id": "i1289",
+          "name": "Benevolent Possession",
+          "children": []
+        },
+        {
+          "id": "i1290",
+          "name": "Malevolent Possession",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "i406",
+      "name": "Teasing",
+      "children": [
+        {
+          "id": "i258",
+          "name": "Bullying",
+          "children": []
+        },
+        {
+          "id": "i3948",
+          "name": "Kabedon",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "i3412",
+      "name": "Time Manipulation",
+      "children": [
+        {
+          "id": "i3411",
+          "name": "Time Stop",
+          "children": []
+        },
+        {
+          "id": "i696",
+          "name": "Time Travel",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "i1120",
+      "name": "Betrayal",
+      "children": [
+        {
+          "id": "i3403",
+          "name": "Unwilling Betrayal",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "i481",
+      "name": "Cannibalism",
+      "children": [
+        {
+          "id": "i3559",
+          "name": "Vore",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "i1121",
+      "name": "Childbirth",
+      "children": [
+        {
+          "id": "i1128",
+          "name": "Monster Birth",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "i86",
+      "name": "Cooking",
+      "children": [
+        {
+          "id": "i3445",
+          "name": "Bad Cooking",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "i3337",
+      "name": "Discrimination",
+      "children": [
+        {
+          "id": "i3841",
+          "name": "Homophobe",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "i262",
+      "name": "Drinking",
+      "children": [
+        {
+          "id": "i263",
+          "name": "Alcohol Abuse",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "i1003",
+      "name": "Lactation",
+      "children": [
+        {
+          "id": "i2381",
+          "name": "Milking (Sexual)",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "i2934",
+      "name": "Manipulation",
+      "children": [
+        {
+          "id": "i3914",
+          "name": "Gaslighting",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "i1817",
+      "name": "Massage",
+      "children": [
+        {
+          "id": "i1839",
+          "name": "Erotic Massage",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "i1009",
+      "name": "Not Sexually Involved",
+      "children": [
+        {
+          "id": "i3207",
+          "name": "Naked (Not Sexually Involved)",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "i872",
+      "name": "Rebellion",
+      "children": [
+        {
+          "id": "i3657",
+          "name": "Coup D'état",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "i2702",
+      "name": "Recreational Drug Use",
+      "children": [
+        {
+          "id": "i261",
+          "name": "Drug Abuse",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "i700",
+      "name": "Religion",
+      "children": [
+        {
+          "id": "i2333",
+          "name": "Apostasy",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "i3893",
+      "name": "Suicide Ideation",
+      "children": [
+        {
+          "id": "i265",
+          "name": "Suicide",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "i2059",
+      "name": "Vomiting",
+      "children": [
+        {
+          "id": "i3780",
+          "name": "Vomiting on Others",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "i2040",
+      "name": "Astral Projection",
+      "children": []
+    },
+    {
+      "id": "i1675",
+      "name": "Blessing",
+      "children": []
+    },
+    {
+      "id": "i1225",
+      "name": "Body Swap",
+      "children": []
+    },
+    {
+      "id": "i1130",
+      "name": "Bondage",
+      "children": []
+    },
+    {
+      "id": "i2496",
+      "name": "Breaking the Fourth Wall",
+      "children": []
+    },
+    {
+      "id": "i2156",
+      "name": "Bridal Carry",
+      "children": []
+    },
+    {
+      "id": "i3992",
+      "name": "Castration",
+      "children": []
+    },
+    {
+      "id": "i2728",
+      "name": "Child Abandonment",
+      "children": []
+    },
+    {
+      "id": "i405",
+      "name": "Cleaning",
+      "children": []
+    },
+    {
+      "id": "i1540",
+      "name": "Coming Out",
+      "children": []
+    },
+    {
+      "id": "i1331",
+      "name": "Competition",
+      "children": []
+    },
+    {
+      "id": "i892",
+      "name": "Computering",
+      "children": []
+    },
+    {
+      "id": "i1751",
+      "name": "Confinement",
+      "children": []
+    },
+    {
+      "id": "i1247",
+      "name": "Cursing",
+      "children": []
+    },
+    {
+      "id": "i2811",
+      "name": "Daydreaming",
+      "children": []
+    },
+    {
+      "id": "i3697",
+      "name": "Demonic Contract",
+      "children": []
+    },
+    {
+      "id": "i711",
+      "name": "Dimensional Travel",
+      "children": []
+    },
+    {
+      "id": "i3738",
+      "name": "Disownment",
+      "children": []
+    },
+    {
+      "id": "i254",
+      "name": "Driving",
+      "children": []
+    },
+    {
+      "id": "i1396",
+      "name": "Duel",
+      "children": []
+    },
+    {
+      "id": "i2629",
+      "name": "Ear Cleaning",
+      "children": []
+    },
+    {
+      "id": "i2155",
+      "name": "Elopement",
+      "children": []
+    },
+    {
+      "id": "i1490",
+      "name": "Escape From Confinement",
+      "children": []
+    },
+    {
+      "id": "i1337",
+      "name": "Flying",
+      "children": []
+    },
+    {
+      "id": "i1074",
+      "name": "Gambling",
+      "children": []
+    },
+    {
+      "id": "i601",
+      "name": "Gardening",
+      "children": []
+    },
+    {
+      "id": "i967",
+      "name": "Genetic Research",
+      "children": []
+    },
+    {
+      "id": "i1659",
+      "name": "Graduation",
+      "children": []
+    },
+    {
+      "id": "i3176",
+      "name": "Human Subject Research",
+      "children": []
+    },
+    {
+      "id": "i1965",
+      "name": "Infiltration",
+      "children": []
+    },
+    {
+      "id": "i3918",
+      "name": "Interrogation",
+      "children": []
+    },
+    {
+      "id": "i477",
+      "name": "Investigation",
+      "children": []
+    },
+    {
+      "id": "i2379",
+      "name": "Invisibility",
+      "children": []
+    },
+    {
+      "id": "i2690",
+      "name": "Job Hunting",
+      "children": []
+    },
+    {
+      "id": "i2681",
+      "name": "Knitting",
+      "children": []
+    },
+    {
+      "id": "i2729",
+      "name": "Learning of a Foreign Language",
+      "children": []
+    },
+    {
+      "id": "i3236",
+      "name": "Letter Writing",
+      "children": []
+    },
+    {
+      "id": "i3429",
+      "name": "Lock Picking",
+      "children": []
+    },
+    {
+      "id": "i474",
+      "name": "Medication",
+      "children": []
+    },
+    {
+      "id": "i4012",
+      "name": "Meditation",
+      "children": []
+    },
+    {
+      "id": "i3704",
+      "name": "Memory Alteration",
+      "children": []
+    },
+    {
+      "id": "i2076",
+      "name": "Moving",
+      "children": []
+    },
+    {
+      "id": "i1148",
+      "name": "Necrophilia",
+      "children": []
+    },
+    {
+      "id": "i1623",
+      "name": "Nude Modeling",
+      "children": []
+    },
+    {
+      "id": "i1335",
+      "name": "Online Chatting",
+      "children": []
+    },
+    {
+      "id": "i2069",
+      "name": "Parachuting",
+      "children": []
+    },
+    {
+      "id": "i833",
+      "name": "Photography",
+      "children": []
+    },
+    {
+      "id": "i255",
+      "name": "Piloting",
+      "children": []
+    },
+    {
+      "id": "i256",
+      "name": "Planning",
+      "children": []
+    },
+    {
+      "id": "i1269",
+      "name": "Reading",
+      "children": []
+    },
+    {
+      "id": "i3479",
+      "name": "Redemption",
+      "children": []
+    },
+    {
+      "id": "i612",
+      "name": "Revenge",
+      "children": []
+    },
+    {
+      "id": "i411",
+      "name": "Riding",
+      "children": []
+    },
+    {
+      "id": "i407",
+      "name": "Sarcasm",
+      "children": []
+    },
+    {
+      "id": "i2003",
+      "name": "Self-harm",
+      "children": []
+    },
+    {
+      "id": "i685",
+      "name": "Self-sacrifice",
+      "children": []
+    },
+    {
+      "id": "i2269",
+      "name": "Sewing",
+      "children": []
+    },
+    {
+      "id": "i2731",
+      "name": "Sexual Abstinence",
+      "children": []
+    },
+    {
+      "id": "i799",
+      "name": "Shopping",
+      "children": []
+    },
+    {
+      "id": "i1537",
+      "name": "Sign Language",
+      "children": []
+    },
+    {
+      "id": "i3106",
+      "name": "Skipping School",
+      "children": []
+    },
+    {
+      "id": "i1488",
+      "name": "Sleepwalking",
+      "children": []
+    },
+    {
+      "id": "i264",
+      "name": "Smoking",
+      "children": []
+    },
+    {
+      "id": "i640",
+      "name": "Stalking",
+      "children": []
+    },
+    {
+      "id": "i3439",
+      "name": "Stargazing",
+      "children": []
+    },
+    {
+      "id": "i3261",
+      "name": "Summoning",
+      "children": []
+    },
+    {
+      "id": "i1415",
+      "name": "Supernatural Cloning",
+      "children": []
+    },
+    {
+      "id": "i3638",
+      "name": "Surgery",
+      "children": []
+    },
+    {
+      "id": "i3260",
+      "name": "Symbolic Hair Cutting",
+      "children": []
+    },
+    {
+      "id": "i691",
+      "name": "Treason",
+      "children": []
+    },
+    {
+      "id": "i2531",
+      "name": "Turndown",
+      "children": []
+    },
+    {
+      "id": "i2052",
+      "name": "Ventriloquism",
+      "children": []
+    },
+    {
+      "id": "i615",
+      "name": "Voodoo",
+      "children": []
+    },
+    {
+      "id": "i2707",
+      "name": "Yoga",
+      "children": []
+    }
+  ]

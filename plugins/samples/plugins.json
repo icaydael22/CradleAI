@@ -1,0 +1,28 @@
+[
+  {
+    "id": "novelai-image-generator",
+    "name": "NovelAI Image Generator",
+    "version": "1.0.0",
+    "description": "Image generation using NovelAI API",
+    "author": "Cradle Dev",
+    "path": "NovelAIPlugin.js",
+    "hash": "sha256-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "supportedAppVersions": ["1.0.0"],
+    "lastUpdated": "2023-07-15T12:00:00Z",
+    "size": 12480,
+    "tags": ["image", "generation", "novelai"]
+  },
+  {
+    "id": "local-stable-diffusion",
+    "name": "Local Stable Diffusion",
+    "version": "0.9.0",
+    "description": "Connect to a Stable Diffusion web UI running on your local network",
+    "author": "Cradle Dev",
+    "path": "LocalStableDiffusionPlugin.js",
+    "hash": "sha256-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "supportedAppVersions": ["1.0.0"],
+    "lastUpdated": "2023-07-10T14:30:00Z",
+    "size": 18640,
+    "tags": ["image", "generation", "stable-diffusion", "local"]
+  }
+]

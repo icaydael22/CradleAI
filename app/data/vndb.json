@@ -1,0 +1,620 @@
+[
+  {
+    "id": "i225",
+    "name": "Talking Patterns",
+    "children": [
+      {
+        "id": "i2798",
+        "name": "Archaic Dialect",
+        "children": []
+      },
+      {
+        "id": "i2854",
+        "name": "De gozaru",
+        "children": []
+      },
+      {
+        "id": "i2043",
+        "name": "Desu",
+        "children": []
+      },
+      {
+        "id": "i2144",
+        "name": "Desu no",
+        "children": []
+      },
+      {
+        "id": "i2044",
+        "name": "Desu wa",
+        "children": []
+      },
+      {
+        "id": "i3311",
+        "name": "Foreign Accent",
+        "children": []
+      },
+      {
+        "id": "i3952",
+        "name": "Gyaru Speech",
+        "children": []
+      },
+      {
+        "id": "i1998",
+        "name": "Keigo",
+        "children": []
+      },
+      {
+        "id": "i3229",
+        "name": "Laconic Speech",
+        "children": []
+      },
+      {
+        "id": "i1336",
+        "name": "Lisping",
+        "children": []
+      },
+      {
+        "id": "i1667",
+        "name": "Loud",
+        "children": []
+      },
+      {
+        "id": "i588",
+        "name": "Made-up Words",
+        "children": []
+      },
+      {
+        "id": "i3450",
+        "name": "Masculine Speech",
+        "children": []
+      },
+      {
+        "id": "i3300",
+        "name": "Mon",
+        "children": []
+      },
+      {
+        "id": "i2931",
+        "name": "Nano",
+        "children": []
+      },
+      {
+        "id": "i3358",
+        "name": "Nanoja",
+        "children": []
+      },
+      {
+        "id": "i2709",
+        "name": "One-Word Vocabulary",
+        "children": []
+      },
+      {
+        "id": "i2562",
+        "name": "Opposite Gender Voiced",
+        "children": []
+      },
+      {
+        "id": "i2065",
+        "name": "Puns",
+        "children": []
+      },
+      {
+        "id": "i3058",
+        "name": "Quiet",
+        "children": []
+      },
+      {
+        "id": "i3539",
+        "name": "-shi",
+        "children": []
+      },
+      {
+        "id": "i2925",
+        "name": "Sonata",
+        "children": []
+      },
+      {
+        "id": "i2648",
+        "name": "Southern Drawl",
+        "children": []
+      },
+      {
+        "id": "i3066",
+        "name": "-ssu",
+        "children": []
+      },
+      {
+        "id": "i1599",
+        "name": "Stutter",
+        "children": []
+      },
+      {
+        "id": "i1214",
+        "name": "Third Person",
+        "children": []
+      },
+      {
+        "id": "i617",
+        "name": "Word Repetition",
+        "children": []
+      }
+    ]
+  },
+  {
+    "id": "i3959",
+    "name": "Personality Complex",
+    "children": [
+      {
+        "id": "i1598",
+        "name": "Baby Complex",
+        "children": []
+      },
+      {
+        "id": "i1046",
+        "name": "Brother Complex",
+        "children": []
+      },
+      {
+        "id": "i2713",
+        "name": "Daughter Complex",
+        "children": []
+      },
+      {
+        "id": "i3946",
+        "name": "Marriage Complex",
+        "children": []
+      }
+    ]
+  },
+  {
+    "id": "i864",
+    "name": "Confident",
+    "children": [
+      {
+        "id": "i440",
+        "name": "Arrogant",
+        "children": []
+      },
+      {
+        "id": "i1192",
+        "name": "Assertive",
+        "children": []
+      },
+      {
+        "id": "i981",
+        "name": "Overconfident",
+        "children": []
+      }
+    ]
+  },
+  {
+    "id": "i223",
+    "name": "Otaku",
+    "children": [
+      {
+        "id": "i2233",
+        "name": "BL Fan",
+        "children": []
+      }
+    ]
+  },
+  {
+    "id": "i875",
+    "name": "Religious Belief",
+    "children": [
+      {
+        "id": "i3275",
+        "name": "Agnostic",
+        "children": []
+      },
+      {
+        "id": "i874",
+        "name": "Atheist",
+        "children": []
+      },
+      {
+        "id": "i873",
+        "name": "Religious",
+        "children": []
+      }
+    ]
+  },
+  {
+    "id": "i716",
+    "name": "Smart",
+    "children": [
+      {
+        "id": "i692",
+        "name": "Genius",
+        "children": []
+      },
+      {
+        "id": "i1303",
+        "name": "Pragmatic",
+        "children": []
+      },
+      {
+        "id": "i983",
+        "name": "Sly",
+        "children": []
+      }
+    ]
+  },
+  {
+    "id": "i217",
+    "name": "Tsundere",
+    "children": [
+      {
+        "id": "i365",
+        "name": "Classic Tsundere",
+        "children": []
+      },
+      {
+        "id": "i219",
+        "name": "Mayadere",
+        "children": []
+      },
+      {
+        "id": "i218",
+        "name": "Modern Tsundere",
+        "children": []
+      }
+    ]
+  },
+  {
+    "id": "i780",
+    "name": "Nature Lover",
+    "children": [
+      {
+        "id": "i3101",
+        "name": "Cat Person",
+        "children": []
+      },
+      {
+        "id": "i3148",
+        "name": "Dog Person",
+        "children": []
+      }
+    ]
+  },
+  {
+    "id": "i432",
+    "name": "Relaxed",
+    "children": [
+      {
+        "id": "i246",
+        "name": "Carefree",
+        "children": []
+      },
+      {
+        "id": "i3909",
+        "name": "Patient",
+        "children": []
+      }
+    ]
+  },
+  {
+    "id": "i663",
+    "name": "Strange",
+    "children": [
+      {
+        "id": "i1501",
+        "name": "Eccentric",
+        "children": []
+      },
+      {
+        "id": "i2704",
+        "name": "Flamboyant",
+        "children": []
+      }
+    ]
+  },
+  {
+    "id": "i929",
+    "name": "Absentminded",
+    "children": [
+      {
+        "id": "i1469",
+        "name": "Daydreamer",
+        "children": []
+      }
+    ]
+  },
+  {
+    "id": "i1504",
+    "name": "Ambitious",
+    "children": [
+      {
+        "id": "i3913",
+        "name": "Opportunistic",
+        "children": []
+      }
+    ]
+  },
+  {
+    "id": "i466",
+    "name": "Cautious",
+    "children": [
+      {
+        "id": "i467",
+        "name": "Distrustful",
+        "children": []
+      }
+    ]
+  },
+  {
+    "id": "i1159",
+    "name": "Curious",
+    "children": [
+      {
+        "id": "i2945",
+        "name": "Observant",
+        "children": []
+      }
+    ]
+  },
+  {
+    "id": "i1146",
+    "name": "Emotional",
+    "children": [
+      {
+        "id": "i1329",
+        "name": "Moody",
+        "children": []
+      }
+    ]
+  },
+  {
+    "id": "i719",
+    "name": "Food Lover",
+    "children": [
+      {
+        "id": "i863",
+        "name": "Sweets Lover",
+        "children": []
+      }
+    ]
+  },
+  {
+    "id": "i76",
+    "name": "Hard Worker",
+    "children": [
+      {
+        "id": "i1535",
+        "name": "Workaholic",
+        "children": []
+      }
+    ]
+  },
+  {
+    "id": "i822",
+    "name": "Honest",
+    "children": [
+      {
+        "id": "i1509",
+        "name": "Blunt",
+        "children": []
+      }
+    ]
+  },
+  {
+    "id": "i3406",
+    "name": "Humble",
+    "children": [
+      {
+        "id": "i253",
+        "name": "Low Self-esteem",
+        "children": []
+      }
+    ]
+  },
+  {
+    "id": "i1284",
+    "name": "Jealous",
+    "children": [
+      {
+        "id": "i556",
+        "name": "Possessive",
+        "children": []
+      }
+    ]
+  },
+  {
+    "id": "i515",
+    "name": "Kind",
+    "children": [
+      {
+        "id": "i441",
+        "name": "Altruistic",
+        "children": []
+      }
+    ]
+  },
+  {
+    "id": "i220",
+    "name": "Kuudere",
+    "children": [
+      {
+        "id": "i1409",
+        "name": "Dandere",
+        "children": []
+      }
+    ]
+  },
+  {
+    "id": "i248",
+    "name": "Outgoing",
+    "children": [
+      {
+        "id": "i251",
+        "name": "Friendly",
+        "children": []
+      }
+    ]
+  },
+  {
+    "id": "i232",
+    "name": "Pervert",
+    "children": [
+      {
+        "id": "i1494",
+        "name": "Closet Pervert",
+        "children": []
+      }
+    ]
+  },
+  {
+    "id": "i239",
+    "name": "Pretending",
+    "children": [
+      {
+        "id": "i1251",
+        "name": "Haraguro",
+        "children": []
+      }
+    ]
+  },
+  {
+    "id": "i725",
+    "name": "Protective",
+    "children": [
+      {
+        "id": "i556",
+        "name": "Possessive",
+        "children": []
+      }
+    ]
+  },
+  {
+    "id": "i249",
+    "name": "Reserved",
+    "children": [
+      {
+        "id": "i250",
+        "name": "Shy",
+        "children": []
+      }
+    ]
+  },
+  {
+    "id": "i154",
+    "name": "Secretive",
+    "children": [
+      {
+        "id": "i1034",
+        "name": "Mysterious",
+        "children": []
+      }
+    ]
+  },
+  {
+    "id": "i821",
+    "name": "Serious",
+    "children": [
+      {
+        "id": "i425",
+        "name": "Strict",
+        "children": []
+      }
+    ]
+  },
+  {
+    "id": "i235",
+    "name": "Stoic",
+    "children": [
+      {
+        "id": "i468",
+        "name": "Cold-hearted",
+        "children": []
+      }
+    ]
+  },
+  {
+    "id": "i575",
+    "name": "Stubborn",
+    "children": [
+      {
+        "id": "i107",
+        "name": "Hotblooded",
+        "children": []
+      }
+    ]
+  },
+  {
+    "id": "i237",
+    "name": "Uneducated",
+    "children": [
+      {
+        "id": "i3793",
+        "name": "Illiterate",
+        "children": []
+      }
+    ]
+  },
+  {
+    "id": "i1399",
+    "name": "Wise",
+    "children": [
+      {
+        "id": "i2435",
+        "name": "Streetwise",
+        "children": []
+      }
+    ]
+  },
+  {
+    "id": "i3904",
+    "name": "Adaptable",
+    "children": []
+  },
+  {
+    "id": "i229",
+    "name": "Airhead",
+    "children": []
+  },
+  {
+    "id": "i1322",
+    "name": "Bookworm",
+    "children": []
+  },
+  {
+    "id": "i1252",
+    "name": "Brave",
+    "children": []
+  },
+  {
+    "id": "i1756",
+    "name": "Charismatic",
+    "children": []
+  },
+  {
+    "id": "i2589",
+    "name": "Cinephile",
+    "children": []
+  },
+  {
+    "id": "i525",
+    "name": "Clumsy",
+    "children": []
+  },
+  {
+    "id": "i1307",
+    "name": "Competitive",
+    "children": []
+  },
+  {
+    "id": "i1158",
+    "name": "Coward",
+    "children": []
+  },
+  {
+    "id": "i3908",
+    "name": "Creative",
+    "children": []
+  },
+  {
+    "id": "i245",
+    "name": "Cynic",
+    "children": []
+  }
+]

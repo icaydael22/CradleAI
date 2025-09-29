@@ -1,0 +1,570 @@
+{
+  "general": {
+    "title": "语音合成音色表",
+    "voices": [
+      {
+        "name": "灿灿 2.0",
+        "voiceType": "BV700_V2_streaming",
+        "timestampSupport": true,
+        "emotions": ["通用", "愉悦", "抱歉", "嗔怪", "开心", "愤怒", "惊讶", "厌恶", "悲伤", "害怕", "哭腔", "客服", "专业", "严肃", "傲娇", "安慰鼓励", "绿茶", "娇媚", "情感电台", "撒娇", "瑜伽", "讲故事"],
+        "languages": [],
+        "scenarios": ["通用场景"],
+        "emotionCount": 22
+      },
+      {
+        "name": "炀炀",
+        "voiceType": "BV705_streaming",
+        "timestampSupport": true,
+        "emotions": ["通用", "自然对话", "愉悦", "抱歉", "嗔怪", "安慰鼓励", "讲故事"],
+        "languages": [],
+        "scenarios": ["通用场景"],
+        "emotionCount": 7
+      },
+      {
+        "name": "擎苍 2.0",
+        "voiceType": "BV701_V2_streaming",
+        "timestampSupport": true,
+        "emotions": ["旁白-舒缓", "旁白-沉浸", "平和", "开心", "悲伤", "生气", "害怕", "厌恶", "惊讶", "哭腔"],
+        "languages": [],
+        "scenarios": ["通用场景"],
+        "emotionCount": 10
+      },
+      {
+        "name": "通用女声 2.0",
+        "voiceType": "BV001_V2_streaming",
+        "timestampSupport": true,
+        "emotions": [],
+        "languages": [],
+        "scenarios": ["通用场景"],
+        "emotionCount": 0
+      },
+      {
+        "name": "灿灿",
+        "voiceType": "BV700_streaming",
+        "timestampSupport": true,
+        "emotions": ["通用", "愉悦", "抱歉", "嗔怪", "开心", "愤怒", "惊讶", "厌恶", "悲伤", "害怕", "哭腔", "客服", "专业", "严肃", "傲娇", "安慰鼓励", "绿茶", "娇媚", "情感电台", "撒娇", "瑜伽", "讲故事"],
+        "languages": ["中文", "英语", "日语", "葡语", "西语", "印尼"],
+        "scenarios": ["通用场景"],
+        "emotionCount": 22,
+        "languageCount": 5
+      },
+      {
+        "name": "超自然音色-梓梓2.0",
+        "voiceType": "BV406_V2_streaming",
+        "timestampSupport": true,
+        "emotions": [],
+        "languages": [],
+        "scenarios": ["通用场景"],
+        "emotionCount": 0
+      },
+      {
+        "name": "超自然音色-梓梓",
+        "voiceType": "BV406_streaming",
+        "timestampSupport": true,
+        "emotions": ["通用", "开心", "悲伤", "生气", "害怕", "厌恶", "惊讶"],
+        "languages": [],
+        "scenarios": ["通用场景"],
+        "emotionCount": 7
+      },
+      {
+        "name": "超自然音色-燃燃2.0",
+        "voiceType": "BV407_V2_streaming",
+        "timestampSupport": true,
+        "emotions": [],
+        "languages": [],
+        "scenarios": ["通用场景"],
+        "emotionCount": 0
+      },
+      {
+        "name": "超自然音色-燃燃",
+        "voiceType": "BV407_streaming",
+        "timestampSupport": true,
+        "emotions": [],
+        "languages": [],
+        "scenarios": ["通用场景"],
+        "emotionCount": 0
+      },
+      {
+        "name": "通用女声",
+        "voiceType": "BV001_streaming",
+        "timestampSupport": true,
+        "emotions": ["通用", "开心", "悲伤", "生气", "害怕", "厌恶", "惊讶", "助手", "客服", "安慰鼓励", "广告", "讲故事"],
+        "languages": [],
+        "scenarios": ["通用场景"],
+        "emotionCount": 12
+      },
+      {
+        "name": "通用男声",
+        "voiceType": "BV002_streaming",
+        "timestampSupport": true,
+        "emotions": [],
+        "languages": [],
+        "scenarios": ["通用场景"],
+        "emotionCount": 0
+      },
+      {
+        "name": "擎苍",
+        "voiceType": "BV701_streaming",
+        "timestampSupport": true,
+        "emotions": ["旁白-舒缓", "旁白-沉浸", "平和", "开心", "悲伤", "生气", "害怕", "厌恶", "惊讶", "哭腔"],
+        "languages": [],
+        "scenarios": ["有声阅读"],
+        "emotionCount": 10
+      },
+      {
+        "name": "阳光青年",
+        "voiceType": "BV123_streaming",
+        "timestampSupport": true,
+        "emotions": ["平和", "开心", "悲伤", "生气", "害怕", "厌恶", "惊讶"],
+        "languages": [],
+        "scenarios": ["有声阅读"],
+        "emotionCount": 7
+      },
+      {
+        "name": "反卷青年",
+        "voiceType": "BV120_streaming",
+        "timestampSupport": true,
+        "emotions": ["平和", "开心", "悲伤", "生气", "害怕", "厌恶", "惊讶"],
+        "languages": [],
+        "scenarios": ["有声阅读"],
+        "emotionCount": 7
+      },
+      {
+        "name": "通用赘婿",
+        "voiceType": "BV119_streaming",
+        "timestampSupport": true,
+        "emotions": ["旁白", "平和", "开心", "悲伤", "生气", "害怕", "厌恶", "惊讶"],
+        "languages": [],
+        "scenarios": ["有声阅读"],
+        "emotionCount": 8
+      },
+      {
+        "name": "古风少御",
+        "voiceType": "BV115_streaming",
+        "timestampSupport": true,
+        "emotions": ["旁白", "平和", "开心", "悲伤", "生气", "害怕", "厌恶", "惊讶"],
+        "languages": [],
+        "scenarios": ["有声阅读"],
+        "emotionCount": 8
+      },
+      {
+        "name": "霸气青叔",
+        "voiceType": "BV107_streaming",
+        "timestampSupport": true,
+        "emotions": ["旁白", "平和", "开心", "悲伤", "生气", "害怕", "厌恶", "惊讶"],
+        "languages": [],
+        "scenarios": ["有声阅读"],
+        "emotionCount": 8
+      },
+      {
+        "name": "质朴青年",
+        "voiceType": "BV100_streaming",
+        "timestampSupport": true,
+        "emotions": ["旁白", "平和", "开心", "悲伤", "生气", "害怕", "厌恶", "惊讶"],
+        "languages": [],
+        "scenarios": ["有声阅读"],
+        "emotionCount": 8
+      },
+      {
+        "name": "温柔淑女",
+        "voiceType": "BV104_streaming",
+        "timestampSupport": true,
+        "emotions": ["旁白", "平和", "开心", "悲伤", "生气", "害怕", "厌恶", "惊讶"],
+        "languages": [],
+        "scenarios": ["有声阅读"],
+        "emotionCount": 8
+      },
+      {
+        "name": "开朗青年",
+        "voiceType": "BV004_streaming",
+        "timestampSupport": true,
+        "emotions": ["旁白", "平和", "开心", "悲伤", "生气", "害怕", "厌恶", "惊讶"],
+        "languages": [],
+        "scenarios": ["有声阅读"],
+        "emotionCount": 8
+      },
+      {
+        "name": "甜宠少御",
+        "voiceType": "BV113_streaming",
+        "timestampSupport": true,
+        "emotions": ["旁白", "平和", "开心", "悲伤", "生气", "害怕", "厌恶", "惊讶"],
+        "languages": [],
+        "scenarios": ["有声阅读"],
+        "emotionCount": 8
+      },
+      {
+        "name": "儒雅青年",
+        "voiceType": "BV102_streaming",
+        "timestampSupport": true,
+        "emotions": ["旁白", "平和", "开心", "悲伤", "生气", "害怕", "厌恶", "惊讶"],
+        "languages": [],
+        "scenarios": ["有声阅读"],
+        "emotionCount": 8
+      },
+      {
+        "name": "甜美小源",
+        "voiceType": "BV405_streaming",
+        "timestampSupport": true,
+        "emotions": ["通用", "愉悦", "抱歉", "专业", "严肃"],
+        "languages": [],
+        "scenarios": ["智能助手"],
+        "emotionCount": 5
+      },
+      {
+        "name": "亲切女声",
+        "voiceType": "BV007_streaming",
+        "timestampSupport": true,
+        "emotions": [],
+        "languages": [],
+        "scenarios": ["智能助手"],
+        "emotionCount": 0
+      },
+      {
+        "name": "知性女声",
+        "voiceType": "BV009_streaming",
+        "timestampSupport": true,
+        "emotions": ["通用", "愉悦", "抱歉", "专业", "严肃"],
+        "languages": [],
+        "scenarios": ["智能助手"],
+        "emotionCount": 5
+      },
+      {
+        "name": "诚诚",
+        "voiceType": "BV419_streaming",
+        "timestampSupport": true,
+        "emotions": [],
+        "languages": [],
+        "scenarios": ["智能助手"],
+        "emotionCount": 0
+      },
+      {
+        "name": "童童",
+        "voiceType": "BV415_streaming",
+        "timestampSupport": true,
+        "emotions": [],
+        "languages": [],
+        "scenarios": ["智能助手"],
+        "emotionCount": 0
+      },
+      {
+        "name": "亲切男声",
+        "voiceType": "BV008_streaming",
+        "timestampSupport": true,
+        "emotions": ["通用", "愉悦", "抱歉", "专业", "严肃"],
+        "languages": [],
+        "scenarios": ["智能助手"],
+        "emotionCount": 5
+      }
+    ]
+  },
+  "multilang": {
+    "title": "多语种音色表",
+    "voices": [
+      {
+        "name": "慵懒女声-Ava",
+        "voiceType": "BV511_streaming",
+        "timestampSupport": true,
+        "emotions": ["通用", "开心", "悲伤", "生气", "害怕", "厌恶", "惊讶"],
+        "languages": ["美式英语"],
+        "scenarios": ["多语种"],
+        "emotionCount": 7,
+        "languageCount": 1
+      },
+      {
+        "name": "议论女声-Alicia",
+        "voiceType": "BV505_streaming",
+        "timestampSupport": true,
+        "emotions": [],
+        "languages": ["美式英语"],
+        "scenarios": ["多语种"],
+        "emotionCount": 0,
+        "languageCount": 1
+      },
+      {
+        "name": "情感女声-Lawrence",
+        "voiceType": "BV138_streaming",
+        "timestampSupport": true,
+        "emotions": ["旁白", "平和", "开心", "悲伤", "生气", "害怕", "厌恶", "惊讶"],
+        "languages": ["美式英语"],
+        "scenarios": ["多语种"],
+        "emotionCount": 8,
+        "languageCount": 1
+      },
+      {
+        "name": "美式女声-Amelia",
+        "voiceType": "BV027_streaming",
+        "timestampSupport": true,
+        "emotions": [],
+        "languages": ["美式英语"],
+        "scenarios": ["多语种"],
+        "emotionCount": 0,
+        "languageCount": 1
+      },
+      {
+        "name": "讲述女声-Amanda",
+        "voiceType": "BV502_streaming",
+        "timestampSupport": true,
+        "emotions": [],
+        "languages": ["美式英语"],
+        "scenarios": ["多语种"],
+        "emotionCount": 0,
+        "languageCount": 1
+      },
+      {
+        "name": "活力女声-Ariana",
+        "voiceType": "BV503_streaming",
+        "timestampSupport": true,
+        "emotions": [],
+        "languages": ["美式英语"],
+        "scenarios": ["多语种"],
+        "emotionCount": 0,
+        "languageCount": 1
+      },
+      {
+        "name": "活力男声-Jackson",
+        "voiceType": "BV504_streaming",
+        "timestampSupport": true,
+        "emotions": [],
+        "languages": ["美式英语"],
+        "scenarios": ["多语种"],
+        "emotionCount": 0,
+        "languageCount": 1
+      },
+      {
+        "name": "天才少女",
+        "voiceType": "BV421_streaming",
+        "timestampSupport": true,
+        "emotions": [],
+        "languages": ["中文", "英语", "日语", "葡语", "西语", "印尼语", "越南语", "泰语"],
+        "scenarios": ["多语种"],
+        "emotionCount": 0,
+        "languageCount": 8
+      },
+      {
+        "name": "Stefan",
+        "voiceType": "BV702_streaming",
+        "timestampSupport": true,
+        "emotions": [],
+        "languages": ["中文", "英语", "日语", "葡语", "西语", "印尼语"],
+        "scenarios": ["多语种"],
+        "emotionCount": 0,
+        "languageCount": 6
+      },
+      {
+        "name": "天真萌娃-Lily",
+        "voiceType": "BV506_streaming",
+        "timestampSupport": true,
+        "emotions": [],
+        "languages": ["美式英语"],
+        "scenarios": ["多语种"],
+        "emotionCount": 0,
+        "languageCount": 1
+      },
+      {
+        "name": "亲切女声-Anna",
+        "voiceType": "BV040_streaming",
+        "timestampSupport": true,
+        "emotions": ["通用", "开心", "悲伤", "生气", "害怕", "厌恶", "惊讶"],
+        "languages": ["英式英语"],
+        "scenarios": ["多语种"],
+        "emotionCount": 7,
+        "languageCount": 1
+      },
+      {
+        "name": "澳洲男声-Henry",
+        "voiceType": "BV516_streaming",
+        "timestampSupport": true,
+        "emotions": [],
+        "languages": ["澳洲英语"],
+        "scenarios": ["多语种"],
+        "emotionCount": 0,
+        "languageCount": 1
+      },
+      {
+        "name": "元气少女",
+        "voiceType": "BV520_streaming",
+        "timestampSupport": true,
+        "emotions": [],
+        "languages": ["日语"],
+        "scenarios": ["多语种"],
+        "emotionCount": 0,
+        "languageCount": 1
+      },
+      {
+        "name": "萌系少女",
+        "voiceType": "BV521_streaming",
+        "timestampSupport": true,
+        "emotions": [],
+        "languages": ["日语"],
+        "scenarios": ["多语种"],
+        "emotionCount": 0,
+        "languageCount": 1
+      },
+      {
+        "name": "气质女声",
+        "voiceType": "BV522_streaming",
+        "timestampSupport": true,
+        "emotions": [],
+        "languages": ["日语"],
+        "scenarios": ["多语种"],
+        "emotionCount": 0,
+        "languageCount": 1
+      },
+      {
+        "name": "日语男声",
+        "voiceType": "BV524_streaming",
+        "timestampSupport": true,
+        "emotions": [],
+        "languages": ["日语"],
+        "scenarios": ["多语种"],
+        "emotionCount": 0,
+        "languageCount": 1
+      }
+    ]
+  },
+  "dialect": {
+    "title": "方言音色表",
+    "voices": [
+      {
+        "name": "东北老铁",
+        "voiceType": "BV021_streaming",
+        "timestampSupport": true,
+        "emotions": [],
+        "languages": ["东北话"],
+        "scenarios": ["方言"],
+        "emotionCount": 0,
+        "languageCount": 1
+      },
+      {
+        "name": "东北丫头",
+        "voiceType": "BV020_streaming",
+        "timestampSupport": true,
+        "emotions": [],
+        "languages": ["东北话"],
+        "scenarios": ["方言"],
+        "emotionCount": 0,
+        "languageCount": 1
+      },
+      {
+        "name": "方言灿灿",
+        "voiceType": "BV704_streaming",
+        "timestampSupport": true,
+        "emotions": [],
+        "languages": ["中文", "东北", "粤语", "上海", "西安", "成都", "台普", "广西普通话"],
+        "scenarios": ["方言"],
+        "emotionCount": 0,
+        "languageCount": 8
+      },
+      {
+        "name": "西安佟掌柜",
+        "voiceType": "BV210_streaming",
+        "timestampSupport": true,
+        "emotions": [],
+        "languages": ["西安话"],
+        "scenarios": ["方言"],
+        "emotionCount": 0,
+        "languageCount": 1
+      },
+      {
+        "name": "沪上阿姐",
+        "voiceType": "BV217_streaming",
+        "timestampSupport": true,
+        "emotions": [],
+        "languages": ["上海话"],
+        "scenarios": ["方言"],
+        "emotionCount": 0,
+        "languageCount": 1
+      },
+      {
+        "name": "广西表哥",
+        "voiceType": "BV213_streaming",
+        "timestampSupport": true,
+        "emotions": [],
+        "languages": ["广西普通话"],
+        "scenarios": ["方言"],
+        "emotionCount": 0,
+        "languageCount": 1
+      },
+      {
+        "name": "甜美台妹",
+        "voiceType": "BV025_streaming",
+        "timestampSupport": true,
+        "emotions": [],
+        "languages": ["台湾普通话"],
+        "scenarios": ["方言"],
+        "emotionCount": 0,
+        "languageCount": 1
+      },
+      {
+        "name": "台普男声",
+        "voiceType": "BV227_streaming",
+        "timestampSupport": true,
+        "emotions": [],
+        "languages": ["台湾普通话"],
+        "scenarios": ["方言"],
+        "emotionCount": 0,
+        "languageCount": 1
+      },
+      {
+        "name": "港剧男神",
+        "voiceType": "BV026_streaming",
+        "timestampSupport": true,
+        "emotions": [],
+        "languages": ["粤语"],
+        "scenarios": ["方言"],
+        "emotionCount": 0,
+        "languageCount": 1
+      },
+      {
+        "name": "广东女仔",
+        "voiceType": "BV424_streaming",
+        "timestampSupport": true,
+        "emotions": [],
+        "languages": ["粤语"],
+        "scenarios": ["方言"],
+        "emotionCount": 0,
+        "languageCount": 1
+      },
+      {
+        "name": "相声演员",
+        "voiceType": "BV212_streaming",
+        "timestampSupport": false,
+        "emotions": [],
+        "languages": ["天津话"],
+        "scenarios": ["方言"],
+        "emotionCount": 0,
+        "languageCount": 1
+      },
+      {
+        "name": "重庆小伙",
+        "voiceType": "BV019_streaming",
+        "timestampSupport": true,
+        "emotions": [],
+        "languages": ["川渝话"],
+        "scenarios": ["方言"],
+        "emotionCount": 0,
+        "languageCount": 1
+      },
+      {
+        "name": "四川甜妹儿",
+        "voiceType": "BV221_streaming",
+        "timestampSupport": false,
+        "emotions": [],
+        "languages": ["川渝话"],
+        "scenarios": ["方言"],
+        "emotionCount": 0,
+        "languageCount": 1
+      },
+      {
+        "name": "重庆幺妹儿",
+        "voiceType": "BV423_streaming",
+        "timestampSupport": true,
+        "emotions": [],
+        "languages": ["川渝话"],
+        "scenarios": ["方言"],
+        "emotionCount": 0,
+        "languageCount": 1
+      }
+    ]
+  }
+}

@@ -1,0 +1,34 @@
+// TTS服务相关导出
+export { DoubaoTTSService, createTTSService, TTSService } from './index';
+// 新增：TTS助手服务导出
+export { DoubaoTTSHelper, doubaoTTSHelper, synthesizeText, streamSynthesizeText, isTTSAvailable } from './doubao-tts-helper';
+
+// 使用示例：
+// import { createTTSService } from './services';
+// 
+// const ttsService = createTTSService({
+//   appid: 'YOUR_APPID',
+//   token: 'YOUR_TOKEN',
+//   voice_type: 'zh_male_M392_conversation_wvae_bigtts'
+// });
+//
+// // HTTP方式
+// const audioBuffer = await ttsService.quickSynthesize('你好世界');
+//
+// // WebSocket流式方式
+// const streamBuffer = await ttsService.streamSynthesize('你好世界', (chunk, seq) => {
+//   console.log(`Received audio chunk ${seq}, size: ${chunk.length}`);
+// });
+
+// 新增：使用助手服务的简化示例
+// import { synthesizeText, isTTSAvailable } from './services';
+//
+// // 检查TTS是否可用
+// if (await isTTSAvailable()) {
+//   // 直接合成文本，自动从设置读取配置
+//   const audioBuffer = await synthesizeText('你好世界');
+//   if (audioBuffer) {
+//     // 处理音频数据
+//     console.log(`合成成功，音频大小: ${audioBuffer.length}`);
+//   }
+// }

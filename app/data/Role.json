@@ -1,0 +1,2395 @@
+[
+    {
+      "id": "i321",
+      "name": "Careers",
+      "children": [
+            {
+              "id": "i344",
+              "name": "Artist",
+              "children": [
+                {
+                  "id": "i769",
+                  "name": "Actor",
+                  "children": []
+                },
+                {
+                  "id": "i2623",
+                  "name": "Animator",
+                  "children": []
+                },
+                {
+                  "id": "i3743",
+                  "name": "Carpenter",
+                  "children": []
+                },
+                {
+                  "id": "i3100",
+                  "name": "Circus Performer",
+                  "children": []
+                },
+                {
+                  "id": "i1579",
+                  "name": "Clown",
+                  "children": []
+                },
+                {
+                  "id": "i344",
+                  "name": "13 more traits",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "id": "i358",
+              "name": "Teacher",
+              "children": [
+                {
+                  "id": "i3558",
+                  "name": "Art Teacher",
+                  "children": []
+                },
+                {
+                  "id": "i538",
+                  "name": "Coach",
+                  "children": []
+                },
+                {
+                  "id": "i2372",
+                  "name": "Homeroom Teacher",
+                  "children": []
+                },
+                {
+                  "id": "i1221",
+                  "name": "Kindergarten Teacher",
+                  "children": []
+                },
+                {
+                  "id": "i613",
+                  "name": "Mentor",
+                  "children": []
+                },
+                {
+                  "id": "i358",
+                  "name": "9 more traits",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "id": "i80",
+              "name": "Warrior",
+              "children": [
+                {
+                  "id": "i383",
+                  "name": "Assassin",
+                  "children": []
+                },
+                {
+                  "id": "i3394",
+                  "name": "Guard",
+                  "children": []
+                },
+                {
+                  "id": "i238",
+                  "name": "Hunter",
+                  "children": []
+                },
+                {
+                  "id": "i384",
+                  "name": "Knight",
+                  "children": []
+                },
+                {
+                  "id": "i393",
+                  "name": "Mercenary",
+                  "children": []
+                },
+                {
+                  "id": "i80",
+                  "name": "8 more traits",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "id": "i375",
+              "name": "White-collar Worker",
+              "children": [
+                {
+                  "id": "i2140",
+                  "name": "Architect",
+                  "children": []
+                },
+                {
+                  "id": "i847",
+                  "name": "Civil Servant",
+                  "children": []
+                },
+                {
+                  "id": "i542",
+                  "name": "Coder",
+                  "children": []
+                },
+                {
+                  "id": "i369",
+                  "name": "Engineer",
+                  "children": []
+                },
+                {
+                  "id": "i1622",
+                  "name": "Inn Manager",
+                  "children": []
+                },
+                {
+                  "id": "i375",
+                  "name": "6 more traits",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "id": "i509",
+              "name": "Healthcare Professional",
+              "children": [
+                {
+                  "id": "i3237",
+                  "name": "Coroner",
+                  "children": []
+                },
+                {
+                  "id": "i2462",
+                  "name": "Dentist",
+                  "children": []
+                },
+                {
+                  "id": "i1132",
+                  "name": "Healer",
+                  "children": []
+                },
+                {
+                  "id": "i333",
+                  "name": "Medical Doctor",
+                  "children": []
+                },
+                {
+                  "id": "i2334",
+                  "name": "Midwife",
+                  "children": []
+                },
+                {
+                  "id": "i509",
+                  "name": "5 more traits",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "id": "i2791",
+              "name": "Sex Industry",
+              "children": [
+                {
+                  "id": "i1849",
+                  "name": "AV Actor",
+                  "children": []
+                },
+                {
+                  "id": "i2131",
+                  "name": "Awahime",
+                  "children": []
+                },
+                {
+                  "id": "i2556",
+                  "name": "Dominatrix",
+                  "children": []
+                },
+                {
+                  "id": "i2819",
+                  "name": "Erotic Voice Actor",
+                  "children": []
+                },
+                {
+                  "id": "i1407",
+                  "name": "Pimp",
+                  "children": []
+                },
+                {
+                  "id": "i2791",
+                  "name": "4 more traits",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "id": "i78",
+              "name": "Student",
+              "children": [
+                {
+                  "id": "i974",
+                  "name": "Bad Student",
+                  "children": []
+                },
+                {
+                  "id": "i975",
+                  "name": "Honor Student",
+                  "children": []
+                },
+                {
+                  "id": "i2178",
+                  "name": "Kanendosei",
+                  "children": []
+                },
+                {
+                  "id": "i883",
+                  "name": "Medical Student",
+                  "children": []
+                },
+                {
+                  "id": "i2426",
+                  "name": "Repeater",
+                  "children": []
+                },
+                {
+                  "id": "i78",
+                  "name": "4 more traits",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "id": "i329",
+              "name": "Religious Roles",
+              "children": [
+                {
+                  "id": "i1033",
+                  "name": "Exorcist",
+                  "children": []
+                },
+                {
+                  "id": "i1196",
+                  "name": "Head of a Sect",
+                  "children": []
+                },
+                {
+                  "id": "i2095",
+                  "name": "Member of a Sect",
+                  "children": []
+                },
+                {
+                  "id": "i3597",
+                  "name": "Messiah",
+                  "children": []
+                },
+                {
+                  "id": "i618",
+                  "name": "Monk",
+                  "children": []
+                },
+                {
+                  "id": "i329",
+                  "name": "3 more traits",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "id": "i377",
+              "name": "Criminal",
+              "children": [
+                {
+                  "id": "i4060",
+                  "name": "Con Artist",
+                  "children": []
+                },
+                {
+                  "id": "i1318",
+                  "name": "Criminal Accomplice",
+                  "children": []
+                },
+                {
+                  "id": "i379",
+                  "name": "Criminal Organizations",
+                  "children": []
+                },
+                {
+                  "id": "i3530",
+                  "name": "Loan Shark",
+                  "children": []
+                },
+                {
+                  "id": "i2036",
+                  "name": "Serial Killer",
+                  "children": []
+                },
+                {
+                  "id": "i377",
+                  "name": "2 more traits",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "id": "i374",
+              "name": "Blue-collar Worker",
+              "children": [
+                {
+                  "id": "i1388",
+                  "name": "Baker",
+                  "children": []
+                },
+                {
+                  "id": "i1389",
+                  "name": "Construction Worker",
+                  "children": []
+                },
+                {
+                  "id": "i2011",
+                  "name": "Farmer",
+                  "children": []
+                },
+                {
+                  "id": "i2182",
+                  "name": "Janitor",
+                  "children": []
+                },
+                {
+                  "id": "i567",
+                  "name": "Mechanic",
+                  "children": []
+                },
+                {
+                  "id": "i695",
+                  "name": "Technician",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "id": "i843",
+              "name": "Pink-collar Worker",
+              "children": [
+                {
+                  "id": "i3294",
+                  "name": "Daycare Worker",
+                  "children": []
+                },
+                {
+                  "id": "i675",
+                  "name": "Kanban Musume",
+                  "children": []
+                },
+                {
+                  "id": "i2334",
+                  "name": "Midwife",
+                  "children": []
+                },
+                {
+                  "id": "i334",
+                  "name": "Nurse",
+                  "children": []
+                },
+                {
+                  "id": "i841",
+                  "name": "Office Lady",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "id": "i504",
+              "name": "Politician",
+              "children": [
+                {
+                  "id": "i837",
+                  "name": "Ambassador",
+                  "children": []
+                },
+                {
+                  "id": "i1114",
+                  "name": "Councillor",
+                  "children": []
+                },
+                {
+                  "id": "i2832",
+                  "name": "Mayor",
+                  "children": []
+                },
+                {
+                  "id": "i1806",
+                  "name": "Premier",
+                  "children": []
+                },
+                {
+                  "id": "i2571",
+                  "name": "President",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "id": "i335",
+              "name": "Royalty",
+              "children": [
+                {
+                  "id": "i507",
+                  "name": "Empress",
+                  "children": []
+                },
+                {
+                  "id": "i336",
+                  "name": "Monarch",
+                  "children": []
+                },
+                {
+                  "id": "i340",
+                  "name": "Prince",
+                  "children": []
+                },
+                {
+                  "id": "i341",
+                  "name": "Princess",
+                  "children": []
+                },
+                {
+                  "id": "i337",
+                  "name": "Queen",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "id": "i361",
+              "name": "Scientist",
+              "children": [
+                {
+                  "id": "i529",
+                  "name": "Alchemist",
+                  "children": []
+                },
+                {
+                  "id": "i3687",
+                  "name": "Astronomer",
+                  "children": []
+                },
+                {
+                  "id": "i2014",
+                  "name": "Inventor",
+                  "children": []
+                },
+                {
+                  "id": "i1483",
+                  "name": "Researcher",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "id": "i531",
+              "name": "Psychic",
+              "children": [
+                {
+                  "id": "i532",
+                  "name": "Precog",
+                  "children": []
+                },
+                {
+                  "id": "i1517",
+                  "name": "Psychometrist",
+                  "children": []
+                },
+                {
+                  "id": "i831",
+                  "name": "Telepath",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "id": "i373",
+              "name": "Writer",
+              "children": [
+                {
+                  "id": "i3795",
+                  "name": "Editor",
+                  "children": []
+                },
+                {
+                  "id": "i1561",
+                  "name": "Novelist",
+                  "children": []
+                },
+                {
+                  "id": "i3289",
+                  "name": "Poet",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "id": "i367",
+              "name": "Driver",
+              "children": [
+                {
+                  "id": "i2685",
+                  "name": "Chauffeur",
+                  "children": []
+                },
+                {
+                  "id": "i3790",
+                  "name": "Train Driver",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "id": "i980",
+              "name": "Model",
+              "children": [
+                {
+                  "id": "i347",
+                  "name": "Idol",
+                  "children": []
+                },
+                {
+                  "id": "i3267",
+                  "name": "Promotional Model",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "id": "i398",
+              "name": "Noble",
+              "children": [
+                {
+                  "id": "i3533",
+                  "name": "Baron",
+                  "children": []
+                },
+                {
+                  "id": "i386",
+                  "name": "Samurai",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "id": "i357",
+              "name": "Cheerleader",
+              "children": [
+                {
+                  "id": "i3295",
+                  "name": "Majorette",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "id": "i368",
+              "name": "Pilot",
+              "children": [
+                {
+                  "id": "i540",
+                  "name": "Mecha Pilot",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "id": "i3385",
+              "name": "Social Organization Member",
+              "children": [
+                {
+                  "id": "i3386",
+                  "name": "Social Organization Leader",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "id": "i3262",
+              "name": "Tailor",
+              "children": [
+                {
+                  "id": "i3640",
+                  "name": "Fashion Designer",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "id": "i982",
+              "name": "Vendor",
+              "children": [
+                {
+                  "id": "i995",
+                  "name": "Shop Clerk",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "id": "i3660",
+              "name": "Adventurer",
+              "children": []
+            },
+            {
+              "id": "i1094",
+              "name": "Archeologist",
+              "children": []
+            },
+            {
+              "id": "i2234",
+              "name": "Astronaut",
+              "children": []
+            },
+            {
+              "id": "i2906",
+              "name": "Barista",
+              "children": []
+            },
+            {
+              "id": "i1345",
+              "name": "Bartender",
+              "children": []
+            },
+            {
+              "id": "i1364",
+              "name": "Beautician",
+              "children": []
+            },
+            {
+              "id": "i2343",
+              "name": "Blacksmith",
+              "children": []
+            },
+            {
+              "id": "i1328",
+              "name": "Bounty Hunter",
+              "children": []
+            },
+            {
+              "id": "i577",
+              "name": "Captain",
+              "children": []
+            },
+            {
+              "id": "i570",
+              "name": "Communications Officer",
+              "children": []
+            },
+            {
+              "id": "i366",
+              "name": "Cook",
+              "children": []
+            },
+            {
+              "id": "i3387",
+              "name": "Croupier",
+              "children": []
+            },
+            {
+              "id": "i476",
+              "name": "Detective",
+              "children": []
+            },
+            {
+              "id": "i996",
+              "name": "Dormitory Manager",
+              "children": []
+            },
+            {
+              "id": "i3816",
+              "name": "Elevator Operator",
+              "children": []
+            },
+            {
+              "id": "i2028",
+              "name": "Executioner",
+              "children": []
+            },
+            {
+              "id": "i3759",
+              "name": "Firefighter",
+              "children": []
+            },
+            {
+              "id": "i1189",
+              "name": "Fisherman",
+              "children": []
+            },
+            {
+              "id": "i1479",
+              "name": "Flight Attendant",
+              "children": []
+            },
+            {
+              "id": "i2027",
+              "name": "Florist",
+              "children": []
+            },
+            {
+              "id": "i2030",
+              "name": "Fortune Teller",
+              "children": []
+            },
+            {
+              "id": "i3875",
+              "name": "Freelancer",
+              "children": []
+            },
+            {
+              "id": "i460",
+              "name": "Guide",
+              "children": []
+            },
+            {
+              "id": "i376",
+              "name": "Hacker",
+              "children": []
+            },
+            {
+              "id": "i2032",
+              "name": "Hermit",
+              "children": []
+            },
+            {
+              "id": "i3105",
+              "name": "Historian",
+              "children": []
+            },
+            {
+              "id": "i953",
+              "name": "Host(ess)",
+              "children": []
+            },
+            {
+              "id": "i937",
+              "name": "Housewife",
+              "children": []
+            },
+            {
+              "id": "i359",
+              "name": "Journalist",
+              "children": []
+            },
+            {
+              "id": "i2206",
+              "name": "Judge",
+              "children": []
+            },
+            {
+              "id": "i2431",
+              "name": "Landlord",
+              "children": []
+            },
+            {
+              "id": "i370",
+              "name": "Lawyer",
+              "children": []
+            },
+            {
+              "id": "i2320",
+              "name": "Lifeguard",
+              "children": []
+            },
+            {
+              "id": "i3413",
+              "name": "Mages Organization Member",
+              "children": []
+            },
+            {
+              "id": "i79",
+              "name": "Magician",
+              "children": []
+            },
+            {
+              "id": "i3430",
+              "name": "Mail Carrier",
+              "children": []
+            },
+            {
+              "id": "i2303",
+              "name": "Massage Therapist",
+              "children": []
+            },
+            {
+              "id": "i1618",
+              "name": "Merchant",
+              "children": []
+            },
+            {
+              "id": "i363",
+              "name": "NEET",
+              "children": []
+            },
+            {
+              "id": "i1481",
+              "name": "News Presenter",
+              "children": []
+            },
+            {
+              "id": "i3744",
+              "name": "Orphanage Director",
+              "children": []
+            },
+            {
+              "id": "i3537",
+              "name": "Parent-Teacher Association Member",
+              "children": []
+            },
+            {
+              "id": "i994",
+              "name": "Part-time Worker",
+              "children": []
+            },
+            {
+              "id": "i2008",
+              "name": "Peasant",
+              "children": []
+            },
+            {
+              "id": "i3789",
+              "name": "Professional Athlete",
+              "children": []
+            },
+            {
+              "id": "i2141",
+              "name": "Receptionist",
+              "children": []
+            },
+            {
+              "id": "i3452",
+              "name": "Sailor",
+              "children": []
+            },
+            {
+              "id": "i694",
+              "name": "Shopkeeper",
+              "children": []
+            },
+            {
+              "id": "i2511",
+              "name": "Single Parent",
+              "children": []
+            },
+            {
+              "id": "i3928",
+              "name": "Television Host",
+              "children": []
+            },
+            {
+              "id": "i2603",
+              "name": "Toymaker",
+              "children": []
+            },
+            {
+              "id": "i364",
+              "name": "Unemployed",
+              "children": []
+            },
+            {
+              "id": "i1418",
+              "name": "Video Game Developer",
+              "children": []
+            },
+            {
+              "id": "i3299",
+              "name": "Volunteer Worker",
+              "children": []
+            },
+            {
+              "id": "i372",
+              "name": "Waitstaff",
+              "children": []
+            }
+          ]
+    },
+    {
+      "id": "i408",
+      "name": "Nature",
+      "children": [
+        {
+            "id": "i622",
+            "name": "Youkai",
+            "children": [
+              {
+                "id": "i2915",
+                "name": "Baku",
+                "children": []
+              },
+              {
+                "id": "i1812",
+                "name": "Daidarabotchi",
+                "children": []
+              },
+              {
+                "id": "i2808",
+                "name": "Futakuchi-onna",
+                "children": []
+              },
+              {
+                "id": "i1557",
+                "name": "Han'you",
+                "children": []
+              },
+              {
+                "id": "i3724",
+                "name": "Inugami",
+                "children": []
+              },
+              {
+                "id": "i622",
+                "name": "13 more traits",
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "i480",
+            "name": "Monster",
+            "children": [
+              {
+                "id": "i1764",
+                "name": "Arachne",
+                "children": []
+              },
+              {
+                "id": "i1795",
+                "name": "Beelzebub",
+                "children": []
+              },
+              {
+                "id": "i1799",
+                "name": "Cancer",
+                "children": []
+              },
+              {
+                "id": "i2209",
+                "name": "Chimera",
+                "children": []
+              },
+              {
+                "id": "i3858",
+                "name": "Dullahan",
+                "children": []
+              },
+              {
+                "id": "i480",
+                "name": "11 more traits",
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "i2467",
+            "name": "Animal",
+            "children": [
+              {
+                "id": "i2594",
+                "name": "Amphibian",
+                "children": []
+              },
+              {
+                "id": "i785",
+                "name": "Bird",
+                "children": []
+              },
+              {
+                "id": "i2410",
+                "name": "Fish",
+                "children": []
+              },
+              {
+                "id": "i793",
+                "name": "Insect",
+                "children": []
+              },
+              {
+                "id": "i2643",
+                "name": "Mammal",
+                "children": []
+              },
+              {
+                "id": "i2467",
+                "name": "4 more traits",
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "i2882",
+            "name": "Half-breed",
+            "children": [
+              {
+                "id": "i2799",
+                "name": "Demigod",
+                "children": []
+              },
+              {
+                "id": "i2870",
+                "name": "Half Angel",
+                "children": []
+              },
+              {
+                "id": "i2867",
+                "name": "Half Demon",
+                "children": []
+              },
+              {
+                "id": "i3478",
+                "name": "Half Dragon",
+                "children": []
+              },
+              {
+                "id": "i3389",
+                "name": "Half Dwarf",
+                "children": []
+              },
+              {
+                "id": "i2882",
+                "name": "4 more traits",
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "i503",
+            "name": "Superhuman",
+            "children": [
+              {
+                "id": "i3765",
+                "name": "Kinesis",
+                "children": []
+              },
+              {
+                "id": "i4067",
+                "name": "Sensory Sharing",
+                "children": []
+              },
+              {
+                "id": "i343",
+                "name": "Superhero",
+                "children": []
+              },
+              {
+                "id": "i3422",
+                "name": "Superspeed",
+                "children": []
+              },
+              {
+                "id": "i3142",
+                "name": "Superstrength",
+                "children": []
+              },
+              {
+                "id": "i3958",
+                "name": "Supervillain",
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "i717",
+            "name": "Undead",
+            "children": [
+              {
+                "id": "i718",
+                "name": "Ghost",
+                "children": []
+              },
+              {
+                "id": "i1797",
+                "name": "Jiangshi",
+                "children": []
+              },
+              {
+                "id": "i2912",
+                "name": "Mummy",
+                "children": []
+              },
+              {
+                "id": "i1199",
+                "name": "Skeleton",
+                "children": []
+              },
+              {
+                "id": "i487",
+                "name": "Vampire",
+                "children": []
+              },
+              {
+                "id": "i1393",
+                "name": "Zombie",
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "i1036",
+            "name": "Construct",
+            "children": [
+              {
+                "id": "i457",
+                "name": "Artificial Intelligence",
+                "children": []
+              },
+              {
+                "id": "i1894",
+                "name": "Figment",
+                "children": []
+              },
+              {
+                "id": "i790",
+                "name": "Grimoire",
+                "children": []
+              },
+              {
+                "id": "i409",
+                "name": "Homunculus",
+                "children": []
+              },
+              {
+                "id": "i771",
+                "name": "Living Doll",
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "i498",
+            "name": "Demon",
+            "children": [
+              {
+                "id": "i500",
+                "name": "Demon Blooded",
+                "children": []
+              },
+              {
+                "id": "i2867",
+                "name": "Half Demon",
+                "children": []
+              },
+              {
+                "id": "i2264",
+                "name": "Incubus",
+                "children": []
+              },
+              {
+                "id": "i499",
+                "name": "Maou",
+                "children": []
+              },
+              {
+                "id": "i1098",
+                "name": "Succubus",
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "i854",
+            "name": "Angel",
+            "children": [
+              {
+                "id": "i3336",
+                "name": "Fallen Angel",
+                "children": []
+              },
+              {
+                "id": "i2870",
+                "name": "Half Angel",
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "i676",
+            "name": "Deity",
+            "children": [
+              {
+                "id": "i1477",
+                "name": "Cupid",
+                "children": []
+              },
+              {
+                "id": "i3353",
+                "name": "Divine Blooded",
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "i773",
+            "name": "Dragon",
+            "children": [
+              {
+                "id": "i3478",
+                "name": "Half Dragon",
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "i2104",
+            "name": "Dwarf",
+            "children": [
+              {
+                "id": "i3389",
+                "name": "Half Dwarf",
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "i712",
+            "name": "Elf",
+            "children": [
+              {
+                "id": "i2242",
+                "name": "Half Elf",
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "i479",
+            "name": "Extraterrestrial",
+            "children": [
+              {
+                "id": "i2872",
+                "name": "Half Extraterrestrial",
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "i1071",
+            "name": "Plant",
+            "children": [
+              {
+                "id": "i1762",
+                "name": "Alraune",
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "i410",
+            "name": "Spirit",
+            "children": [
+              {
+                "id": "i1742",
+                "name": "Shikigami",
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "i2746",
+            "name": "Anthropomorphized Inanimate Object",
+            "children": []
+          },
+          {
+            "id": "i752",
+            "name": "Celestial Body",
+            "children": []
+          },
+          {
+            "id": "i2314",
+            "name": "Centaur",
+            "children": []
+          },
+          {
+            "id": "i400",
+            "name": "Clone",
+            "children": []
+          },
+          {
+            "id": "i459",
+            "name": "Cyborg",
+            "children": []
+          },
+          {
+            "id": "i516",
+            "name": "Fairy",
+            "children": []
+          },
+          {
+            "id": "i1565",
+            "name": "Genie",
+            "children": []
+          },
+          {
+            "id": "i2388",
+            "name": "Gnome",
+            "children": []
+          },
+          {
+            "id": "i2544",
+            "name": "Goblin",
+            "children": []
+          },
+          {
+            "id": "i858",
+            "name": "Immortal",
+            "children": []
+          },
+          {
+            "id": "i1604",
+            "name": "Longevity",
+            "children": []
+          },
+          {
+            "id": "i1304",
+            "name": "Merperson",
+            "children": []
+          },
+          {
+            "id": "i714",
+            "name": "Non-human",
+            "children": []
+          },
+          {
+            "id": "i2958",
+            "name": "Nymph",
+            "children": []
+          },
+          {
+            "id": "i2315",
+            "name": "Orc",
+            "children": []
+          },
+          {
+            "id": "i1295",
+            "name": "Pegasus",
+            "children": []
+          },
+          {
+            "id": "i3668",
+            "name": "Phoenix",
+            "children": []
+          },
+          {
+            "id": "i2674",
+            "name": "Sentient Object",
+            "children": []
+          },
+          {
+            "id": "i396",
+            "name": "Shinigami",
+            "children": []
+          },
+          {
+            "id": "i3342",
+            "name": "Thrall",
+            "children": []
+          },
+          {
+            "id": "i1294",
+            "name": "Unicorn",
+            "children": []
+          },
+          {
+            "id": "i397",
+            "name": "Valkyrie",
+            "children": []
+          },
+          {
+            "id": "i3375",
+            "name": "Virtual Avatar",
+            "children": []
+          },
+          {
+            "id": "i706",
+            "name": "Werewolf",
+            "children": []
+          }
+      ]
+    },
+    {
+        "id": "i247",
+        "name": "Relationships",
+        "children": [
+            {
+                "id": "i3684",
+                "name": "Relative",
+                "children": [
+                  {
+                    "id": "i302",
+                    "name": "Aunt",
+                    "children": []
+                  },
+                  {
+                    "id": "i307",
+                    "name": "Cousin",
+                    "children": []
+                  },
+                  {
+                    "id": "i3301",
+                    "name": "Grandaunt",
+                    "children": []
+                  },
+                  {
+                    "id": "i300",
+                    "name": "Granddaughter",
+                    "children": []
+                  },
+                  {
+                    "id": "i297",
+                    "name": "Grandfather",
+                    "children": []
+                  },
+                  {
+                    "id": "i3684",
+                    "name": "11 more traits",
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "id": "i312",
+                "name": "Acquaintance",
+                "children": [
+                  {
+                    "id": "i446",
+                    "name": "Coworker",
+                    "children": []
+                  },
+                  {
+                    "id": "i313",
+                    "name": "Friend",
+                    "children": []
+                  },
+                  {
+                    "id": "i447",
+                    "name": "Neighbor",
+                    "children": []
+                  },
+                  {
+                    "id": "i442",
+                    "name": "Schoolmate",
+                    "children": []
+                  },
+                  {
+                    "id": "i448",
+                    "name": "Teammate",
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "id": "i310",
+                "name": "Boyfriend",
+                "children": [
+                  {
+                    "id": "i1042",
+                    "name": "Ex-boyfriend",
+                    "children": []
+                  },
+                  {
+                    "id": "i2567",
+                    "name": "Secret Boyfriend",
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "id": "i319",
+                "name": "Employee",
+                "children": [
+                  {
+                    "id": "i3231",
+                    "name": "Babysitter",
+                    "children": []
+                  },
+                  {
+                    "id": "i353",
+                    "name": "Servant",
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "id": "i320",
+                "name": "Employer",
+                "children": [
+                  {
+                    "id": "i526",
+                    "name": "Head of Household",
+                    "children": []
+                  },
+                  {
+                    "id": "i77",
+                    "name": "Master",
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "id": "i311",
+                "name": "Girlfriend",
+                "children": [
+                  {
+                    "id": "i1041",
+                    "name": "Ex-girlfriend",
+                    "children": []
+                  },
+                  {
+                    "id": "i2566",
+                    "name": "Secret Girlfriend",
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "id": "i399",
+                "name": "Alter Ego",
+                "children": []
+              },
+              {
+                "id": "i3665",
+                "name": "Ancestor",
+                "children": []
+              },
+              {
+                "id": "i285",
+                "name": "Betrothed",
+                "children": []
+              },
+              {
+                "id": "i1493",
+                "name": "Concubine",
+                "children": []
+              },
+              {
+                "id": "i286",
+                "name": "Divorcee",
+                "children": []
+              },
+              {
+                "id": "i308",
+                "name": "Domestic Partner",
+                "children": []
+              },
+              {
+                "id": "i2480",
+                "name": "Godchild",
+                "children": []
+              },
+              {
+                "id": "i2479",
+                "name": "Godparent",
+                "children": []
+              },
+              {
+                "id": "i445",
+                "name": "Kouhai",
+                "children": []
+              },
+              {
+                "id": "i317",
+                "name": "Legal Guardian",
+                "children": []
+              },
+              {
+                "id": "i1274",
+                "name": "Lonely",
+                "children": []
+              },
+              {
+                "id": "i1725",
+                "name": "Mistress",
+                "children": []
+              },
+              {
+                "id": "i309",
+                "name": "Roommate",
+                "children": []
+              },
+              {
+                "id": "i444",
+                "name": "Senpai",
+                "children": []
+              },
+              {
+                "id": "i1464",
+                "name": "Sex Friend",
+                "children": []
+              },
+              {
+                "id": "i318",
+                "name": "Ward",
+                "children": []
+              }
+        ]
+      },
+      {
+        "id": "i428",
+        "name": "Country of Origin",
+        "children": [
+            {
+                "id": "i2833",
+                "name": "Asian",
+                "children": [
+                  {
+                    "id": "i3661",
+                    "name": "Afghan",
+                    "children": []
+                  },
+                  {
+                    "id": "i2663",
+                    "name": "Cambodian",
+                    "children": []
+                  },
+                  {
+                    "id": "i746",
+                    "name": "Chinese",
+                    "children": []
+                  },
+                  {
+                    "id": "i569",
+                    "name": "Gurkha",
+                    "children": []
+                  },
+                  {
+                    "id": "i3620",
+                    "name": "Half-Asian",
+                    "children": []
+                  },
+                  {
+                    "id": "i2833",
+                    "name": "14 more traits",
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "id": "i2766",
+                "name": "European",
+                "children": [
+                  {
+                    "id": "i3195",
+                    "name": "Austrian",
+                    "children": []
+                  },
+                  {
+                    "id": "i4024",
+                    "name": "Belgian",
+                    "children": []
+                  },
+                  {
+                    "id": "i756",
+                    "name": "British",
+                    "children": []
+                  },
+                  {
+                    "id": "i3492",
+                    "name": "Dutch",
+                    "children": []
+                  },
+                  {
+                    "id": "i866",
+                    "name": "French",
+                    "children": []
+                  },
+                  {
+                    "id": "i2766",
+                    "name": "11 more traits",
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "id": "i1466",
+                "name": "Hispanic",
+                "children": [
+                  {
+                    "id": "i1075",
+                    "name": "Colombian",
+                    "children": []
+                  },
+                  {
+                    "id": "i2787",
+                    "name": "Mexican",
+                    "children": []
+                  },
+                  {
+                    "id": "i3619",
+                    "name": "Peruvian",
+                    "children": []
+                  },
+                  {
+                    "id": "i870",
+                    "name": "Spaniard",
+                    "children": []
+                  },
+                  {
+                    "id": "i3872",
+                    "name": "Venezuelan",
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "id": "i2838",
+                "name": "African",
+                "children": [
+                  {
+                    "id": "i2754",
+                    "name": "Egyptian",
+                    "children": []
+                  },
+                  {
+                    "id": "i2223",
+                    "name": "Kenyan",
+                    "children": []
+                  },
+                  {
+                    "id": "i2397",
+                    "name": "Malagasy",
+                    "children": []
+                  },
+                  {
+                    "id": "i2221",
+                    "name": "South African",
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "id": "i2633",
+                "name": "South American",
+                "children": [
+                  {
+                    "id": "i3230",
+                    "name": "Brazilian",
+                    "children": []
+                  },
+                  {
+                    "id": "i1075",
+                    "name": "Colombian",
+                    "children": []
+                  },
+                  {
+                    "id": "i3619",
+                    "name": "Peruvian",
+                    "children": []
+                  },
+                  {
+                    "id": "i3872",
+                    "name": "Venezuelan",
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "id": "i3830",
+                "name": "Multiracial",
+                "children": [
+                  {
+                    "id": "i3620",
+                    "name": "Half-Asian",
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "id": "i559",
+                "name": "American",
+                "children": []
+              },
+              {
+                "id": "i2197",
+                "name": "Arab",
+                "children": []
+              },
+              {
+                "id": "i1600",
+                "name": "Australian",
+                "children": []
+              },
+              {
+                "id": "i1040",
+                "name": "Canadian",
+                "children": []
+              },
+              {
+                "id": "i429",
+                "name": "Foreigner",
+                "children": []
+              },
+              {
+                "id": "i674",
+                "name": "Half-Japanese",
+                "children": []
+              },
+              {
+                "id": "i1822",
+                "name": "Jewish",
+                "children": []
+              },
+              {
+                "id": "i902",
+                "name": "Native American",
+                "children": []
+              },
+              {
+                "id": "i2378",
+                "name": "Native Canadian",
+                "children": []
+              },
+              {
+                "id": "i2661",
+                "name": "Polynesian",
+                "children": []
+              }
+        ]
+      },
+      {
+        "id": "i3459",
+        "name": "Relationship Acts",
+        "children": [
+          {
+            "id": "i3692",
+            "name": "Ani Act",
+            "children": []
+          },
+          {
+            "id": "i3286",
+            "name": "Daughter Act",
+            "children": []
+          },
+          {
+            "id": "i3691",
+            "name": "Otouto Act",
+            "children": []
+          },
+          {
+            "id": "i3277",
+            "name": "Parent Act",
+            "children": []
+          },
+          {
+            "id": "i4048",
+            "name": "Sister Act",
+            "children": []
+          },
+          {
+            "id": "i3459",
+            "name": "2 more traits",
+            "children": []
+          }
+        ]
+      },
+      {
+        "id": "i3458",
+        "name": "Socioeconomic",
+        "children": [
+            {
+                "id": "i839",
+                "name": "Homeless",
+                "children": []
+              },
+              {
+                "id": "i1727",
+                "name": "Ojousama",
+                "children": []
+              },
+              {
+                "id": "i2148",
+                "name": "Onzoushi",
+                "children": []
+              },
+              {
+                "id": "i472",
+                "name": "Poor",
+                "children": []
+              },
+              {
+                "id": "i2010",
+                "name": "Vagabond",
+                "children": []
+              },
+              {
+                "id": "i2250",
+                "name": "Vassal",
+                "children": []
+              },
+              {
+                "id": "i471",
+                "name": "Wealthy",
+                "children": []
+              }
+        ]
+      },
+      {
+        "id": "i3666",
+        "name": "Online Content Creator",
+        "children": [
+          {
+            "id": "i2313",
+            "name": "Blogger",
+            "children": []
+          },
+          {
+            "id": "i2825",
+            "name": "Net Idol",
+            "children": []
+          },
+          {
+            "id": "i3312",
+            "name": "Online Streamer",
+            "children": []
+          },
+          {
+            "id": "i2794",
+            "name": "Webcam Model",
+            "children": []
+          }
+        ]
+      },
+      {
+        "id": "i739",
+        "name": "Not a Virgin",
+        "children": [
+          {
+            "id": "i2532",
+            "name": "Not an Anal Virgin",
+            "children": []
+          },
+          {
+            "id": "i3475",
+            "name": "Pre-story Rape",
+            "children": []
+          },
+          {
+            "id": "i3174",
+            "name": "Pre-Story Virginity Loss to Protagonist",
+            "children": []
+          }
+        ]
+      },
+      {
+        "id": "i3613",
+        "name": "Sexual Orientation",
+        "children": [
+          {
+            "id": "i2055",
+            "name": "Asexual",
+            "children": []
+          },
+          {
+            "id": "i827",
+            "name": "Bisexual",
+            "children": []
+          },
+          {
+            "id": "i748",
+            "name": "Homosexual",
+            "children": []
+          }
+        ]
+      },
+      {
+        "id": "i395",
+        "name": "Based on a Fictional Character",
+        "children": [
+          {
+            "id": "i3821",
+            "name": "Based on a Virtual Streamer",
+            "children": []
+          },
+          {
+            "id": "i3718",
+            "name": "Based on a Vocaloid Character",
+            "children": []
+          }
+        ]
+      },
+      {
+        "id": "i3689",
+        "name": "Heir",
+        "children": [
+          {
+            "id": "i3485",
+            "name": "Crown Prince",
+            "children": []
+          },
+          {
+            "id": "i3484",
+            "name": "Crown Princess",
+            "children": []
+          }
+        ]
+      },
+      {
+        "id": "i83",
+        "name": "Hero",
+        "children": [
+          {
+            "id": "i2283",
+            "name": "Antihero",
+            "children": []
+          },
+          {
+            "id": "i343",
+            "name": "Superhero",
+            "children": []
+          }
+        ]
+      },
+      {
+        "id": "i3362",
+        "name": "Retired",
+        "children": [
+          {
+            "id": "i2917",
+            "name": "Former Celebrity",
+            "children": []
+          },
+          {
+            "id": "i3108",
+            "name": "Veteran",
+            "children": []
+          }
+        ]
+      },
+      {
+        "id": "i84",
+        "name": "Villain",
+        "children": [
+          {
+            "id": "i3887",
+            "name": "Antivillain",
+            "children": []
+          },
+          {
+            "id": "i3958",
+            "name": "Supervillain",
+            "children": []
+          }
+        ]
+      },
+      {
+        "id": "i1058",
+        "name": "Antagonist",
+        "children": [
+          {
+            "id": "i3235",
+            "name": "Unwilling Antagonist",
+            "children": []
+          }
+        ]
+      },
+      {
+        "id": "i829",
+        "name": "Delinquent",
+        "children": [
+          {
+            "id": "i3812",
+            "name": "Former Delinquent",
+            "children": []
+          }
+        ]
+      },
+      {
+        "id": "i812",
+        "name": "Famous",
+        "children": [
+          {
+            "id": "i2183",
+            "name": "Infamous",
+            "children": []
+          }
+        ]
+      },
+      {
+        "id": "i3392",
+        "name": "Masochist",
+        "children": [
+          {
+            "id": "i424",
+            "name": "Sexual Masochism",
+            "children": []
+          }
+        ]
+      },
+      {
+        "id": "i3391",
+        "name": "Sadist",
+        "children": [
+          {
+            "id": "i423",
+            "name": "Sexual Sadism",
+            "children": []
+          }
+        ]
+      },
+      {
+        "id": "i1086",
+        "name": "Sexual Dominant",
+        "children": [
+          {
+            "id": "i3328",
+            "name": "Switch",
+            "children": []
+          }
+        ]
+      },
+      {
+        "id": "i1087",
+        "name": "Sexual Submissive",
+        "children": [
+          {
+            "id": "i3328",
+            "name": "Switch",
+            "children": []
+          }
+        ]
+      },
+      {
+        "id": "i1367",
+        "name": "Apprentice",
+        "children": []
+      },
+      {
+        "id": "i394",
+        "name": "Based on a Real Person",
+        "children": []
+      },
+      {
+        "id": "i1486",
+        "name": "Biker",
+        "children": []
+      },
+      {
+        "id": "i1603",
+        "name": "Butt Monkey",
+        "children": []
+      },
+      {
+        "id": "i747",
+        "name": "Customizable Appearance",
+        "children": []
+      },
+      {
+        "id": "i2694",
+        "name": "Drag Performer",
+        "children": []
+      },
+      {
+        "id": "i2153",
+        "name": "Dropout",
+        "children": []
+      },
+      {
+        "id": "i753",
+        "name": "Exhibitionist",
+        "children": []
+      },
+      {
+        "id": "i816",
+        "name": "Familiar",
+        "children": []
+      },
+      {
+        "id": "i2009",
+        "name": "Feral Child",
+        "children": []
+      },
+      {
+        "id": "i4018",
+        "name": "Fiction Within Fiction",
+        "children": []
+      },
+      {
+        "id": "i536",
+        "name": "Gamer",
+        "children": []
+      },
+      {
+        "id": "i2340",
+        "name": "Gender Choice",
+        "children": []
+      },
+      {
+        "id": "i3688",
+        "name": "Genderless",
+        "children": []
+      },
+      {
+        "id": "i928",
+        "name": "Half-orphan",
+        "children": []
+      },
+      {
+        "id": "i3860",
+        "name": "Henchman",
+        "children": []
+      },
+      {
+        "id": "i720",
+        "name": "Hikikomori",
+        "children": []
+      },
+      {
+        "id": "i1539",
+        "name": "Illegitimate Child",
+        "children": []
+      },
+      {
+        "id": "i811",
+        "name": "Inbred",
+        "children": []
+      },
+      {
+        "id": "i3629",
+        "name": "Informant",
+        "children": []
+      },
+      {
+        "id": "i3107",
+        "name": "Livestock Owner",
+        "children": []
+      },
+      {
+        "id": "i1497",
+        "name": "Living Alone",
+        "children": []
+      },
+      {
+        "id": "i2267",
+        "name": "Mascot Character",
+        "children": []
+      },
+      {
+        "id": "i1451",
+        "name": "Multilingual",
+        "children": []
+      },
+      {
+        "id": "i593",
+        "name": "Nameable",
+        "children": []
+      },
+      {
+        "id": "i893",
+        "name": "No Name",
+        "children": []
+      },
+      {
+        "id": "i2393",
+        "name": "No Visual Appearance",
+        "children": []
+      },
+      {
+        "id": "i85",
+        "name": "Orphan",
+        "children": []
+      },
+      {
+        "id": "i1369",
+        "name": "Pet",
+        "children": []
+      },
+      {
+        "id": "i760",
+        "name": "Pet Owner",
+        "children": []
+      },
+      {
+        "id": "i777",
+        "name": "Popular",
+        "children": []
+      },
+      {
+        "id": "i2975",
+        "name": "Present in Flashbacks Only",
+        "children": []
+      },
+      {
+        "id": "i1448",
+        "name": "Prisoner",
+        "children": []
+      },
+      {
+        "id": "i3123",
+        "name": "Pseudonym",
+        "children": []
+      },
+      {
+        "id": "i1496",
+        "name": "Revolutionary",
+        "children": []
+      },
+      {
+        "id": "i1847",
+        "name": "Runaway",
+        "children": []
+      },
+      {
+        "id": "i776",
+        "name": "Secret Identity",
+        "children": []
+      },
+      {
+        "id": "i3612",
+        "name": "Sexual Trainer",
+        "children": []
+      },
+      {
+        "id": "i2016",
+        "name": "Slave Owner",
+        "children": []
+      },
+      {
+        "id": "i3984",
+        "name": "Stinky",
+        "children": []
+      },
+      {
+        "id": "i3653",
+        "name": "Sugar Daddy",
+        "children": []
+      },
+      {
+        "id": "i2502",
+        "name": "Temporary Protagonist",
+        "children": []
+      },
+      {
+        "id": "i3417",
+        "name": "Title Character",
+        "children": []
+      },
+      {
+        "id": "i678",
+        "name": "Tsukkomi",
+        "children": []
+      },
+      {
+        "id": "i762",
+        "name": "Unpopular",
+        "children": []
+      },
+      {
+        "id": "i1293",
+        "name": "Vegetarian",
+        "children": []
+      },
+      {
+        "id": "i3283",
+        "name": "Vigilante",
+        "children": []
+      },
+      {
+        "id": "i1452",
+        "name": "Virgin Bride",
+        "children": []
+      },
+      {
+        "id": "i648",
+        "name": "Yamato Nadeshiko",
+        "children": []
+      }
+    ]

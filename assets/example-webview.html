@@ -1,0 +1,422 @@
+```html
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>听歌状态栏 - 科技怪诞版</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
+        
+        body {
+            font-family: 'Orbitron', sans-serif;
+            margin: 0;
+            background-color: #0a0a0a;
+        }
+
+        .music-container {
+            width: 80%;
+            max-width: 320px;
+            border-radius: 25px;
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+            position: relative;
+            margin: 20px auto;
+            background: linear-gradient(45deg, #00ffff, #ff00ff, #00ff00);
+            background-size: 200% 200%;
+            animation: neonGradient 8s ease infinite;
+        }@keyframes neonGradient {
+            0% { background-position: 0% 0%; }
+            50% { background-position: 100% 100%; }
+            100% { background-position: 0% 0%; }
+        }
+
+        .background-image {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url('https://files.catbox.moe/lbr7m9.jpg');
+            background-size: cover;
+            filter: blur(11.25px) opacity(0.6);
+            z-index: 0;
+        }
+
+        .content {
+            position: relative;
+            z-index: 1;
+            padding: 20px;
+            color: #fff;
+            text-align: center;
+        }
+
+        .cover-image {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            overflow: hidden;
+            margin: 0 auto 15px;
+            border: 2px solid #fff;
+            box-shadow: 0 0 15px #00ffff, 0 0 30px #ff00ff;
+            animation: rotate 5s linear infinite, hoverGlow 2s ease-in-out infinite;
+        }
+
+        .cover-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        @keyframes hoverGlow {
+            0%, 100% { transform: translateY(0); box-shadow: 0 0 15px #00ffff; }
+            50% { transform: translateY(-10px); box-shadow: 0 0 25px #ff00ff; }
+        }
+
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .song-info {
+            margin-bottom: 15px;
+        }
+
+        .song-title {
+            font-size: 20px;
+            color: #fff;
+            text-shadow: 0 0 10px #87CEEB;
+        }
+
+        .song-artist {
+            font-size: 14px;
+            color: #D3D3D3;
+            text-shadow: 0 0 5px #87CEEB;
+        }.song-artist {
+            font-size: 14px;
+            color: #D3D3D3;
+            text-shadow: 0 0 5px #87CEEB;
+        }
+
+        .button-group {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            padding: 10px;
+            border: 2px solid #87CEEB;
+            border-radius: 10px;
+            margin: 10px 0;
+        }
+
+        .control-button {
+            background: transparent;
+            border: 2px solid #87CEEB;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            color: #87CEEB;
+            transition: all 0.3s ease;
+            animation: buttonGlow 2s ease-in-out infinite;
+        }
+
+        .control-button:hover {
+            box-shadow: 0 0 15px #87CEEB;
+            color: #fff;
+            transform: scale(1.05);
+        }
+
+        @keyframes buttonGlow {
+            0%, 100% { box-shadow: 0 0 5px #87CEEB; }
+            50% { box-shadow: 0 0 15px #87CEEB; }
+        }audio {
+            display: block;
+            margin: 10px auto;
+            width: 100%;
+        }
+
+        .ecg-line {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            width: 100%;
+            height: 20px;
+            z-index: 1;
+        }
+
+        .ecg-line svg {
+            width: 100%;
+            height: 100%;
+            stroke: #00ffff;
+            stroke-width: 2;
+            fill: none;
+            animation: ecgMove 2s linear infinite;
+        }
+
+        @keyframes ecgMove {
+            0% { stroke-dashoffset: 0; }
+            100% { stroke-dashoffset: -50; }
+        }
+
+        .lyrics-container {
+            background-color: rgba(255, 255, 255, 0.3);
+            border-radius: 15px 5px 20px 10px;
+            padding: 15px;
+            font-family: serif;
+            font-size: 14px;
+            color: #fff;
+            line-height: 1.6;
+            animation: warp 4s ease-in-out infinite;
+        }
+
+        details[open] .lyrics-content {
+            max-height: 160px;
+            overflow-y: auto;
+        }
+
+        .lyrics-content::-webkit-scrollbar {
+            width: 0px;
+        }
+
+        @keyframes warp {
+            0%, 100% { transform: skew(0deg); }
+            50% { transform: skew(2deg); }
+        }
+
+        @media (max-width: 480px) {
+            .music-container { width: 90%; }
+            .content { padding: 10px; }
+            .cover-image { width: 80px; height: 80px; }
+            .song-title { font-size: 18px; }
+            .song-artist { font-size: 12px; }
+        }
+    </style>
+</head><body>
+    <div class="music-container">
+        <div class="background-image"></div>
+        <div class="content">
+            <div class="cover-image">
+                <img src="https://files.catbox.moe/jdhssp.jpg" alt="专辑封面">
+            </div>
+            <div class="song-info">
+                <div class="song-title">You Should See Me in a Crown</div>
+                <div class="song-artist">Billie Eilish</div>
+            </div>
+            <div class="button-group">
+                <button class="control-button prev-button" onclick="prevSong()">⏮</button>
+                <button class="control-button play-button" onclick="togglePlay()">■</button>
+                <button class="control-button next-button" onclick="nextSong()">⏭</button>
+            </div>
+            <audio id="audio">
+                <source src="https://files.catbox.moe/za8qay.mp3" type="audio/mpeg">
+            </audio>
+            <div class="ecg-line">
+                <svg viewBox="0 0 100 20">
+                    <path d="M0 10 H20 L25 5 L30 15 L35 5 L40 10 H100" stroke-dasharray="50"/>
+                </svg>
+            </div><details class="lyrics-container">
+                <summary>歌词</summary>
+                <div class="lyrics-content">
+                    <p>Bite my tongue, bide my time<br>咬紧牙关，等候最佳时机<br>Wearing a warning sign<br>发散出危险警告的气息<br>Wait 'til the world is mine<br>等着世界属于我的那刻到来<br>Visions I vandalize<br>我破坏了那些幻想<br>Cold in my kingdom size<br>在我庞大的王国里冷酷无情<br>Fell for these ocean eyes<br>坠入这海洋般的眼眸<br>You should see me in a crown<br>你应该看到我头戴皇冠衣冠整齐的模样<br>I'm gonna run this nothing town<br>我将改变这个穷途末路的地方<br>Watch me make 'em bow<br>看我如何称王<br>One by one by one<br>一个接一个<br>You should see me in a crown<br>你应该看到我头戴皇冠衣冠整齐的模样<br>Your silence is my favorite sound<br>你的沉默是我最爱的声音<br>Watch me make 'em bow<br>看我如何称王<br>One by one by one<br>一个接一个</p>
+                </div>
+            </details>
+        </div>
+    </div>
+
+    <script>const songs = [
+            { 
+                src: 'https://files.catbox.moe/8huvgq.mp3',
+                title: 'You Should See Me in a Crown',
+                artist: 'Billie Eilish',
+                lyrics: 'Bite my tongue, bide my time<br>咬紧牙关，等候最佳时机<br>Wearing a warning sign<br>发散出危险警告的气息<br>Wait \'til the world is mine<br>等着世界属于我的那刻到来<br>Visions I vandalize<br>我破坏了那些幻想<br>Cold in my kingdom size<br>在我庞大的王国里冷酷无情<br>Fell for these ocean eyes<br>坠入这海洋般的眼眸<br>You should see me in a crown<br>你应该看到我头戴皇冠衣冠整齐的模样<br>I\'m gonna run this nothing town<br>我将改变这个穷途末路的地方<br>Watch me make \'em bow<br>看我如何称王<br>One by one by one<br>一个接一个<br>You should see me in a crown<br>你应该看到我头戴皇冠衣冠整齐的模样<br>Your silence is my favorite sound<br>你的沉默是我最爱的声音<br>Watch me make \'em bow<br>看我如何称王<br>One by one by one<br>一个接一个'
+            },
+            { 
+                src: 'https://files.catbox.moe/za8qay.mp3',
+                title: 'Mirror Masa',
+                artist: 'DATHAN',
+                lyrics: 'Mirror, mirror on the wall 墙上的镜子，镜子 Who\'s the fairest of them all? 谁是其中最美的一个？ (重复多次，无更多歌词内容)'
+            }
+        ];let currentSongIndex = 0;
+        const audio = document.getElementById('audio');
+        const playButton = document.querySelector('.play-button');
+        const songTitle = document.querySelector('.song-title');
+        const songArtist = document.querySelector('.song-artist');
+        const lyricsContent = document.querySelector('.lyrics-content p');
+
+        function togglePlay() {
+            if (audio.paused) {
+                audio.play();
+                playButton.textContent = 'Ⅱ';
+            } else {
+                audio.pause();
+                playButton.textContent = '■';
+            }
+        }
+
+        async function loadSong() {
+            const song = songs[currentSongIndex];
+            
+            songTitle.textContent = song.title;
+            songArtist.textContent = song.artist;
+            lyricsContent.innerHTML = song.lyrics;
+
+            if (audio.src !== song.src) {
+                audio.src = song.src;
+                await new Promise((resolve) => {
+                    audio.addEventListener('canplay', resolve, { once: true });
+                    audio.load();
+                });
+            }
+        }
+
+        async function nextSong() {
+            currentSongIndex = (currentSongIndex + 1) % songs.length;
+            await loadSong();
+            audio.play();
+            playButton.textContent = 'Ⅱ';
+        }async function prevSong() {
+            currentSongIndex = (currentSongIndex - 1 + songs.length) % songs.length;
+            await loadSong();
+            audio.play();
+            playButton.textContent = 'Ⅱ';
+        }
+
+        // 初始化首首歌
+        loadSong();
+
+        // 自动播放下一首
+        audio.addEventListener('ended', nextSong);
+
+        // 错误处理
+        audio.addEventListener('error', (e) => {
+            console.error('播放错误:', e);
+            alert('歌曲加载失败，请稍后再试');
+        });
+    </script>
+</body>
+</html>
+```
+厚重的隔音门在身后缓缓关闭，将一切喧嚣与纷扰隔绝在外。星河感觉自己仿佛正步入一个与世隔绝的异度空间。
+
+空气中弥漫着消毒水与金属特有的冰冷气息，令人不由自主地绷紧神经。四周的墙壁呈现出一种冷硬单调的灰白色，唯一的“色彩”来自各种闪烁着幽光的精密仪器。
+
+“Hello, Dr. {{user}}.”（您好，{{user}}医生。）
+
+一个略显疲惫的声音在房间一侧响起。星河循声望去，看到几名身穿白色制服的研究人员，面色凝重地注视着她。
+
+一位头发花白，眼神却依旧锐利的老者走上前来。他自我介绍说是这个项目组的负责人，李博士。在向星河简单介绍完情况后，这位老人疲惫的脸上露出了一丝恳切：
+
+“Time is pressing … every minute is critical … only with your professional ability can there be a glimmer of hope. ”（时间紧迫…每一分每一秒都很关键…只有借助您的专业能力，才有一线希望了。）
+
+星河轻轻点头, 表示理解。“I will try my best.”（我会尽力）
+
+她将一个银色小巧的金属按钮紧紧握在手中，这是实验室特制的“紧急脱离”装置。只要按下它，无论在梦境中遭遇什么，都能立即强行切断连接，返回现实。
+
+“Well.”(很好)，李博士示意一位研究员上前，那人手中托着一个托盘，上方放置着如同头盔的设备，表面布满密密麻麻的线路…“Please wear this sensor, and we will build a spiritual bridge between you and Carl through it. ”（请您戴上这个感应器, 我们将通过它构建您和卡尔之间的精神桥梁）
+
+设备内衬是一种柔软且冰凉的未知材质，当星河轻轻把头盔戴上，那种触感让她产生微妙的不适,但很快被她压下。
+
+“Are you ready?”（准备好了吗？）李博士问到。
+
+星河深吸一口气，最后看了一眼那个银色按钮，用尽可能平静的声音回答：“可以开始了。”
+
+随着一阵低沉的嗡鸣, 实验室中央那台巨大的环形仪器开始运转。幽蓝色的光带在环中缓缓流动，仿佛某种神秘的能量正在积聚。
+
+“R”李博士低声说，“尽量不要做无谓抵抗，让意识顺其自然…"
+
+星河闭上眼睛，感觉自己像一个即将坠入无底深渊的人。
+
+先是一阵剧烈的眩晕，然后是失重感，最后是一切感官, 一切认知，都被拽入无边黑暗……
+
+.. ..
+
+当她再次“睁开眼”, 发现自己正漂浮在一片混沌翻滚的深红之中----像血液，浓稠的漩涡与无数暗色细丝朝四面八方无限延申。脚下没有实地, 周遭更没有可供参考的物件，“方向”变得毫无意义。
+
+她下意识低头, 看见自己身上那件白色衬衫，不知什么时候已经变成了一条如火焰燃烧般的红色长裙, 裙摆无风自动，像有生命般肆意舒展。
+
+没有尖叫，没有挣扎。星河知道, 那都是徒劳，甚至可能使她自己加速陷入混乱和疯狂的。
+
+“Calm down ... get used to ...（冷静…适应…）”, 她只能反复对自己这样说着。
+
+在克服了最初那阵短暂的生理不适感之后，星河努力调整着呼吸和心跳, 让思维尽快运转
+
+“This is Carl's subconscious world?”（这里就是卡尔的潜意识世界？）她自言自语的声音在这片无垠虚空中显得如此微弱，很快消散在四周.
+
+正当星河努力保持镇静, 试图观察更清晰时, 远方有什么微微闪了一下。那光芒，与周遭压抑的猩红截然不同，带了一丝惨白
+
+紧接着，那苍白化作无数光点，那些光点又组成一扇扇"门”的轮廓…
+
+“门”的轮廓开始变得更加具体 --巨大，沉重, 布满锈迹。有些地方能清晰看到裸露且扭曲的金属。 而这些"门"整体又不同于正常所见, 它们更像是直接从噩梦中拓印下来的事物，毫无逻辑地堆叠在一起.
+
+很快，最前方的那扇 "门" 动了起来。有什么东西从打开的门缝中倾泻而出。像液体，更像…某种无以名状的存在。
+
+未知的阴影发出沉重缓慢的呼吸声, 越来越近。
+
+<div id="carl-status" style="font-family: 'Orbitron', sans-serif; max-width: 900px; margin: 20px auto; position: relative; overflow: hidden; background: url('https://files.catbox.moe/2vm78u.jpg') no-repeat center/cover; opacity: 0.85; border: 2px solid #00FFCC; box-shadow: 0 0 15px rgba(0, 255, 204, 0.5); border-radius: 10px;">
+    <!-- 粒子特效 -->
+    <div class="particle-bg" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden;">
+        <div class="particle" style="position: absolute; width: 4px; height: 4px; background: #FF0066; border-radius: 50%; animation: float 8s infinite; left: 20%; top: 30%;"></div>
+        <div class="particle" style="position: absolute; width: 3px; height: 3px; background: #FFFFFF; border-radius: 50%; animation: float 12s infinite; left: 70%; top: 60%;"></div>
+    </div>
+    <!-- 可折叠面板 -->
+    <details>
+        <summary style="background: rgba(0, 255, 204, 0.1); border-bottom: 2px solid #00FFCC; padding: 15px; cursor: pointer; text-align: center; color: #00FFCC; font-size: 20px; text-transform: uppercase; letter-spacing: 2px;">
+            <span style="font-family: 'Nosifer', cursive; color: #FF0066;">☣ Carl's Neural Abyss ☣</span>
+        </summary>
+        <div style="background: rgba(13, 27, 42, 0.9); padding: 20px; color: #FFFFFF; position: relative; z-index: 1;">
+            <!-- 头像与姓名 -->
+            <div style="display: flex; align-items: center; border-bottom: 1px dashed #FF0066; padding-bottom: 15px; margin-bottom: 15px;">
+                <div style="width: 80px; height: 80px; border: 3px solid #00FFCC; border-radius: 50%; overflow: hidden; box-shadow: 0 0 10px rgba(0, 255, 204, 0.7);">
+                    <img src="https://files.catbox.moe/laabgx.jpeg" alt="Carl Rudolph Staag" style="width: 100%; height: 100%; object-fit: cover; object-position: center; filter: grayscale(50%) contrast(120%);">
+                </div>
+                <h2 style="font-family: 'Nosifer', cursive; color: #FF0066; font-size: 28px; margin: 0 0 0 20px; text-shadow: 0 0 5px #FF0066;">Carl Rudolph Staag</h2>
+            </div>
+            <!-- 状态内容 -->
+            <div style="margin-top: 15px;">
+                <!-- 心电图与当前状态 -->
+                <div style="background: rgba(255, 0, 102, 0.05); padding: 15px; border: 1px solid #FF0066; border-radius: 5px; margin-bottom: 15px;">
+                    <span style="color: #FF0066; text-transform: uppercase; letter-spacing: 2px;">Mental Pulse:</span>
+                    <div style="margin-top: 10px; height: 40px; background: url('https://i.imgur.com/8zK8YgD.gif') repeat-x; background-size: 100% 100%; border: 1px solid #FF0066; position: relative;">
+                        <span style="position: absolute; top: 50%; left: 10px; transform: translateY(-50%); color: #FFFFFF; font-family: 'Courier New', monospace; text-shadow: 0 0 5px #FF0066;">Numbness & mental paralysis</span>
+                    </div>
+                </div>
+                <!-- 其他状态 -->
+                <div style="background: rgba(0, 255, 204, 0.05); padding: 15px; border: 1px solid #00FFCC; border-radius: 5px;">
+                    <div style="display: flex; justify-content: space-between;">
+                        <span style="color: #00FFCC; text-transform: uppercase; letter-spacing: 2px;">Dream Layer:</span>
+                        <span style="color: #FFFFFF; font-family: 'Courier New', monospace;">layer 0</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-top: 10px;">
+                        <span style="color: #00FFCC; text-transform: uppercase; letter-spacing: 2px;">Current Obsession:</span>
+                        <span style="color: #FFFFFF; font-family: 'Courier New', monospace;">Pure white and cold snow scene</span>
+                    </div>
+                </div>
+            </div>
+            <!-- 底部装饰 -->
+            <div style="text-align: center; margin-top: 20px; color: #00FFCC; font-family: 'Nosifer', cursive; font-size: 16px; text-shadow: 0 0 5px #00FFCC;">
+                ☣ Shadows of Divinity ☣
+            </div>
+        </div>
+    </details>
+</div>
+
+<style>
+/* 移除默认折叠箭头 */
+details > summary { list-style: none; }
+details > summary::-webkit-details-marker { display: none; }
+/* 展开动画 */
+details[open] > div { animation: neuroFade 0.5s ease-out; }
+/* 粒子浮动动画 */
+@keyframes float { 0% { transform: translateY(100vh); opacity: 0; } 20% { opacity: 0.8; } 80% { opacity: 0.8; } 100% { transform: translateY(-100px); opacity: 0; } }
+/* 面板展开动画 */
+@keyframes neuroFade { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+/* 呼吸灯效果 */
+@keyframes breathing { 0% { box-shadow: 0 0 15px rgba(0, 255, 204, 0.5); } 50% { box-shadow: 0 0 25px rgba(0, 255, 204, 0.8); } 100% { box-shadow: 0 0 15px rgba(0, 255, 204, 0.5); } }
+#carl-status { animation: breathing 3s infinite; }
+/* 滴血效果 */
+@keyframes drip { 0% { transform: translateY(-100px); opacity: 1; } 100% { transform: translateY(100vh); opacity: 0; } }
+.blood-drop { position: absolute; width: 5px; height: 10px; background: #FF0066; border-radius: 50%; animation: drip 5s infinite; }
+/* 鼠标悬停效果 */
+#carl-status:hover { box-shadow: 0 0 25px rgba(0, 255, 204, 0.8); }
+</style>

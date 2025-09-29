@@ -1,0 +1,425 @@
+name: RN Android Multi-Arch Build
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        abi: [ x86, x86_64, arm64-v8a ]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 19.x
+          cache: 'npm'
+
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: 17
+
+      - name: Install JS Dependencies
+        run: npm ci
+
+      - name: Restore Gradle Cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.gradle/caches/
+            ~/.gradle/wrapper/
+          key: ${{ runner.os }}-gradle-${{ hashFiles('android/**/build.gradle','android/gradle/wrapper/gradle-wrapper.properties') }}
+
+      - name: Expo Prebuild (if needed)
+        run: |
+          if [ ! -d android ]; then
+            echo "android 目录不存在，执行 expo prebuild"
+            npx expo prebuild --platform android
+          else
+            echo "android 目录已存在，跳过 prebuild"
+          fi
+
+      - name: Copy network security config
+        run: |
+          mkdir -p android/app/src/main/res/xml/
+          cp assets/network_security_config.xml android/app/src/main/res/xml/
+
+      - name: Enable ABI splits in build.gradle
+        run: |
+          # 只插入一次 splits 配置，避免重复
+          if ! grep -q "splits {" android/app/build.gradle; then
+            perl -i -pe 's/(android\s*\{)/\1\n  splits {\n    abi {\n      enable true\n      reset()\n      include "${{ matrix.abi }}"\n      universalApk true\n    }\n  }/' android/app/build.gradle
+          fi
+
+      - name: Configure ProGuard for release
+        run: |
+          # 启用代码压缩但禁用混淆，避免Matrix SDK问题
+          if ! grep -q "minifyEnabled true" android/app/build.gradle; then
+            perl -i -pe 's/(release\s*\{)/\1\n            minifyEnabled true\n            shrinkResources false\n            proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"/' android/app/build.gradle
+          fi
+          
+          # 创建更安全的ProGuard规则文件
+          cat > android/app/proguard-rules.pro << 'EOF'
+          # Keep React Native and Expo
+          -keep class com.facebook.react.** { *; }
+          -keep class com.facebook.hermes.** { *; }
+          -keep class expo.** { *; }
+          -keep class versioned.host.exp.exponent.** { *; }
+          -dontwarn com.facebook.react.**
+          -dontwarn expo.**
+          
+          # Keep Matrix SDK
+          -keep class org.matrix.** { *; }
+          -keep class matrix.** { *; }
+          -dontwarn org.matrix.**
+          -dontwarn matrix.**
+          
+          # Keep Node.js polyfills
+          -keep class com.peel.** { *; }
+          -keep class com.tradle.** { *; }
+          -keep class stream.** { *; }
+          -keep class crypto.** { *; }
+          -keep class buffer.** { *; }
+          -keep class events.** { *; }
+          -keep class util.** { *; }
+          -keep class url.** { *; }
+          -keep class querystring.** { *; }
+          -dontwarn com.peel.**
+          -dontwarn com.tradle.**
+          -dontwarn stream.**
+          -dontwarn crypto.**
+          -dontwarn buffer.**
+          -dontwarn events.**
+          -dontwarn util.**
+          -dontwarn url.**
+          -dontwarn querystring.**
+          
+          # Keep polyfills and native modules
+          -keep class * implements com.facebook.react.bridge.NativeModule { *; }
+          -keep class * implements com.facebook.react.turbomodule.core.TurboModule { *; }
+          -keep class * implements com.facebook.react.bridge.JavaScriptModule { *; }
+          
+          # Keep application entry points
+          -keep class * extends android.app.Application
+          -keep class * extends android.app.Activity
+          -keep class * extends android.app.Service
+          -keep class * extends android.content.BroadcastReceiver
+          -keep class * extends android.content.ContentProvider
+          
+          # Keep AsyncStorage
+          -keep class com.reactnativecommunity.asyncstorage.** { *; }
+          -dontwarn com.reactnativecommunity.asyncstorage.**
+          
+          # Keep Video components
+          -keep class com.brentvatne.** { *; }
+          -dontwarn com.brentvatne.**
+          
+          # Keep WebView
+          -keep class com.reactnativecommunity.webview.** { *; }
+          -dontwarn com.reactnativecommunity.webview.**
+          
+          # Keep SQLite
+          -keep class org.sqlite.** { *; }
+          -keep class io.expo.sqlite.** { *; }
+          -dontwarn org.sqlite.**
+          -dontwarn io.expo.sqlite.**
+          
+          # Keep all native modules used in the app
+          -keep class com.reactnativecommunity.** { *; }
+          -keep class org.reactnative.** { *; }
+          -dontwarn com.reactnativecommunity.**
+          -dontwarn org.reactnative.**
+          
+          # 保守的混淆配置 - 仅移除日志
+          -assumenosideeffects class android.util.Log {
+              public static boolean isLoggable(java.lang.String, int);
+              public static int v(...);
+              public static int i(...);
+              public static int w(...);
+              public static int d(...);
+              public static int e(...);
+          }
+          
+          # Keep all classes with @Keep annotation
+          -keep @interface androidx.annotation.Keep
+          -keep @androidx.annotation.Keep class *
+          -keepclassmembers class * {
+              @androidx.annotation.Keep *;
+          }
+          
+          # React Native specifics
+          -keepclassmembers class * {
+              @com.facebook.react.uimanager.annotations.ReactProp <methods>;
+          }
+          -keepclassmembers class * {
+              @com.facebook.react.uimanager.annotations.ReactPropGroup <methods>;
+          }
+          -keepclassmembers class * {
+              void *(**On*Event)(com.facebook.react.bridge.WritableMap);
+          }
+          EOF
+
+      - name: Setup Android Keystore
+        run: |
+          mkdir -p android/app
+          echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > android/app/keystore.jks
+
+      - name: Set up signing config env
+        run: |
+          echo "KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> $GITHUB_ENV
+          echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> $GITHUB_ENV
+          echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
+
+      - name: Assemble for ${{ matrix.abi }}
+        run: |
+          cd android
+          ./gradlew assembleRelease \
+            -PcdvAbi="${{ matrix.abi }}" \
+            -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=512m" \
+            --no-daemon \
+            --stacktrace
+        env:
+          NODE_ENV: production
+
+      - name: Collect APK
+        run: mkdir -p output && cp android/app/build/outputs/apk/release/app-${{ matrix.abi }}-release.apk output/
+
+      - name: Upload APK ${{ matrix.abi }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-${{ matrix.abi }}
+          path: output/app-${{ matrix.abi }}-release.apk
+
+  universal:
+    runs-on: ubuntu-latest
+    needs: [ build ]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 19.x
+          cache: 'npm'
+
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: 17
+
+      - name: Install JS Dependencies
+        run: npm ci
+
+      - name: Restore Gradle Cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.gradle/caches/
+            ~/.gradle/wrapper/
+          key: ${{ runner.os }}-gradle-${{ hashFiles('android/**/build.gradle','android/gradle/wrapper/gradle-wrapper.properties') }}
+
+      - name: Expo Prebuild (if needed)
+        run: |
+          if [ ! -d android ]; then
+            echo "android 目录不存在，执行 expo prebuild"
+            npx expo prebuild --platform android
+          else
+            echo "android 目录已存在，跳过 prebuild"
+          fi
+
+      - name: Copy network security config
+        run: |
+          mkdir -p android/app/src/main/res/xml/
+          cp assets/network_security_config.xml android/app/src/main/res/xml/
+
+      - name: Configure ProGuard for release
+        run: |
+          # 启用代码压缩但禁用混淆，避免Matrix SDK问题
+          if ! grep -q "minifyEnabled true" android/app/build.gradle; then
+            perl -i -pe 's/(release\s*\{)/\1\n            minifyEnabled true\n            shrinkResources false\n            proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"/' android/app/build.gradle
+          fi
+          
+          # 创建更安全的ProGuard规则文件
+          cat > android/app/proguard-rules.pro << 'EOF'
+          # Keep React Native and Expo
+          -keep class com.facebook.react.** { *; }
+          -keep class com.facebook.hermes.** { *; }
+          -keep class expo.** { *; }
+          -keep class versioned.host.exp.exponent.** { *; }
+          -dontwarn com.facebook.react.**
+          -dontwarn expo.**
+          
+          # Keep Matrix SDK
+          -keep class org.matrix.** { *; }
+          -keep class matrix.** { *; }
+          -dontwarn org.matrix.**
+          -dontwarn matrix.**
+          
+          # Keep Node.js polyfills
+          -keep class com.peel.** { *; }
+          -keep class com.tradle.** { *; }
+          -keep class stream.** { *; }
+          -keep class crypto.** { *; }
+          -keep class buffer.** { *; }
+          -keep class events.** { *; }
+          -keep class util.** { *; }
+          -keep class url.** { *; }
+          -keep class querystring.** { *; }
+          -dontwarn com.peel.**
+          -dontwarn com.tradle.**
+          -dontwarn stream.**
+          -dontwarn crypto.**
+          -dontwarn buffer.**
+          -dontwarn events.**
+          -dontwarn util.**
+          -dontwarn url.**
+          -dontwarn querystring.**
+          
+          # Keep polyfills and native modules
+          -keep class * implements com.facebook.react.bridge.NativeModule { *; }
+          -keep class * implements com.facebook.react.turbomodule.core.TurboModule { *; }
+          -keep class * implements com.facebook.react.bridge.JavaScriptModule { *; }
+          
+          # Keep application entry points
+          -keep class * extends android.app.Application
+          -keep class * extends android.app.Activity
+          -keep class * extends android.app.Service
+          -keep class * extends android.content.BroadcastReceiver
+          -keep class * extends android.content.ContentProvider
+          
+          # Keep AsyncStorage
+          -keep class com.reactnativecommunity.asyncstorage.** { *; }
+          -dontwarn com.reactnativecommunity.asyncstorage.**
+          
+          # Keep Video components
+          -keep class com.brentvatne.** { *; }
+          -dontwarn com.brentvatne.**
+          
+          # Keep WebView
+          -keep class com.reactnativecommunity.webview.** { *; }
+          -dontwarn com.reactnativecommunity.webview.**
+          
+          # Keep SQLite
+          -keep class org.sqlite.** { *; }
+          -keep class io.expo.sqlite.** { *; }
+          -dontwarn org.sqlite.**
+          -dontwarn io.expo.sqlite.**
+          
+          # Keep all native modules used in the app
+          -keep class com.reactnativecommunity.** { *; }
+          -keep class org.reactnative.** { *; }
+          -dontwarn com.reactnativecommunity.**
+          -dontwarn org.reactnative.**
+          
+          # 保守的混淆配置 - 仅移除日志
+          -assumenosideeffects class android.util.Log {
+              public static boolean isLoggable(java.lang.String, int);
+              public static int v(...);
+              public static int i(...);
+              public static int w(...);
+              public static int d(...);
+              public static int e(...);
+          }
+          
+          # Keep all classes with @Keep annotation
+          -keep @interface androidx.annotation.Keep
+          -keep @androidx.annotation.Keep class *
+          -keepclassmembers class * {
+              @androidx.annotation.Keep *;
+          }
+          
+          # React Native specifics
+          -keepclassmembers class * {
+              @com.facebook.react.uimanager.annotations.ReactProp <methods>;
+          }
+          -keepclassmembers class * {
+              @com.facebook.react.uimanager.annotations.ReactPropGroup <methods>;
+          }
+          -keepclassmembers class * {
+              void *(**On*Event)(com.facebook.react.bridge.WritableMap);
+          }
+          EOF
+
+      - name: Setup Android Keystore
+        run: |
+          mkdir -p android/app
+          echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > android/app/keystore.jks
+
+      - name: Set up signing config env
+        run: |
+          echo "KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> $GITHUB_ENV
+          echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> $GITHUB_ENV
+          echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
+
+      - name: Build Universal APK
+        run: |
+          cd android
+          ./gradlew assembleRelease \
+            -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=512m" \
+            --no-daemon \
+            --stacktrace
+        env:
+          NODE_ENV: production
+
+      - name: Collect Universal APK
+        run: mkdir -p output && cp android/app/build/outputs/apk/release/app-universal-release.apk output/
+
+      - name: Upload Universal APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-universal
+          path: output/app-universal-release.apk
+
+  release:
+    needs: [ build, universal ]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get Version
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Release ${{ steps.get_version.outputs.VERSION }}
+          files: |
+            dist/**/*.apk
+
+  push-to-release:
+    needs: [ build, universal ]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: latest
+
+      - name: Push to Latest Release
+        uses: marvinpinto/action-automatic-releases@latest
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          automatic_release_tag: latest
+          title: "Latest Build"
+          files: |
+            latest/**/*.apk

@@ -1,0 +1,271 @@
+{
+    "general_categories": [
+        {
+            "name": "文字&语言",
+            "sub_categories": {
+                "语言": [
+                    "japanese_text",
+                    "english_text",
+                    "chinese_text",
+                    "korean_text",
+                    "french_text",
+                    "russian_text",
+                    "spanish_text",
+                    "thai_text",
+                    "traditional_chinese_text",
+                    "simplified_chinese_text"
+                ],
+                "文字样式": [
+                    "text_focus",
+                    "sound_effects",
+                    "speech_bubble",
+                    "text_only_page",
+                    "wall_of_text",
+                    "translation_request",
+                    "watermark",
+                    "tagme",
+                    "signature",
+                    "timestamp",
+                    "upside-down_text",
+                    "symbol",
+                    "lyrics",
+                    "verse",
+                    "read_comic"
+                ],
+                "表情符号": [
+                    "spoken_heart",
+                    "spoken_question_mark",
+                    "spoken_exclamation_mark",
+                    "spoken_musical_note",
+                    "spoken_ellipsis",
+                    "spoken_sweatdrop",
+                    "spoken_anger_vein",
+                    "spoken_interrobang",
+                    "spoken_squiggle",
+                    "spoken_object",
+                    "thought_bubble",
+                    "musical_note",
+                    "x_hair_ornament",
+                    "o_o",
+                    "x_x",
+                    "zzz",
+                    "xd",
+                    "w",
+                    "v",
+                    "u_u",
+                    "t_t"
+                ]
+            }
+        },
+        {
+            "name": "姿势&状态",
+            "sub_categories": {
+                "睡眠状态": [
+                    "sleeping",
+                    "sleeping_upright",
+                    "sleepy",
+                    "waking_up",
+                    "yawning",
+                    "zzz"
+                ],
+                "坐姿": [
+                    "seiza",
+                    "sitting",
+                    "sitting_on_bed",
+                    "sitting_on_chair",
+                    "sitting_on_desk",
+                    "sitting_on_lap",
+                    "sitting_on_person",
+                    "sitting_on_floor",
+                    "sitting_on_table",
+                    "wariza",
+                    "yokozuwari"
+                ],
+                "站姿": [
+                    "standing",
+                    "standing_on_one_leg",
+                    "standing_split",
+                    "tiptoes",
+                    "plantar_flexion",
+                    "upside-down",
+                    "toeless_legwear"
+                ],
+                "躺姿": [
+                    "lying",
+                    "on_back",
+                    "on_side",
+                    "on_stomach",
+                    "under_covers",
+                    "under_kotatsu"
+                ],
+                "动态姿势": [
+                    "jumping",
+                    "running",
+                    "walking",
+                    "skipping",
+                    "swimming",
+                    "dancing",
+                    "tripping",
+                    "stretching",
+                    "squatting",
+                    "straddling"
+                ],
+                "特殊姿势": [
+                    "kneeling",
+                    "upside-down",
+                    "top-down_bottom-up",
+                    "zombie_pose"
+                ]
+            }
+        },
+        {
+            "name": "特殊特征",
+            "sub_categories": {
+                "体型特征": [
+                    "short_height",
+                    "tall",
+                    "toned",
+                    "toned_male",
+                    "very_dark_skin",
+                    "white_skin",
+                    "pale_skin",
+                    "yellow_skin",
+                    "waist_apron",
+                    "wide_hips",
+                    "twisted_torso",
+                    "thin_waist",
+                    "thick_eyebrows",
+                    "thick_thighs",
+                    "skinny",
+                    "small_waist"
+                ],
+                "异常特征": [
+                    "pointy_ears",
+                    "mechanical_arms",
+                    "mechanical_legs",
+                    "mechanical_parts",
+                    "mechanical_wings",
+                    "mechanization",
+                    "prosthesis",
+                    "robotic_joints",
+                    "monster_girl",
+                    "monsterification",
+                    "tentacle_hair",
+                    "snake_hair",
+                    "wings",
+                    "white_wings",
+                    "angel_wings",
+                    "torn_wings",
+                    "red_wings",
+                    "mini_wings",
+                    "yellow_wings",
+                    "purple_wings",
+                    "pink_wings",
+                    "orange_wings",
+                    "multicolored_wings",
+                    "mechanical_wings",
+                    "insect_wings",
+                    "green_wings",
+                    "fairy_wings",
+                    "devil_wings",
+                    "blue_wings",
+                    "black_wings"
+                ],
+                "尾巴": [
+                    "tail",
+                    "tail_grabbing",
+                    "tail_hold",
+                    "tail_hug",
+                    "tail_pull",
+                    "tail_raised",
+                    "tail_wag",
+                    "tail_wagging",
+                    "multiple_tails",
+                    "snake_tail",
+                    "tiger_tail",
+                    "wolf_tail",
+                    "rabbit_tail",
+                    "raccoon_tail",
+                    "monkey_tail",
+                    "lizard_tail",
+                    "lion_tail",
+                    "leopard_tail",
+                    "jaguar_tail",
+                    "fox_tail",
+                    "dragon_tail",
+                    "cat_tail",
+                    "bird_tail"
+                ],
+                "兽耳": [
+                    "animal_ears",
+                    "fake_animal_ears",
+                    "fox_ears",
+                    "bunny_ears",
+                    "cat_ears",
+                    "dog_ears",
+                    "wolf_ears",
+                    "mouse_ears",
+                    "monkey_ears",
+                    "raccoon_ears",
+                    "tiger_ears",
+                    "lion_ears",
+                    "bear_ears"
+                ]
+            }
+        },
+        {
+            "name": "武器&装备",
+            "sub_categories": {
+                "剑类": [
+                    "sword",
+                    "katana",
+                    "oodachi",
+                    "rapier",
+                    "saber_(weapon)",
+                    "scimitar",
+                    "sheathed",
+                    "unsheathing"
+                ],
+                "枪类": [
+                    "gun",
+                    "pistol",
+                    "revolver",
+                    "rifle",
+                    "shotgun",
+                    "sniper_rifle",
+                    "machine_gun",
+                    "submachine_gun",
+                    "rocket_launcher"
+                ],
+                "弓类": [
+                    "bow_(weapon)",
+                    "crossbow",
+                    "laser_bow",
+                    "yumi"
+                ],
+                "冷兵器": [
+                    "knife",
+                    "dagger",
+                    "kunai",
+                    "shuriken",
+                    "spear",
+                    "naginata",
+                    "scythe",
+                    "staff",
+                    "wand",
+                    "whip"
+                ],
+                "盔甲装备": [
+                    "armor",
+                    "plate_armor",
+                    "breastplate",
+                    "gauntlet",
+                    "helmet",
+                    "pauldrons",
+                    "visor",
+                    "shield"
+                ]
+            }
+        }
+    ]
+}

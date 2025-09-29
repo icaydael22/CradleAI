@@ -1,0 +1,1073 @@
+[
+    {
+      "id": "i272",
+      "name": "Health Related",
+      "children": [
+        {
+            "id": "i461",
+            "name": "Mental Affliction",
+            "children": [
+                {
+                    "id": "i2411",
+                    "name": "Phobia",
+                    "children": [
+                      {
+                        "id": "i2261",
+                        "name": "Acrophobia",
+                        "children": []
+                      },
+                      {
+                        "id": "i3700",
+                        "name": "Agoraphobia",
+                        "children": []
+                      },
+                      {
+                        "id": "i1163",
+                        "name": "Androphobia",
+                        "children": []
+                      },
+                      {
+                        "id": "i3269",
+                        "name": "Claustrophobia",
+                        "children": []
+                      },
+                      {
+                        "id": "i1161",
+                        "name": "Gynophobia",
+                        "children": []
+                      },
+                      {
+                        "id": "i2411",
+                        "name": "5 more traits",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "id": "i759",
+                    "name": "Psychological Trauma",
+                    "children": [
+                      {
+                        "id": "i3961",
+                        "name": "PTSD",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "id": "i4017",
+                    "name": "ADHD",
+                    "children": []
+                  },
+                  {
+                    "id": "i91",
+                    "name": "Amnesia",
+                    "children": []
+                  },
+                  {
+                    "id": "i2184",
+                    "name": "Autism",
+                    "children": []
+                  },
+                  {
+                    "id": "i2788",
+                    "name": "Bipolar Disorder",
+                    "children": []
+                  },
+                  {
+                    "id": "i276",
+                    "name": "Clinical Depression",
+                    "children": []
+                  },
+                  {
+                    "id": "i3345",
+                    "name": "Delusion",
+                    "children": []
+                  },
+                  {
+                    "id": "i2576",
+                    "name": "Eating Disorder",
+                    "children": []
+                  },
+                  {
+                    "id": "i3757",
+                    "name": "Gender Dysphoria",
+                    "children": []
+                  },
+                  {
+                    "id": "i519",
+                    "name": "Inferiority Complex",
+                    "children": []
+                  },
+                  {
+                    "id": "i274",
+                    "name": "Insanity",
+                    "children": []
+                  },
+                  {
+                    "id": "i3438",
+                    "name": "Mental Age Regression",
+                    "children": []
+                  },
+                  {
+                    "id": "i2336",
+                    "name": "Mental Breakdown",
+                    "children": []
+                  },
+                  {
+                    "id": "i252",
+                    "name": "Neuroticism",
+                    "children": []
+                  },
+                  {
+                    "id": "i240",
+                    "name": "Nymphomania",
+                    "children": []
+                  },
+                  {
+                    "id": "i1518",
+                    "name": "Obsessive–Compulsive Disorder",
+                    "children": []
+                  },
+                  {
+                    "id": "i3536",
+                    "name": "Panic Disorder",
+                    "children": []
+                  },
+                  {
+                    "id": "i1154",
+                    "name": "Paranoia",
+                    "children": []
+                  },
+                  {
+                    "id": "i430",
+                    "name": "Psychosis",
+                    "children": []
+                  },
+                  {
+                    "id": "i2370",
+                    "name": "Social Anxiety Disorder",
+                    "children": []
+                  },
+                  {
+                    "id": "i3853",
+                    "name": "Sociopath",
+                    "children": []
+                  },
+                  {
+                    "id": "i275",
+                    "name": "Split Personality",
+                    "children": []
+                  },
+                  {
+                    "id": "i3829",
+                    "name": "Synesthesia",
+                    "children": []
+                  },
+                  {
+                    "id": "i1267",
+                    "name": "Weak Memory",
+                    "children": []
+                  }
+            ]
+          },
+          {
+            "id": "i415",
+            "name": "Death",
+            "children": [
+                {
+                    "id": "i798",
+                    "name": "Homicide",
+                    "children": [
+                      {
+                        "id": "i1524",
+                        "name": "Attempted Homicide",
+                        "children": []
+                      },
+                      {
+                        "id": "i3160",
+                        "name": "Death in Battle",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "id": "i3937",
+                    "name": "Unavoidable Death",
+                    "children": [
+                      {
+                        "id": "i3852",
+                        "name": "Completely Unavoidable Death",
+                        "children": []
+                      },
+                      {
+                        "id": "i699",
+                        "name": "Unavoidable Other Route Death",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "id": "i3144",
+                    "name": "Completely Avoidable Death",
+                    "children": [
+                      {
+                        "id": "i3461",
+                        "name": "Joke Ending Death",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "id": "i845",
+                    "name": "Fake Death",
+                    "children": [
+                      {
+                        "id": "i3098",
+                        "name": "Fake Suicide",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "id": "i688",
+                    "name": "Avoidable Death (obsolete)",
+                    "children": []
+                  },
+                  {
+                    "id": "i3933",
+                    "name": "Capital Punishment",
+                    "children": []
+                  },
+                  {
+                    "id": "i2188",
+                    "name": "Evil Sacrifice",
+                    "children": []
+                  },
+                  {
+                    "id": "i3149",
+                    "name": "Pre-Story Death",
+                    "children": []
+                  },
+                  {
+                    "id": "i1106",
+                    "name": "Reincarnation",
+                    "children": []
+                  },
+                  {
+                    "id": "i641",
+                    "name": "Resurrection",
+                    "children": []
+                  }
+            ]
+          },
+          {
+            "id": "i687",
+            "name": "Disability",
+            "children": [
+              {
+                "id": "i3971",
+                "name": "Amputee",
+                "children": []
+              },
+              {
+                "id": "i439",
+                "name": "Blindness",
+                "children": []
+              },
+              {
+                "id": "i2491",
+                "name": "Color Blindness",
+                "children": []
+              },
+              {
+                "id": "i905",
+                "name": "Deafness",
+                "children": []
+              },
+              {
+                "id": "i770",
+                "name": "Muteness",
+                "children": []
+              },
+              {
+                "id": "i1680",
+                "name": "Prosthesis",
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "i482",
+            "name": "Illness",
+            "children": [
+              {
+                "id": "i501",
+                "name": "Anemia",
+                "children": []
+              },
+              {
+                "id": "i584",
+                "name": "Asthma",
+                "children": []
+              },
+              {
+                "id": "i2688",
+                "name": "Cancer",
+                "children": []
+              },
+              {
+                "id": "i3400",
+                "name": "Heart Disease",
+                "children": []
+              },
+              {
+                "id": "i942",
+                "name": "Muscle Disease",
+                "children": []
+              },
+              {
+                "id": "i273",
+                "name": "Terminal Illness",
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "i420",
+            "name": "Injury",
+            "children": [
+              {
+                "id": "i485",
+                "name": "Amputation",
+                "children": []
+              },
+              {
+                "id": "i422",
+                "name": "Bone Fracture",
+                "children": []
+              },
+              {
+                "id": "i2259",
+                "name": "Eye Loss",
+                "children": []
+              },
+              {
+                "id": "i421",
+                "name": "Wounding",
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "i484",
+            "name": "Pregnancy",
+            "children": [
+              {
+                "id": "i2559",
+                "name": "Darker Nipples (Pregnancy)",
+                "children": []
+              },
+              {
+                "id": "i1333",
+                "name": "Forced Pregnancy",
+                "children": []
+              },
+              {
+                "id": "i2797",
+                "name": "Pregnancy (by illegitimate partner)",
+                "children": []
+              },
+              {
+                "id": "i1893",
+                "name": "Sex while Being Pregnant",
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "i3495",
+            "name": "Castration",
+            "children": [
+              {
+                "id": "i1512",
+                "name": "Penis Removal",
+                "children": []
+              },
+              {
+                "id": "i3490",
+                "name": "Testicle Removal",
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "i514",
+            "name": "Coma",
+            "children": [
+              {
+                "id": "i912",
+                "name": "Suspended Animation",
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "i2665",
+            "name": "Devouring",
+            "children": [
+              {
+                "id": "i3534",
+                "name": "Vore",
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "i703",
+            "name": "Hospitalization",
+            "children": [
+              {
+                "id": "i1610",
+                "name": "Surgery",
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "i2057",
+            "name": "Abortion",
+            "children": []
+          },
+          {
+            "id": "i2943",
+            "name": "Allergies",
+            "children": []
+          },
+          {
+            "id": "i2253",
+            "name": "Bedridden",
+            "children": []
+          },
+          {
+            "id": "i2337",
+            "name": "Eidetic Memory",
+            "children": []
+          },
+          {
+            "id": "i1491",
+            "name": "Fainting",
+            "children": []
+          },
+          {
+            "id": "i608",
+            "name": "Genetic Research",
+            "children": []
+          },
+          {
+            "id": "i3346",
+            "name": "Hallucination",
+            "children": []
+          },
+          {
+            "id": "i450",
+            "name": "Headache",
+            "children": []
+          },
+          {
+            "id": "i3799",
+            "name": "Hypothermia",
+            "children": []
+          },
+          {
+            "id": "i1980",
+            "name": "Infertility",
+            "children": []
+          },
+          {
+            "id": "i2862",
+            "name": "Insomnia",
+            "children": []
+          },
+          {
+            "id": "i2860",
+            "name": "Narcolepsy",
+            "children": []
+          },
+          {
+            "id": "i2840",
+            "name": "Pain Insensitive",
+            "children": []
+          },
+          {
+            "id": "i2695",
+            "name": "Paralysis",
+            "children": []
+          },
+          {
+            "id": "i3580",
+            "name": "Parasitism",
+            "children": []
+          },
+          {
+            "id": "i3600",
+            "name": "Poisoning",
+            "children": []
+          },
+          {
+            "id": "i2078",
+            "name": "Pregnancy Loss",
+            "children": []
+          },
+          {
+            "id": "i2583",
+            "name": "Sexual Dysfunction",
+            "children": []
+          },
+          {
+            "id": "i2774",
+            "name": "Tone Deafness",
+            "children": []
+          },
+          {
+            "id": "i3863",
+            "name": "Urinary Dysfunction",
+            "children": []
+          },
+          {
+            "id": "i463",
+            "name": "Viral Infection",
+            "children": []
+          },
+          {
+            "id": "i1167",
+            "name": "Weakness",
+            "children": []
+          },
+          {
+            "id": "i3572",
+            "name": "Weight Gain",
+            "children": []
+          },
+          {
+            "id": "i2581",
+            "name": "Weight Loss",
+            "children": []
+          }
+      ]
+    },
+    {
+      "id": "i3557",
+      "name": "Body Changes/Modifications",
+      "children": [
+        {
+          "id": "i1173",
+          "name": "Breast Expansion",
+          "children": []
+        },
+        {
+          "id": "i2176",
+          "name": "Clitoris Growth",
+          "children": []
+        },
+        {
+          "id": "i4051",
+          "name": "Lip Expansion",
+          "children": []
+        },
+        {
+          "id": "i3568",
+          "name": "Muscle Growth",
+          "children": []
+        },
+        {
+          "id": "i2641",
+          "name": "Penis Enlargement",
+          "children": []
+        },
+        {
+          "id": "i3557",
+          "name": "5 more traits",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "i2555",
+      "name": "Crime",
+      "children": [
+        {
+          "id": "i90",
+          "name": "Assault",
+          "children": []
+        },
+        {
+          "id": "i1475",
+          "name": "Being Drugged",
+          "children": []
+        },
+        {
+          "id": "i278",
+          "name": "Blackmail",
+          "children": []
+        },
+        {
+          "id": "i2697",
+          "name": "Bribery",
+          "children": []
+        },
+        {
+          "id": "i2149",
+          "name": "Frameup",
+          "children": []
+        },
+        {
+          "id": "i2555",
+          "name": "3 more traits",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "i3575",
+      "name": "Sociosexual Events",
+      "children": [
+        {
+          "id": "i2406",
+          "name": "Breakup",
+          "children": []
+        },
+        {
+          "id": "i1244",
+          "name": "Flirting",
+          "children": []
+        },
+        {
+          "id": "i1264",
+          "name": "Infidelity",
+          "children": []
+        },
+        {
+          "id": "i1963",
+          "name": "Marriage Proposal",
+          "children": []
+        },
+        {
+          "id": "i3271",
+          "name": "Netorare (they are the stolen SO)",
+          "children": []
+        },
+        {
+          "id": "i3575",
+          "name": "2 more traits",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "i3552",
+      "name": "Gender and Sexuality Related",
+      "children": [
+        {
+          "id": "i2332",
+          "name": "Feminization",
+          "children": []
+        },
+        {
+          "id": "i2418",
+          "name": "Forced Cross-dressing",
+          "children": []
+        },
+        {
+          "id": "i3757",
+          "name": "Gender Dysphoria",
+          "children": []
+        },
+        {
+          "id": "i620",
+          "name": "Sex Change",
+          "children": []
+        },
+        {
+          "id": "i3553",
+          "name": "Sexual Re-orientation/Discovery",
+          "children": []
+        },
+        {
+          "id": "i49",
+          "name": "Transgender",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "i3465",
+      "name": "Emotions",
+      "children": [
+        {
+          "id": "i1112",
+          "name": "Disappointment",
+          "children": []
+        },
+        {
+          "id": "i1500",
+          "name": "Grief",
+          "children": []
+        },
+        {
+          "id": "i3384",
+          "name": "Guilt",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "i744",
+      "name": "Filming",
+      "children": [
+        {
+          "id": "i1359",
+          "name": "Consensual Porn Acting",
+          "children": []
+        },
+        {
+          "id": "i1358",
+          "name": "Non-consensual Porn Acting",
+          "children": []
+        },
+        {
+          "id": "i1853",
+          "name": "Non-consensual Porn Acting (volunteer)",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "i271",
+      "name": "Mind Control",
+      "children": [
+        {
+          "id": "i3524",
+          "name": "Erotic Mind Control",
+          "children": []
+        },
+        {
+          "id": "i270",
+          "name": "Hypnotism",
+          "children": []
+        },
+        {
+          "id": "i3525",
+          "name": "Non-erotic Mind Control",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "i475",
+      "name": "Confinement",
+      "children": [
+        {
+          "id": "i2454",
+          "name": "Confinement in a Simulated Reality",
+          "children": []
+        },
+        {
+          "id": "i3576",
+          "name": "Sealing",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "i2073",
+      "name": "Sexual Corruption",
+      "children": [
+        {
+          "id": "i3549",
+          "name": "Bimbofication",
+          "children": []
+        },
+        {
+          "id": "i3551",
+          "name": "Falling to Evil (sexual)",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "i520",
+      "name": "Teasing",
+      "children": [
+        {
+          "id": "i268",
+          "name": "Bullying",
+          "children": []
+        },
+        {
+          "id": "i3949",
+          "name": "Kabedon",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "i698",
+      "name": "Arranged Marriage",
+      "children": [
+        {
+          "id": "i1755",
+          "name": "Forced Marriage",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "i2935",
+      "name": "Manipulation",
+      "children": [
+        {
+          "id": "i3919",
+          "name": "Gaslighting",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "i2471",
+      "name": "Massage",
+      "children": [
+        {
+          "id": "i2472",
+          "name": "Erotic Massage",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "i1268",
+      "name": "Shared Body",
+      "children": [
+        {
+          "id": "i817",
+          "name": "Possession",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "i267",
+      "name": "Accident",
+      "children": []
+    },
+    {
+      "id": "i3520",
+      "name": "Apotheosis",
+      "children": []
+    },
+    {
+      "id": "i3390",
+      "name": "Arrest",
+      "children": []
+    },
+    {
+      "id": "i1761",
+      "name": "Being in Heat",
+      "children": []
+    },
+    {
+      "id": "i2274",
+      "name": "Betrayal",
+      "children": []
+    },
+    {
+      "id": "i1376",
+      "name": "Birthday Celebration",
+      "children": []
+    },
+    {
+      "id": "i1674",
+      "name": "Blessing",
+      "children": []
+    },
+    {
+      "id": "i3671",
+      "name": "Bounty",
+      "children": []
+    },
+    {
+      "id": "i2017",
+      "name": "Bridal Carry",
+      "children": []
+    },
+    {
+      "id": "i2658",
+      "name": "Catheter",
+      "children": []
+    },
+    {
+      "id": "i1846",
+      "name": "Child Abandonment",
+      "children": []
+    },
+    {
+      "id": "i819",
+      "name": "Curse",
+      "children": []
+    },
+    {
+      "id": "i1917",
+      "name": "Debt",
+      "children": []
+    },
+    {
+      "id": "i1482",
+      "name": "Disappearance",
+      "children": []
+    },
+    {
+      "id": "i89",
+      "name": "Disaster",
+      "children": []
+    },
+    {
+      "id": "i1412",
+      "name": "Discrimination",
+      "children": []
+    },
+    {
+      "id": "i3737",
+      "name": "Disownment",
+      "children": []
+    },
+    {
+      "id": "i2630",
+      "name": "Ear Cleaning",
+      "children": []
+    },
+    {
+      "id": "i2735",
+      "name": "Erotic Photography",
+      "children": []
+    },
+    {
+      "id": "i871",
+      "name": "Exile",
+      "children": []
+    },
+    {
+      "id": "i3214",
+      "name": "Exorcism",
+      "children": []
+    },
+    {
+      "id": "i3383",
+      "name": "Fixation with Former Lover",
+      "children": []
+    },
+    {
+      "id": "i3063",
+      "name": "Forgotten",
+      "children": []
+    },
+    {
+      "id": "i1404",
+      "name": "Human Subject Research",
+      "children": []
+    },
+    {
+      "id": "i3397",
+      "name": "Impersonation",
+      "children": []
+    },
+    {
+      "id": "i3531",
+      "name": "Inheritance",
+      "children": []
+    },
+    {
+      "id": "i3915",
+      "name": "Interrogation",
+      "children": []
+    },
+    {
+      "id": "i2109",
+      "name": "Memory Alteration",
+      "children": []
+    },
+    {
+      "id": "i1484",
+      "name": "Nightmares",
+      "children": []
+    },
+    {
+      "id": "i2622",
+      "name": "Petrification",
+      "children": []
+    },
+    {
+      "id": "i1916",
+      "name": "Piggyback Ride",
+      "children": []
+    },
+    {
+      "id": "i3794",
+      "name": "Platonic Route Only",
+      "children": []
+    },
+    {
+      "id": "i486",
+      "name": "Slavery",
+      "children": []
+    },
+    {
+      "id": "i3798",
+      "name": "Stage Fright",
+      "children": []
+    },
+    {
+      "id": "i948",
+      "name": "Stalking",
+      "children": []
+    },
+    {
+      "id": "i1280",
+      "name": "Survival",
+      "children": []
+    },
+    {
+      "id": "i2216",
+      "name": "Tentacle Restraint",
+      "children": []
+    },
+    {
+      "id": "i2579",
+      "name": "Termination of Employment",
+      "children": []
+    },
+    {
+      "id": "i697",
+      "name": "Time Loop",
+      "children": []
+    },
+    {
+      "id": "i1266",
+      "name": "Turndown",
+      "children": []
+    },
+    {
+      "id": "i3599",
+      "name": "Tutoring",
+      "children": []
+    },
+    {
+      "id": "i3085",
+      "name": "Uncontrollable Superpowers",
+      "children": []
+    },
+    {
+      "id": "i3695",
+      "name": "Unhealthy Relationship",
+      "children": []
+    }
+  ]
