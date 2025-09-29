@@ -106,11 +106,17 @@
     "@types/node": "^22.15.14",
     "@types/pako": "^2.0.3",
     "@types/react": "~19.0.10",
-    "expo-module-scripts": "^4.1.6",
+  "expo-module-scripts": "^4.1.6",
+  "babel-plugin-transform-remove-console": "^6.9.4",
     "jest": "^29.7.0",
     "jest-expo": "~53.0.9",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
+  },
+  "babel": {
+    "plugins": [
+      "transform-remove-console"
+    ]
   },
   "private": true
 }
