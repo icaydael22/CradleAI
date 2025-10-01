@@ -27,7 +27,7 @@ let dbMonitorStatus: DbStatus = {
 };
 
 // 定时器ID
-let monitorIntervalId: NodeJS.Timeout | null = null;
+let monitorIntervalId: ReturnType<typeof setInterval> | null = null;
 
 /**
  * 检查数据库状态

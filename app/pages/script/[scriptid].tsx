@@ -335,6 +335,33 @@ const ScriptDetailPage: React.FC = () => {
         }
       }, 300);
 
+      // 🆕 发送 manifest 数据以初始化 iframe
+      setTimeout(async () => {
+        try {
+          // 从保存的脚本中获取 manifest
+          const currentScript = await scriptService.getScript(scriptId);
+          if (currentScript?.manifest) {
+            console.log('[ScriptDetailPage] 📤 发送 manifest 数据初始化 iframe');
+            console.log('[ScriptDetailPage] manifest:', currentScript.manifest);
+            
+            sendMessageToWebView({
+              type: 'initializeIframe',
+              data: {
+                manifest: currentScript.manifest,
+                iframeViewUrl: currentScript.manifest.iframeViewUrl,
+                initialVariables: savedConfig.variables || {}
+              }
+            });
+            
+            console.log('[ScriptDetailPage] ✅ iframe 初始化消息已发送');
+          } else {
+            console.log('[ScriptDetailPage] ℹ️ 当前剧本没有 manifest 配置，跳过 iframe 初始化');
+          }
+        } catch (error) {
+          console.error('[ScriptDetailPage] ❌ 发送 manifest 失败:', error);
+        }
+      }, 350);
+
       // 🆕 立即请求WebView提供outputRequirements（关键修复）
       setTimeout(() => {
         console.log('[ScriptDetailPage] 📤 文件导入剧本 - 立即请求WebView提供outputRequirements');
@@ -904,6 +931,22 @@ const ScriptDetailPage: React.FC = () => {
           }
           break;
           
+        case 'showArchiveSidebar':
+          // 🆕 处理来自 WebView 的存档侧边栏请求
+          console.log('[ScriptDetailPage] 💾 收到显示存档侧边栏请求');
+          if (message.data?.action === 'open') {
+            console.log('[ScriptDetailPage] 打开存档侧边栏');
+            setShowArchive(true);
+          } else if (message.data?.action === 'close') {
+            console.log('[ScriptDetailPage] 关闭存档侧边栏');
+            setShowArchive(false);
+          } else {
+            // 默认切换状态
+            console.log('[ScriptDetailPage] 切换存档侧边栏状态');
+            setShowArchive(prev => !prev);
+          }
+          break;
+          
         default:
           console.warn('未知的WebView消息类型:', message.type);
       }
@@ -1073,14 +1116,7 @@ const ScriptDetailPage: React.FC = () => {
         onShouldStartLoadWithRequest={() => true}
         {...panResponder.panHandlers}
       />
-      {/* 右侧唤出按钮 */}
-      {!showArchive && (
-        <View style={styles.archiveHandleContainer} pointerEvents="box-none">
-          <TouchableOpacity style={styles.archiveHandle} onPress={() => setShowArchive(true)}>
-            <Text style={styles.archiveHandleText}>存档</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+
       {/* 存档侧栏 */}
       <ScriptArchiveSidebar
         visible={showArchive}

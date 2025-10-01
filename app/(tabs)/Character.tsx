@@ -28,6 +28,7 @@ import { useUser } from '@/constants/UserContext';
 import { Character} from '@/shared/types';
 import * as DocumentPicker from 'expo-document-picker';
 import { CharacterImporter } from '@/utils/CharacterImporter';
+import QRScannerModal from '@/components/QRScannerModal';
 import * as FileSystem from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CreateChar from '@/app/pages/create_char';
@@ -129,10 +130,11 @@ const CharactersScreen: React.FC = () => {
   
   // 导入剧本相关状态
   const [showScriptImportModal, setShowScriptImportModal] = useState(false);
-  const [scriptImportType, setScriptImportType] = useState<'url' | 'file'>('url');
+  const [scriptImportType, setScriptImportType] = useState<'url' | 'file' | 'qr'>('url');
   const [urlImportInput, setUrlImportInput] = useState('');
   const [isValidatingUrl, setIsValidatingUrl] = useState(false);
   const [isImportingFile, setIsImportingFile] = useState(false);
+  const [showQRScanner, setShowQRScanner] = useState(false);
   
   // 剧本导入配置相关状态
   const [showScriptImportConfig, setShowScriptImportConfig] = useState(false);
@@ -289,6 +291,97 @@ const CharactersScreen: React.FC = () => {
     setUrlImportInput('');
   };
 
+  // 处理二维码扫描成功
+  const handleQRScanSuccess = async (url: string) => {
+    console.log('[Character] 二维码扫描成功:', url);
+    setShowQRScanner(false);
+    
+    try {
+      setIsImportingFile(true);
+      
+      // 询问是否创建剧本角色
+      const shouldCreateCharacters = await new Promise<boolean>((resolve) => {
+        setDialog({
+          visible: true,
+          title: '创建剧本角色',
+          message: '是否自动创建剧本中的角色？\n\n选择"是"将自动创建剧本中的所有角色（包含preset和worldbook配置）\n选择"否"将跳过角色创建，仅导入剧本',
+          onConfirm: () => {
+            setDialog({ ...dialog, visible: false });
+            resolve(true);
+          },
+          onCancel: () => {
+            setDialog({ ...dialog, visible: false });
+            resolve(false);
+          },
+          confirmText: '是',
+          cancelText: '否',
+          destructive: false,
+        });
+      });
+      
+      // 使用 FileSystem 直接下载文件（React Native 环境下更可靠）
+      console.log('[Character] 正在从URL下载文件:', url);
+      const tempFilePath = FileSystem.cacheDirectory + 'qr_downloaded_script.zip';
+      
+      const downloadResult = await FileSystem.downloadAsync(url, tempFilePath);
+      
+      if (downloadResult.status !== 200) {
+        throw new Error(`下载失败: HTTP ${downloadResult.status}`);
+      }
+      
+      console.log('[Character] 文件已下载到:', tempFilePath);
+      console.log('[Character] 文件信息:', downloadResult);
+      
+      // 验证文件是否存在
+      const fileInfo = await FileSystem.getInfoAsync(tempFilePath);
+      if (!fileInfo.exists) {
+        throw new Error('下载的文件不存在');
+      }
+      
+      console.log('[Character] 文件大小:', fileInfo.size, 'bytes');
+      
+      // 使用ScriptImporter导入ZIP文件，传入shouldCreateCharacters参数
+      console.log('[Character] 开始导入剧本...');
+      const result = await ScriptImporter.importFromZipFile(
+        tempFilePath,
+        'QR_Downloaded_Script.zip',
+        addCharacter,
+        addConversation,
+        loadScripts,
+        shouldCreateCharacters
+      );
+      
+      if (result.success && result.scriptId) {
+        console.log('[Character] ✅ 二维码剧本导入成功:', result.scriptId);
+        
+        // 显示成功提示并导航到剧本页面
+        const message = shouldCreateCharacters 
+          ? `剧本已成功从二维码导入，${result.createdCount || 0}个角色已创建`
+          : '剧本已成功从二维码导入（未创建角色）';
+        
+        Alert.alert(
+          '导入成功', 
+          message,
+          [
+            {
+              text: '查看剧本',
+              onPress: () => router.push(`/pages/script/${result.scriptId}`)
+            },
+            { text: '确定' }
+          ]
+        );
+      } else {
+        throw new Error(result.error || '导入失败');
+      }
+      
+    } catch (error: any) {
+      console.error('[Character] 二维码导入失败:', error);
+      Alert.alert('导入失败', error.message || '无法从二维码下载或解析剧本文件');
+    } finally {
+      setIsImportingFile(false);
+    }
+  };
+
   // 验证并导入URL剧本
   const handleUrlImportConfirm = async () => {
     if (!urlImportInput.trim()) {
@@ -434,10 +527,31 @@ const CharactersScreen: React.FC = () => {
     setIsImportingFile(true);
     
     try {
+      // 显示确认对话框，询问是否创建剧本角色
+      const shouldCreateCharacters = await new Promise<boolean>((resolve) => {
+        setDialog({
+          visible: true,
+          title: '创建剧本角色',
+          message: '是否自动创建剧本中的角色？\n\n选择"是"将自动创建剧本中的所有角色（包含preset和worldbook配置）\n选择"否"将跳过角色创建，仅导入剧本',
+          onConfirm: () => {
+            setDialog({ ...dialog, visible: false });
+            resolve(true);
+          },
+          onCancel: () => {
+            setDialog({ ...dialog, visible: false });
+            resolve(false);
+          },
+          confirmText: '是',
+          cancelText: '否',
+          destructive: false,
+        });
+      });
+      
       const result = await ScriptImporter.handleFileImportConfirm(
         addCharacter,
         addConversation,
         loadScripts,
+        shouldCreateCharacters
       );
       
       if (!result.success) {
@@ -448,7 +562,10 @@ const CharactersScreen: React.FC = () => {
       setShowScriptImportModal(false);
       
       // 显示成功提示
-      Alert.alert('导入成功', '剧本已成功导入');
+      const message = shouldCreateCharacters 
+        ? `剧本已成功导入，${result.createdCount || 0}个角色已创建`
+        : '剧本已成功导入（未创建角色）';
+      Alert.alert('导入成功', message);
       
     } catch (error) {
       console.error('[Character] 文件导入失败:', error);
@@ -1727,7 +1844,7 @@ const CharactersScreen: React.FC = () => {
                 style={{
                   flex: 1,
                   paddingVertical: 8,
-                  paddingHorizontal: 16,
+                  paddingHorizontal: 12,
                   borderRadius: 6,
                   backgroundColor: scriptImportType === 'url' ? COLOR_BUTTON : 'transparent',
                   alignItems: 'center'
@@ -1736,10 +1853,34 @@ const CharactersScreen: React.FC = () => {
               >
                 <Text style={{ 
                   color: scriptImportType === 'url' ? '#282828' : 'rgba(255, 255, 255, 0.7)', 
-                  fontSize: 14, 
+                  fontSize: 13, 
                   fontWeight: '500' 
                 }}>
-                  从URL导入
+                  远程导入
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  paddingVertical: 8,
+                  paddingHorizontal: 12,
+                  borderRadius: 6,
+                  backgroundColor: scriptImportType === 'qr' ? COLOR_BUTTON : 'transparent',
+                  alignItems: 'center'
+                }}
+                onPress={() => {
+                  setScriptImportType('qr');
+                  setShowScriptImportModal(false); // 隐藏导入对话框，防止遮挡相机
+                  setShowQRScanner(true);
+                }}
+              >
+                <Text style={{ 
+                  color: scriptImportType === 'qr' ? '#282828' : 'rgba(255, 255, 255, 0.7)', 
+                  fontSize: 13, 
+                  fontWeight: '500' 
+                }}>
+                  扫描二维码
                 </Text>
               </TouchableOpacity>
               
@@ -1772,9 +1913,9 @@ const CharactersScreen: React.FC = () => {
                   marginBottom: 12,
                   lineHeight: 20
                 }}>
-                  请输入Vue剧本项目的URL地址，例如：{'\n'}
-                  http://localhost:5173{'\n'}
-                  http://192.168.1.100:5173
+                  输入URL地址或使用二维码扫描：{'\n'}
+                  • Vue剧本项目URL（如 http://192.168.1.100:5173）{'\n'}
+                  • 预签名下载链接
                 </Text>
                 
                 <TextInput
@@ -2042,6 +2183,16 @@ const CharactersScreen: React.FC = () => {
           characters={characters}
         />
       )}
+
+      {/* QR Scanner Modal */}
+      <QRScannerModal
+        visible={showQRScanner}
+        onClose={() => {
+          setShowQRScanner(false);
+          setScriptImportType('url');
+        }}
+        onScanSuccess={handleQRScanSuccess}
+      />
     </SafeAreaView>
   );
 };

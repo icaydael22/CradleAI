@@ -147,8 +147,11 @@ export const loadCharacterConfigFromZip = async (characterName: string, zipFileU
       
       // 从parsedTypes中提取角色列表
       const parsedTypes = importResult.parsedTypes || {};
-      const charactersData = parsedTypes.characters || {};
-      const characterNames = Object.keys(charactersData);
+      // 修复：characters应该是数组，不是对象
+      const charactersData = parsedTypes.characters || [];
+      const characterNames = Array.isArray(charactersData) 
+        ? charactersData.filter(name => name && typeof name === 'string' && name.trim() !== '')
+        : Object.keys(charactersData).filter(name => name && name.trim() !== '');
       
       if (characterNames.length === 0) {
         console.log('⚠️ 未在parsed-types.json中找到角色数据');
@@ -355,14 +358,133 @@ export const loadCharacterConfigFromZip = async (characterName: string, zipFileU
     }
   };
 
+// 新增：从ZIP文件路径导入 - 供QR扫码等场景使用
+export const importFromZipFile = async (
+  zipFilePath: string,
+  fileName: string,
+  addCharacter: (character: Character) => Promise<void>,
+  addConversation: (conversation: { id: string; title: string }) => Promise<void>,
+  loadScripts: () => Promise<void>,
+  shouldCreateCharacters: boolean = true
+): Promise<{ 
+  success: boolean; 
+  scriptId?: string; 
+  scriptConfig?: any;
+  variableConfig?: any;
+  createdCount?: number;
+  characterNames?: string[];
+  error?: string 
+}> => {
+  try {
+    console.log('[ScriptImporter] 开始从文件路径导入剧本:', fileName);
+    
+    // 导入ZIP配置
+    const importResult = await scriptService.importUnifiedConfigFromArchive(zipFilePath);
+    
+    if (!importResult.success || !importResult.config) {
+      throw new Error(importResult.error || '导入失败');
+    }
+
+    console.log('[ScriptImporter] ✅ ZIP文件解析成功');
+
+    // 创建新的剧本，使用固定的空白视觉小说引擎域名
+    const scriptId = `script_${Date.now()}`;
+    const webViewUrl = 'https://world.cradleintro.top';
+    
+    // 从config中获取项目名，如果没有则使用文件名
+    const projectName = (importResult.config as any)?.name || fileName.replace(/\.[^/.]+$/, '');
+    
+    const scriptData: Script = {
+      id: scriptId,
+      name: projectName, // 使用config.json中的项目名
+      selectedCharacters: [], 
+      contextMessageCount: {},
+      baseprompt: '',
+      userName: 'Player',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      webViewUrl: webViewUrl, // 使用固定的空白引擎域名
+      description: `从文件导入: ${fileName}`,
+      isFileSystemImport: true, // 标记为文件系统导入
+    };
+
+    // 保存剧本
+    await scriptService.saveScript(scriptData);
+    console.log('[ScriptImporter] ✅ 剧本创建成功:', scriptData.id);
+
+    // 保存配置，标记为文件系统导入
+    await scriptService.saveUnifiedScriptConfig(scriptId, {
+      ...importResult.config,
+      isFileSystemImport: true,
+      customCSS: importResult.customCSS || '',
+      parsedTypes: importResult.parsedTypes || {},
+      initialScene: importResult.initialScene || ''
+    }, importResult.variables || {});
+
+    console.log('[ScriptImporter] ✅ 配置文件保存成功');
+
+    // ===== 创建剧本角色（如果启用） =====
+    let characterNames: string[] = [];
+    let createdCount = 0;
+    
+    if (shouldCreateCharacters) {
+      const result = await createScriptCharacters(
+        scriptId, 
+        importResult, 
+        fileName, 
+        zipFilePath,
+        addCharacter,
+        addConversation
+      );
+      characterNames = result.characterNames;
+      createdCount = result.createdCount;
+    } else {
+      console.log('[ScriptImporter] ⏭️ 跳过创建剧本角色');
+    }
+
+    // 刷新剧本列表
+    await loadScripts();
+
+    // 触发事件通知其他组件刷新
+    EventRegister.emit('scriptCreated', { scriptId });
+    
+    console.log('🎉 ===== 剧本导入完成总结 =====');
+    console.log(`✅ 剧本名称: ${scriptData.name}`);
+    console.log(`✅ 剧本ID: ${scriptId}`);
+    console.log(`✅ 创建角色数量: ${createdCount}/${characterNames.length}`);
+    console.log(`✅ 角色列表: ${characterNames.join(', ')}`);
+    console.log(`✅ 变量系统: 已初始化`);
+    console.log(`✅ 文件系统导入: 成功`);
+    console.log('🎉 ===========================');
+    
+    return { 
+      success: true, 
+      scriptId,
+      scriptConfig: importResult.config,
+      variableConfig: importResult.variables,
+      createdCount,
+      characterNames
+    };
+    
+  } catch (error) {
+    console.error('[ScriptImporter] 文件导入失败:', error);
+    const errorMessage = error instanceof Error ? error.message : '未知错误';
+    return { 
+      success: false, 
+      error: errorMessage 
+    };
+  }
+};
+
 // 新增：主导入函数 - 供Character.tsx调用
 export const handleFileImportConfirm = async (
   addCharacter: (character: Character) => Promise<void>,
   addConversation: (conversation: { id: string; title: string }) => Promise<void>,
   loadScripts: () => Promise<void>,
+  shouldCreateCharacters: boolean = true,
   onSuccess?: (scriptId: string, scriptName: string, createdCount: number, characterNames: string[]) => void,
   onError?: (error: string) => void
-): Promise<{ success: boolean; scriptId?: string; error?: string }> => {
+): Promise<{ success: boolean; scriptId?: string; createdCount?: number; characterNames?: string[]; error?: string }> => {
   try {
     // 选择ZIP文件
     const result = await DocumentPicker.getDocumentAsync({
@@ -390,9 +512,12 @@ export const handleFileImportConfirm = async (
     const scriptId = `script_${Date.now()}`;
     const webViewUrl = 'https://world.cradleintro.top';
     
+    // 从config中获取项目名，如果没有则使用文件名
+    const projectName = (importResult.config as any)?.name || file.name.replace(/\.[^/.]+$/, '');
+    
     const scriptData: Script = {
       id: scriptId,
-      name: file.name.replace(/\.[^/.]+$/, ''), // 使用文件名作为剧本名
+      name: projectName, // 使用config.json中的项目名
       selectedCharacters: [], 
       contextMessageCount: {},
       baseprompt: '',
@@ -419,15 +544,24 @@ export const handleFileImportConfirm = async (
 
     console.log('[ScriptImporter] ✅ 配置文件保存成功');
 
-    // ===== 新增：创建剧本角色 =====
-    const { characterNames, createdCount } = await createScriptCharacters(
-      scriptId, 
-      importResult, 
-      file.name, 
-      file.uri,
-      addCharacter,
-      addConversation
-    );
+    // ===== 创建剧本角色（如果启用） =====
+    let characterNames: string[] = [];
+    let createdCount = 0;
+    
+    if (shouldCreateCharacters) {
+      const result = await createScriptCharacters(
+        scriptId, 
+        importResult, 
+        file.name, 
+        file.uri,
+        addCharacter,
+        addConversation
+      );
+      characterNames = result.characterNames;
+      createdCount = result.createdCount;
+    } else {
+      console.log('[ScriptImporter] ⏭️ 跳过创建剧本角色');
+    }
 
     // 刷新剧本列表
     await loadScripts();
@@ -452,6 +586,8 @@ export const handleFileImportConfirm = async (
     return { 
       success: true, 
       scriptId,
+      createdCount,
+      characterNames,
     };
     
   } catch (error) {

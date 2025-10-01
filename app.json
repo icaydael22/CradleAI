@@ -99,7 +99,7 @@
       "expo-sqlite",
       "expo-web-browser",
       "expo-background-task",
-      "expo-audio"
+      "expo-audio",
     ],
     "experiments": {
       "typedRoutes": true

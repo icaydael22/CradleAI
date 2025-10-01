@@ -10,7 +10,6 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Character } from '@/shared/types';
-import { RelationshipService } from '@/services/relationship-service';
 
 interface CharacterSelectorProps {
   characters: Character[];
@@ -37,10 +36,6 @@ const CharacterSelector: React.FC<CharacterSelectorProps> = ({
     const isSelected = selectedCharacterId === item.id;
     const hasUnread = showRelationshipStatus && 
                       item.messageBox?.some(msg => !msg.read);
-    
-    // Check if needs review
-    const needsReview = showRelationshipStatus && 
-                        RelationshipService.needsRelationshipReview(item);
 
     return (
       <TouchableOpacity
@@ -69,12 +64,6 @@ const CharacterSelector: React.FC<CharacterSelectorProps> = ({
             </View>
           )}
           
-          {/* Review needed indicator */}
-          {needsReview && !hasUnread && (
-            <View style={styles.reviewBadge}>
-              <Ionicons name="sync" size={12} color="#fff" />
-            </View>
-          )}
         </View>
         
         <Text 

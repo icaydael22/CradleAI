@@ -2,7 +2,6 @@ import { NodeST} from '../NodeST/nodest';
 import {CirclePostOptions, CircleResponse} from '../shared/types/circle-types';
 import { Character, GlobalSettings } from '../shared/types';
 import { CirclePost, CircleComment, CircleLike } from '../shared/types/circle-types';
-import { RelationshipService } from './relationship-service';
 import { CircleScheduler } from './circle-scheduler';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StorageAdapter } from '../NodeST/nodest/utils/storage-adapter';
@@ -993,18 +992,6 @@ export class CircleService {
       updatedPost.likes = (updatedPost.likes || 0) + 1;
       updatedPost.likedBy = [...(updatedPost.likedBy || []), newLike];
       
-      // Update relationship data if author character is found
-      if (postAuthorCharacter) {
-        updatedTargetCharacter = RelationshipService.processPostInteraction(
-          postAuthorCharacter,
-          character.id,
-          character.name,
-          'like',
-          '',
-          post.id,
-          post.content
-        );
-      }
     }
     
     // Handle comment action
@@ -1028,29 +1015,6 @@ export class CircleService {
       
       updatedPost.comments = [...(updatedPost.comments || []), newComment];
       
-      // Update relationship data if author character is found
-      if (postAuthorCharacter && !updatedTargetCharacter) {
-        updatedTargetCharacter = RelationshipService.processPostInteraction(
-          postAuthorCharacter,
-          character.id,
-          character.name,
-          'comment',
-          response.action.comment,
-          post.id,
-          post.content
-        );
-      } else if (postAuthorCharacter && updatedTargetCharacter) {
-        // If we already have an updated target character (from like), update it again
-        updatedTargetCharacter = RelationshipService.processPostInteraction(
-          updatedTargetCharacter,
-          character.id,
-          character.name,
-          'comment',
-          response.action.comment,
-          post.id,
-          post.content
-        );
-      }
     }
     
     return { updatedPost, updatedTargetCharacter };
@@ -1148,11 +1112,6 @@ export class CircleService {
             updatedCharacters.push(updatedTargetCharacter);
           }
           
-          // Apply relationship updates if present
-          if (response.relationshipUpdates && response.relationshipUpdates.length > 0) {
-            const updatedCharacter = this.applyRelationshipUpdates(character, response);
-            updatedCharacters.push(updatedCharacter);
-          }
         }
         
         // Record result
@@ -1260,26 +1219,7 @@ export class CircleService {
     }
   }
 
-  // Apply relationship updates from response
-  static applyRelationshipUpdates(character: Character, response: CircleResponse): Character {
-    if (!response.relationshipUpdates || response.relationshipUpdates.length === 0) {
-      return character;
-    }
-    
-    let updatedCharacter = character;
-    
-    for (const update of response.relationshipUpdates) {
-      // Fix: Use correct method from RelationshipService for updating relationships
-      updatedCharacter = RelationshipService.processRelationshipUpdate(
-        updatedCharacter,
-        update.targetId,
-        update.strengthDelta,
-        update.newType as any
-      );
-    }
-    
-    return updatedCharacter;
-  }
+
 
   /**
    * Delete a post and update related data

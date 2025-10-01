@@ -2255,7 +2255,7 @@ export class ScriptService {
       
       // 构建最终的配置对象
       const finalConfig: ScriptStyleConfigFile = {
-        name: configFile.name || 'File Import Script', // 为文件导入提供默认名称
+        name: configFile.name || fileUri.split('/').pop()?.replace('.zip', '') || 'Imported Script', // 使用zip文件名作为默认名称
         description: configFile.description,
         version: configFile.version,
         outputRequirements: configFile.outputRequirements 
