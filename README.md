@@ -1,7 +1,5 @@
 # 介绍
-
 原账户因为神秘原因炸了https://github.com/AliceSyndrome285/CradleAI
-
 [简体中文](README.md)   
 
 [DeepWiki](https://deepwiki.com/AliceSyndrome285/CradleAI/5.2-memory-ui-and-table-memory-plugin)
