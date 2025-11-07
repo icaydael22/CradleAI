@@ -3,6 +3,9 @@
 
 [DeepWiki](https://deepwiki.com/AliceSyndrome285/CradleAI/5.2-memory-ui-and-table-memory-plugin)
 
+[在线视觉小说编辑器](https://vnedit.cradleintro.top)
+
+[视觉小说编辑器教程](https://vnedit.cradleintro.top/tutorial)
 ## 界面预览
 
 <table style="border-collapse: collapse; width: 100%;">
@@ -35,57 +38,86 @@
 </table>
 
 ## 联系与反馈
-*   **Discord:** [https://discord.gg/F5bCEQy5](https://discord.gg/aqRwgvyW) (教程、答疑、bug 反馈、意见反馈)
+
 *   **QQ 群:** (答疑、bug 反馈、意见反馈)
   
 二群：570343684
-一群：1017292082(已满）
+一群：1017292082
 
-## 更新日志：1.0.4
+## 更新日志：1.0.6
 
-```
-         ✔ 增加了`工具设置`页面以自定义总结，自动消息，图片生成的提示词
+避免键盘弹出收回时的UI抖动闪烁
 
-         ✔ 现在总结可以在右上角`地球`按钮生成总结和管理总结
+修复插图类角色卡闪退和Gemini官渠空回复问题。
 
-         ✔ 区间总结：自定义总结的楼层，总结字数
-  
-         ✔ 增加了cosyvoice，minimax，豆包三种渠道（cosyvoice和minimax走replicate，需要自己准备账号），minimax和cosyvoice支持声音克隆，cosyvoice可以直接通过角色声线界面选择已经预置的声线
+支持从压缩包导入正则
 
-（PS cosyvoice和minimax的复刻效果相对最好，但是replicate的cosyvoice实在太慢，而且贵，差不多一句话8分钱的样子---需要根据家庭情况谨慎选择）
+注意含html的消息都统一放在了视觉小说模式，在常规模式看不到消息是正常的
 
-         ✔ 解耦了表格记忆和向量记忆，现在表格记忆可以单独使用
+## Cradle 1.0.6：视觉小说
+oii~Cradle现在支持真 视觉小说了，配有编辑器，即使不懂代码也可以做自己的乙游/GAL（文件系统有破坏性更新，注意先备份卡和聊天记录）
 
-         ✔ 重做context提升性能，删除和编辑不再出错
+Demo：
 
-         ✔ 增加了`工具设置`页面以自定义总结，自动消息，图片生成的提示词
+<table style="border-collapse: collapse; width: 100%;">
+  <tr>
+    <td style="text-align: center; padding: 5px;">
+      <img src="https://cradleintro.top/微信图片_20250925203149_233_126.jpg" alt="视觉小说 1" style="max-width: 150px; border: 1px solid #ddd;">
+      <br>
+    </td>
+    <td style="text-align: center; padding: 5px;">
+      <img src="https://cradleintro.top/微信图片_20250925203150_234_126.jpg" alt="视觉小说 2" style="max-width: 150px; border: 1px solid #ddd;">
+      <br>
+    </td>
+    <td style="text-align: center; padding: 5px;">
+      <img src="https://cradleintro.top/微信图片_20250925203153_236_126.jpg" alt="视觉小说 3" style="max-width: 150px; border: 1px solid #ddd;">
+      <br>
+    </td>
+  </tr>
+</table>
 
-         ✔ 增加了预设/世界书测试页以测试发送的消息数组
 
-         ✔ 消息列表防抖
+## 注意事项
 
-         ✔ 修复存档功能无效的问题
+视觉小说功能使用的图床需要使用魔法，否则立绘/背景会加载失败。
+加载一次后会缓存。
 
-         ✔ 修复`移除用户输入`类正则导入后发送消息错误的问题
+## 功能食用方法：
 
-         ✔ 增加新建空白分支功能
+1.  在Cradle-VN-Editor可以自己设置立绘，背景，变量，世界书（如果自己懒得设置素材可以滴滴我，用我的demo尝鲜。感觉还没做完善，就不拿出来献丑了hhhh）
+2.  导出项目的zip文件
+3.  将zip文件导入Cradle
+4.  在主页会自动创建视觉小说的对话窗口
 
-         ✔ 支持NovelAI插图在三种模式下的显示
+## 关于视觉小说编辑器
 
-         ✔ 解决角色卡背景和头像在删除缓存后丢失的问题     
+需要node环境（装过SillyTavern可以忽略）
+注意命名：立绘和背景注意标准命名：用角色-状态；时段-背景来做文件名！例如张三-站立；夜晚-客厅
 
-         ✔ 自定义的NAI端点
+## 上下文压缩
 
-         ✔ 自定义的Openai兼容端点（不再强制要求v1/chat/completions后缀）
+视觉小说功能可以开启自动总结，避免上下文过长掉格式和各种其他问题。
 
-         ✔ 自动生成NovelAI插图功能（现在已经有一个自动生成背景功能）
+## 体验管理器
 
-         ✔ 自定义界面UI和markdown的颜色
+众所周知AI在输出长文上面有各种逻辑混乱和记忆丢失问题；另外AI互动游戏有一个大毛病，就是怎么平衡用户自由度和作者的剧情设计，所以我做了和剧情输出AI共享上下文的体验管理器你可以取消它，因为它会在剧情输出后紧接着再调一次API，生成速度会很慢，你也可以设置它每x轮自动启动。
 
-         ✔ 解决无法发送图片问题
+它的作用是根据当前的上下文，变量状态，和你设定的剧情大纲（如果有）来适时插入作者注释纠偏，
 
-         ✔ 解决酒馆json角色卡导入错误的问题
-```
+使用方法：在编辑器的提示词中加入`${guidanceCurrentScript}`宏，开启体验管理器就行了
+
+## 跑图其实不复杂，
+
+1.  跑图：可以用midjourney跑图，豆包也可以；如果对画风Lora，姿势有要求，或者就是想还原某个同人角色，建议直接上Alice佬的comfyui工作流，不过我的demo是用mj跑的
+2.  重点：做立绘的差分直接用nano banana就行。建议给它两张图，一张是你想要的立绘的构图，一张是你跑出来的图，然后多跑几次，直到你对立绘比较满意（背景图同理），让它生成白底立绘。
+3.  美图秀秀抠成透明底（我还会顺便调下脸型身体比例，因为nano banana出的图有时候人物比例很怪）
+
+关于模型：只推荐gemini 2.5 pro，2.5 flash有严重丢格式/重复问题
+
+## 目前已知的问题：
+
+总结之后背景会消失，自主行动切换一次场景恢复。
+可能出现重复渲染一轮对话的情况。
 
 ## 主要功能
 
@@ -133,7 +165,7 @@
     *   发布后可通过通知提醒用户。
 *   关系系统集成：
     *   角色互动会动态影响角色间关系。
-    *   帖子评论和点赞可提升角色间goodwill。
+    *   帖子评论和点赞可提升角色间好感度。
     *   支持通过朋友圈互动更新角色关系类型（如朋友、熟人、对手等）。
 *   对话流连接：
     *   朋友圈互动会自动同步到角色的聊天历史。
